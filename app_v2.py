@@ -69,7 +69,13 @@ st.markdown("""
 .block-container { padding-top: 2rem; padding-bottom: 3rem; max-width: 1320px; }
 
 section[data-testid="stSidebar"] { background: linear-gradient(180deg, #203f92 0%, #18357d 100%); }
-section[data-testid="stSidebar"] * { color: white !important; }
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] span,
+section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] div,
+section[data-testid="stSidebar"] button {
+    color: white !important;
+}
 section[data-testid="stSidebar"] div[role="radiogroup"] label {
     background: transparent;
     border-radius: 12px;
@@ -330,14 +336,34 @@ section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked)
         max-width: 100% !important;
     }
 
-    [data-testid="column"] {
-        width: 100% !important;
-        flex: 1 1 100% !important;
-        min-width: 100% !important;
-    }
+    
 }
 
+
+body,
+.stApp,
+[data-testid="stAppViewContainer"] {
+    color: #172033 !important;
+}
+
+h1,h2,h3,h4,h5,h6,
+p,span,label,li {
+    color: #172033 !important;
+}
+
+body,
+.stApp,
+[data-testid="stAppViewContainer"] {
+    color: #172033 !important;
+}
+
+h1,h2,h3,h4,h5,h6,
+p,span,label,li {
+    color: #172033 !important;
+}
 </style>
+
+
 """, unsafe_allow_html=True)
 
 with st.sidebar:

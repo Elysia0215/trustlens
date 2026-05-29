@@ -5,7 +5,8 @@ from dotenv import load_dotenv
 import os
 import json
 import re
-from urllib.parse import urlparse
+import hashlib
+from urllib.parse import urlparse, urljoin
 from datetime import datetime
 from pathlib import Path
 import pandas as pd
@@ -30,12 +31,24 @@ def save_persisted_data():
     data = {
         "archive_notes": st.session_state.get("archive_notes", []),
         "search_history": st.session_state.get("search_history", []),
+        "saved_analyses": st.session_state.get("saved_analyses", []),
         "feedback_history": st.session_state.get("feedback_history", []),
         "analysis_cache": st.session_state.get("analysis_cache", {}),
         "draft_cache": st.session_state.get("draft_cache", {}),
+        "auto_feedback_stats": st.session_state.get(
+            "auto_feedback_stats", {}
+        ),
+        "custom_trust_criteria": st.session_state.get("custom_trust_criteria", []),
+        "active_custom_criteria_titles": st.session_state.get("active_custom_criteria_titles", []),
     }
     try:
         with DATA_FILE.open("w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+        backup_dir = Path("trustlens_backups")
+        backup_dir.mkdir(exist_ok=True)
+        backup_file = backup_dir / f"trustlens_backup_{datetime.now().strftime('%Y%m%d')}.json"
+        with backup_file.open("w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception as e:
         st.warning(f"저장 파일을 쓰는 중 문제가 생겼어요: {e}")
@@ -164,6 +177,47 @@ section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked)
     font-size:14px;
     line-height:1.55;
 }
+.compare-box {
+    background:#f8fbff;
+    border:1px solid #dbeafe;
+    border-radius:18px;
+    padding:18px;
+    margin:12px 0;
+}
+.compare-number {
+    font-size:26px;
+    font-weight:900;
+    color:#172033;
+}
+.official-card {
+    background:#ecfdf5;
+    border:1px solid #bbf7d0;
+    border-radius:18px;
+    padding:16px 18px;
+    margin:12px 0;
+    color:#14532d;
+    line-height:1.55;
+}
+.official-warning-card {
+    background:#fff7ed;
+    border:1px solid #fed7aa;
+    border-radius:18px;
+    padding:16px 18px;
+    margin:12px 0;
+    color:#9a3412;
+    line-height:1.55;
+}
+.reason-chip {
+    display:inline-block;
+    background:#eef4ff;
+    color:#1d4ed8;
+    border:1px solid #bfdbfe;
+    padding:6px 10px;
+    border-radius:999px;
+    font-size:12px;
+    font-weight:800;
+    margin:4px;
+}
 
 .help-grid-card { background:#fbfdff; border:1px solid #e5edf8; border-radius:18px; padding:18px; min-height:118px; }
 .help-grid-title { font-weight:850; color:#172033; margin-bottom:6px; }
@@ -172,6 +226,33 @@ section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked)
 .history-item { background:#f8fbff; border:1px solid #e5edf8; border-radius:14px; padding:14px 16px; margin:8px 0; }
 .history-title { font-weight:800; color:#172033; }
 .history-meta { color:#64748b; font-size:13px; margin-top:4px; }
+
+.archive-action-card {
+    background: linear-gradient(180deg, #fff7f7 0%, #ffffff 100%);
+    border: 2px solid #ef4444;
+    border-radius: 22px;
+    padding: 22px;
+    box-shadow: 0 12px 28px rgba(239, 68, 68, 0.12);
+}
+.note-action-card {
+    background: linear-gradient(180deg, #eef4ff 0%, #ffffff 100%);
+    border: 2px solid #2563eb;
+    border-radius: 22px;
+    padding: 22px;
+    box-shadow: 0 12px 28px rgba(37, 99, 235, 0.18);
+}
+.ai-draft-button-scope + div[data-testid="stButton"] button {
+    background: #2563eb !important;
+    border: 1px solid #2563eb !important;
+    color: #ffffff !important;
+    border-radius: 12px !important;
+    font-weight: 800 !important;
+}
+.ai-draft-button-scope + div[data-testid="stButton"] button:hover {
+    background: #1d4ed8 !important;
+    border-color: #1d4ed8 !important;
+    color: #ffffff !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -184,6 +265,7 @@ with st.sidebar:
             "▶ 분석 시작하기",
             "📊 분석 결과",
             "🔎 신뢰도 근거",
+            "🏷️ 분석결과 아카이브",
             "🏷️ 태그 관리",
             "🗂️ 지식 아카이브",
             "🕘 최근 검색 기록",
@@ -203,21 +285,47 @@ def init_state():
         "last_final_url": None,
         "last_text": "",
         "archive_notes": persisted.get("archive_notes", []),
+        "saved_analyses": persisted.get("saved_analyses", []),
         "search_history": persisted.get("search_history", []),
         "show_result": False,
         "note_saved": False,
         "feedback_history": persisted.get("feedback_history", []),
         "analysis_cache": persisted.get("analysis_cache", {}),
         "draft_cache": persisted.get("draft_cache", {}),
+        "auto_feedback_stats": persisted.get("auto_feedback_stats", {}),
+        "custom_trust_criteria": persisted.get("custom_trust_criteria", []),
+        "active_custom_criteria_titles": persisted.get("active_custom_criteria_titles", []),
     }
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
 
+
+def hydrate_last_result_from_cache():
+    """앱 재실행 후에도 최근 분석 결과 탭이 비지 않도록 저장된 캐시에서 마지막 결과를 복구한다."""
+    if st.session_state.get("last_result"):
+        return
+
+    for item in st.session_state.get("search_history", []):
+        url = item.get("url", "")
+        content_type = item.get("content_type", "unknown")
+        cache_key = item.get("cache_key") or f"{url}::{content_type}"
+        cached = st.session_state.get("analysis_cache", {}).get(cache_key)
+
+        if cached:
+            st.session_state.last_result = cached
+            st.session_state.last_final_url = url
+            st.session_state.last_text = ""
+            st.session_state.show_result = True
+            return
+
+
 init_state()
+hydrate_last_result_from_cache()
+
 
 st.markdown('<div class="hero-title">안녕하세요 👋</div>', unsafe_allow_html=True)
-st.markdown('<div class="hero-subtitle">URL을 입력하면 콘텐츠 유형에 맞춰 신뢰도, 광고 위험도, 작성자 성향을 분석해드릴게요.</div>', unsafe_allow_html=True)
+st.markdown('<div class="hero-subtitle">URL이나 붙여넣은 글을 기준으로 신뢰도, 광고 위험도, 작성자 성향을 분석해드릴게요.</div>', unsafe_allow_html=True)
 
 # -----------------------------
 # Basic Helpers
@@ -349,6 +457,82 @@ POLICY_HINTS = [
     "신청기간", "지원대상", "지원금", "모집공고", "공고문", "정부", "서울시",
     "고용노동부", "사업", "정책"
 ]
+
+OFFICIAL_DOMAIN_HINTS = {
+    "go.kr": "정부/공공기관",
+    "or.kr": "공공·협회·기관",
+    "ac.kr": "교육기관",
+    "seoul.go.kr": "서울시",
+    "work24.go.kr": "고용24",
+    "hrd.go.kr": "HRD-Net",
+    "moel.go.kr": "고용노동부",
+    "molit.go.kr": "국토교통부",
+    "bokjiro.go.kr": "복지로",
+    "korea.kr": "대한민국 정책브리핑",
+}
+
+FEEDBACK_REASON_OPTIONS = [
+    "실제 경험에 도움 됨",
+    "광고 같음",
+    "공식 정보와 일치",
+    "정보가 오래됨",
+    "출처 없음",
+    "요약이 정확함",
+    "점수가 어색함",
+]
+
+DEFAULT_TRUST_CRITERIA = [
+    ("공식 출처", "정책/공공정보나 일반 정보글에서 정부·기관·공식 도메인처럼 원출처가 분명한지 확인해요."),
+    ("최신성", "작성일, 업데이트 시점, 신청기간처럼 정보가 지금도 유효한지 확인해요."),
+    ("출처 다양성", "하나의 주장에 대해 여러 근거 또는 참고 출처가 있는지 확인해요."),
+    ("광고 안전성", "협찬, 체험단, 파트너스, 원고료 등 광고성 표현이 있는지 확인해요."),
+    ("정보 밀도", "가격, 메뉴, 조건, 위치, 신청방법처럼 판단에 필요한 구체 정보가 충분한지 봐요."),
+    ("경험 구체성", "직접 방문·구매·사용한 흔적, 상황 묘사, 사진 언급, 세부 경험이 있는지 확인해요."),
+    ("장단점 균형", "좋은 점만 말하는지, 아쉬운 점·조건·주의점도 함께 말하는지 확인해요."),
+    ("재방문/사용 경험", "다시 갈 의향, 반복 사용, 재구매처럼 경험 이후의 판단이 있는지 봐요."),
+]
+
+def detect_official_source(final_url: str, text: str):
+    combined = f"{final_url or ''}\n{text or ''}".lower()
+    matched = []
+    for domain, label in OFFICIAL_DOMAIN_HINTS.items():
+        if domain in combined:
+            matched.append({"domain": domain, "label": label})
+    return matched
+
+def summarize_user_feedback_for_url(final_url: str):
+    feedbacks = [f for f in st.session_state.get("feedback_history", []) if f.get("url") == (final_url or "")]
+    if not feedbacks:
+        return {
+            "total": 0,
+            "trust": 0,
+            "distrust": 0,
+            "hold": 0,
+            "trust_pct": 0,
+            "distrust_pct": 0,
+            "hold_pct": 0,
+            "reason_counts": {},
+        }
+
+    total = len(feedbacks)
+    trust = sum(1 for f in feedbacks if f.get("trust_vote") == "신뢰함")
+    distrust = sum(1 for f in feedbacks if f.get("trust_vote") == "신뢰 안함")
+    hold = sum(1 for f in feedbacks if f.get("trust_vote") == "판단 보류")
+    reason_counts = {}
+    for f in feedbacks:
+        for reason in f.get("feedback_reasons", []):
+            reason_counts[reason] = reason_counts.get(reason, 0) + 1
+
+    return {
+        "total": total,
+        "trust": trust,
+        "distrust": distrust,
+        "hold": hold,
+        "trust_pct": round(trust / total * 100),
+        "distrust_pct": round(distrust / total * 100),
+        "hold_pct": round(hold / total * 100),
+        "reason_counts": reason_counts,
+    }
 
 
 def infer_content_type_from_text(text: str, selected_type: str = "unknown") -> str:
@@ -491,13 +675,104 @@ def get_score_dataframe(breakdown: dict, content_type: str) -> pd.DataFrame:
         chart_items.append((label, score, max_val, round(ratio * 100, 1)))
     return pd.DataFrame(chart_items, columns=["항목", "점수", "최대점수", "달성률"])
 
+
+def build_custom_criteria_text() -> str:
+    criteria = st.session_state.get("custom_trust_criteria", [])
+    if not criteria:
+        return "사용자 커스텀 기준 없음"
+
+    active_titles = st.session_state.get("active_custom_criteria_titles", [])
+    if active_titles:
+        criteria = [c for c in criteria if c.get("title") in active_titles]
+
+    if not criteria:
+        return "이번 분석에 선택된 사용자 커스텀 기준 없음"
+
+    return "\n".join(
+        [
+            f"{i+1}. {c.get('title','')} / 중요도: {c.get('weight','보통')} / 설명: {c.get('description','')}"
+            for i, c in enumerate(criteria)
+            if c.get("title")
+        ]
+    )
+
+
+def save_custom_trust_criterion(title_key, desc_key, weight_key):
+    title = st.session_state.get(title_key, "").strip()
+    desc = st.session_state.get(desc_key, "").strip()
+    weight = st.session_state.get(weight_key, "보통")
+    if not title:
+        st.session_state["custom_criterion_error"] = "기준 이름을 입력해주세요."
+        return
+    st.session_state.custom_trust_criteria.append({
+        "title": title,
+        "description": desc,
+        "weight": weight,
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+    })
+
+    active_titles = st.session_state.get("active_custom_criteria_titles", [])
+    if title not in active_titles:
+        active_titles.append(title)
+    st.session_state.active_custom_criteria_titles = active_titles
+
+    st.session_state["custom_criterion_saved"] = True
+    save_persisted_data()
+
+
+def delete_custom_trust_criterion(index):
+    if 0 <= index < len(st.session_state.custom_trust_criteria):
+        removed = st.session_state.custom_trust_criteria.pop(index)
+        removed_title = removed.get("title")
+        st.session_state.active_custom_criteria_titles = [
+            title for title in st.session_state.get("active_custom_criteria_titles", [])
+            if title != removed_title
+        ]
+        st.session_state["custom_criterion_deleted"] = True
+        save_persisted_data()
+
 # -----------------------------
 # AI Functions
 # -----------------------------
 def analyze_with_groq(text, url, selected_type):
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        raise ValueError("GROQ_API_KEY가 없습니다.")
+        content_type = infer_content_type_from_text(text, selected_type)
+        breakdown = normalize_review_breakdown({}, text) if content_type == "review" else {
+            "official_source": 5,
+            "recency": 10,
+            "source_diversity": 4,
+            "ad_free": 12,
+            "info_density": 14,
+            "experience_specificity": 10,
+            "balanced_review": 8,
+            "revisit_mention": 5,
+        }
+        return {
+            "content_type": content_type,
+            "score_breakdown": breakdown,
+            "ad_risk": "low",
+            "ad_risk_reason": "Mock 모드: API 없이 테스트용으로 생성된 결과입니다.",
+            "author_type": "기록형",
+            "author_reason": "Mock 모드에서 기본 작성자 유형으로 분류했습니다.",
+            "is_official": False,
+            "official_org": "",
+            "tags_positive": ["맛집", "속초", "리뷰"],
+            "tags_warning": ["Mock모드"],
+            "summary": [
+                "API 없이 UI 테스트를 위해 생성된 분석 결과입니다.",
+                "실제 점수와 요약은 Groq API 연결 후 달라질 수 있습니다.",
+                "레이아웃, 저장, 메모, 태그, 피드백 기능 테스트용입니다."
+            ],
+            "evidence": {
+                "official_source": "Mock 모드",
+                "ad_signal": "Mock 모드",
+                "experience_signal": "Mock 모드",
+                "negative_signal": "Mock 모드"
+            },
+            "archive_title": "Mock 테스트 분석",
+            "trust_score": calculate_score_by_type(breakdown, content_type),
+        }
 
     prompt = f"""
 너는 TrustLens라는 정보 신뢰도 분석 서비스의 AI 분석 엔진이다.
@@ -509,6 +784,9 @@ URL:
 
 사용자가 선택한 콘텐츠 유형:
 {selected_type}
+
+사용자가 추가한 커스텀 신뢰도 기준:
+{build_custom_criteria_text()}
 
 본문:
 {text[:5000]}
@@ -550,6 +828,8 @@ URL:
 7. "웨이팅", "가격", "주문한 메뉴", "직접 먹어봄", "재방문", "아쉬운 점" 같은 표현은 실제 경험 신호다.
 8. 태그에는 # 기호를 붙이지 말고 단어만 넣어라.
 9. summary는 실제 본문 내용을 바탕으로 3문장으로 써라. "네이버 블로그 포스팅입니다" 같은 일반 문장은 금지한다.
+10. 사용자가 추가한 커스텀 신뢰도 기준이 있으면 해당 기준도 판단에 참고해라.
+11. 단, 커스텀 기준은 보조 기준이며 기본 TrustLens 기준을 완전히 대체하지 않는다.
 
 반환 JSON 형식:
 {{
@@ -724,6 +1004,7 @@ def save_note_to_archive(note_key, result, final_url, selected_tags):
             "title": result.get("archive_title", "TrustLens 메모"),
             "content_type": result.get("content_type", "unknown"),
             "score": result.get("trust_score", 0),
+            "favorite": False,
             "tags": selected_tags,
             "note": note_text,
             "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -732,6 +1013,74 @@ def save_note_to_archive(note_key, result, final_url, selected_tags):
     st.session_state.note_saved = True
     st.session_state.show_result = True
     save_persisted_data()
+
+
+# -----------------------------
+# 분석결과 아카이브 Functions
+# -----------------------------
+
+def save_current_analysis_to_archive(result, final_url, selected_tags=None, memo=""):
+    selected_tags = selected_tags or []
+    saved_item = {
+        "url": final_url or "",
+        "title": result.get("archive_title", "TrustLens 분석"),
+        "content_type": result.get("content_type", "unknown"),
+        "score": result.get("trust_score", 0),
+        "ad_risk": result.get("ad_risk", "mid"),
+        "author_type": result.get("author_type", "-"),
+        "summary": result.get("summary", []),
+        "evidence": result.get("evidence", {}),
+        "tags": selected_tags,
+        "memo": memo,
+        "favorite": False,
+        "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "result": result,
+    }
+    st.session_state.saved_analyses.insert(0, saved_item)
+    st.session_state["analysis_archive_saved"] = True
+    save_persisted_data()
+
+
+def restore_analysis_from_archive(index):
+    if 0 <= index < len(st.session_state.saved_analyses):
+        item = st.session_state.saved_analyses[index]
+        st.session_state.last_result = item.get("result")
+        st.session_state.last_final_url = item.get("url", "")
+        st.session_state.last_text = ""
+        st.session_state.show_result = True
+        st.session_state["analysis_archive_restored"] = True
+
+
+def update_saved_analysis(index, memo_key, tags_key, new_tags_key=None, title_key=None):
+    if 0 <= index < len(st.session_state.saved_analyses):
+        st.session_state.saved_analyses[index]["memo"] = st.session_state.get(memo_key, "")
+        selected_tags = st.session_state.get(tags_key, [])
+        new_tags_text = st.session_state.get(new_tags_key, "") if new_tags_key else ""
+        st.session_state.saved_analyses[index]["tags"] = merge_selected_and_new_tags(selected_tags, new_tags_text)
+
+        if title_key:
+            new_title = st.session_state.get(title_key, "").strip()
+            if new_title:
+                st.session_state.saved_analyses[index]["title"] = new_title
+
+        st.session_state.saved_analyses[index]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+        st.session_state[f"saved_analysis_updated_{index}"] = True
+        save_persisted_data()
+
+
+def delete_saved_analysis(index):
+    if 0 <= index < len(st.session_state.saved_analyses):
+        st.session_state.saved_analyses.pop(index)
+        st.session_state["saved_analysis_deleted"] = True
+        save_persisted_data()
+
+
+def toggle_saved_analysis_favorite(index):
+    if 0 <= index < len(st.session_state.saved_analyses):
+        current = st.session_state.saved_analyses[index].get("favorite", False)
+        st.session_state.saved_analyses[index]["favorite"] = not current
+        save_persisted_data()
+        st.session_state["saved_analysis_favorite_toggled"] = True
 
 # -----------------------------
 # Archive Note Update Function
@@ -744,6 +1093,82 @@ def update_archive_note(index, note_key):
         st.session_state[f"archive_updated_{index}"] = True
         save_persisted_data()
 
+
+def update_archive_note_and_tags(index, note_key, tags_key, new_tags_key=None, title_key=None):
+    edited_note = st.session_state.get(note_key, "")
+    selected_tags = st.session_state.get(tags_key, [])
+    new_tags_text = st.session_state.get(new_tags_key, "") if new_tags_key else ""
+
+    if 0 <= index < len(st.session_state.archive_notes):
+        st.session_state.archive_notes[index]["note"] = edited_note
+        st.session_state.archive_notes[index]["tags"] = merge_selected_and_new_tags(selected_tags, new_tags_text)
+
+        if title_key:
+            new_title = st.session_state.get(title_key, "").strip()
+            if new_title:
+                st.session_state.archive_notes[index]["title"] = new_title
+
+        st.session_state.archive_notes[index]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+        st.session_state[f"archive_updated_{index}"] = True
+        save_persisted_data()
+
+
+def collect_all_existing_tags():
+    all_tags = []
+    for source in [st.session_state.get("archive_notes", []), st.session_state.get("saved_analyses", [])]:
+        for item in source:
+            for tag in item.get("tags", []):
+                clean = str(tag).replace("#", "").strip()
+                if clean and clean not in all_tags:
+                    all_tags.append(clean)
+    return sorted(all_tags)
+
+
+def parse_tag_input(raw_text):
+    if not raw_text:
+        return []
+    parts = re.split(r"[,，\n]", raw_text)
+    cleaned = []
+    for part in parts:
+        tag = str(part).replace("#", "").strip()
+        if tag and tag not in cleaned:
+            cleaned.append(tag)
+    return cleaned
+
+
+def merge_selected_and_new_tags(selected_tags, new_tags_text):
+    merged = []
+    for tag in selected_tags or []:
+        clean = str(tag).replace("#", "").strip()
+        if clean and clean not in merged:
+            merged.append(clean)
+    for tag in parse_tag_input(new_tags_text):
+        if tag not in merged:
+            merged.append(tag)
+    return merged
+
+
+def get_tag_edit_options(item):
+    return sorted(set(collect_all_existing_tags() + item.get("tags", [])))
+
+
+def add_tags_to_archive_note(index, new_tags_key):
+    if 0 <= index < len(st.session_state.archive_notes):
+        current_tags = st.session_state.archive_notes[index].get("tags", [])
+        new_tags_text = st.session_state.get(new_tags_key, "")
+        st.session_state.archive_notes[index]["tags"] = merge_selected_and_new_tags(current_tags, new_tags_text)
+        st.session_state.archive_notes[index]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+        save_persisted_data()
+
+
+def add_tags_to_saved_analysis(index, new_tags_key):
+    if 0 <= index < len(st.session_state.saved_analyses):
+        current_tags = st.session_state.saved_analyses[index].get("tags", [])
+        new_tags_text = st.session_state.get(new_tags_key, "")
+        st.session_state.saved_analyses[index]["tags"] = merge_selected_and_new_tags(current_tags, new_tags_text)
+        st.session_state.saved_analyses[index]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+        save_persisted_data()
+
 # -----------------------------
 # User Feedback Save Function
 # -----------------------------
@@ -753,6 +1178,8 @@ def save_user_feedback(result, final_url, rating_key, useful_key, wrong_key, mis
     wrong_points = st.session_state.get(wrong_key, "")
     missing_points = st.session_state.get(missing_key, "")
     feedback_memo = st.session_state.get(memo_key, "")
+    trust_vote = st.session_state.get(f"trust_vote_{final_url or 'current'}", "판단 보류")
+    feedback_reasons = st.session_state.get(f"feedback_reasons_{final_url or 'current'}", [])
 
     feedback = {
         "url": final_url or "",
@@ -760,6 +1187,8 @@ def save_user_feedback(result, final_url, rating_key, useful_key, wrong_key, mis
         "content_type": result.get("content_type", "unknown"),
         "score": result.get("trust_score", 0),
         "rating": rating,
+        "trust_vote": trust_vote,
+        "feedback_reasons": feedback_reasons,
         "useful_points": useful_points,
         "wrong_points": wrong_points,
         "missing_points": missing_points,
@@ -767,16 +1196,78 @@ def save_user_feedback(result, final_url, rating_key, useful_key, wrong_key, mis
         "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
     }
 
+    url_key = final_url or "unknown"
+
+    if url_key not in st.session_state.auto_feedback_stats:
+        st.session_state.auto_feedback_stats[url_key] = {
+            "ratings": [],
+            "trust_votes": []
+        }
+
+    st.session_state.auto_feedback_stats[url_key]["ratings"].append(rating)
+    st.session_state.auto_feedback_stats[url_key]["trust_votes"].append(trust_vote)
+
     st.session_state.feedback_history.insert(0, feedback)
     st.session_state["feedback_saved"] = True
     save_persisted_data()
-
-
+    
 def close_current_result():
     st.session_state.show_result = False
     st.session_state.last_result = None
     st.session_state.last_final_url = None
     st.session_state.last_text = ""
+
+
+# -----------------------------
+# Restore/Delete/Clear Functions
+# -----------------------------
+
+def restore_analysis_from_history(cache_key):
+    cached = st.session_state.analysis_cache.get(cache_key)
+    if cached:
+        st.session_state.last_result = cached
+        parts = cache_key.split("::")
+        st.session_state.last_final_url = parts[0] if parts else ""
+        st.session_state.last_text = ""
+        st.session_state.show_result = True
+        st.session_state["history_restored"] = True
+
+
+def delete_archive_note(index):
+    if 0 <= index < len(st.session_state.archive_notes):
+        st.session_state.archive_notes.pop(index)
+        save_persisted_data()
+        st.session_state["archive_deleted"] = True
+
+
+def toggle_archive_favorite(index):
+    if 0 <= index < len(st.session_state.archive_notes):
+        current = st.session_state.archive_notes[index].get("favorite", False)
+        st.session_state.archive_notes[index]["favorite"] = not current
+        save_persisted_data()
+        st.session_state["favorite_toggled"] = True
+
+
+def delete_feedback_item(index):
+    if 0 <= index < len(st.session_state.feedback_history):
+        st.session_state.feedback_history.pop(index)
+        save_persisted_data()
+        st.session_state["feedback_deleted"] = True
+
+
+def clear_all_saved_data():
+    st.session_state.archive_notes = []
+    st.session_state.search_history = []
+    st.session_state.saved_analyses = []
+    st.session_state.feedback_history = []
+    st.session_state.analysis_cache = {}
+    st.session_state.draft_cache = {}
+    st.session_state.last_result = None
+    st.session_state.last_final_url = None
+    st.session_state.last_text = ""
+    st.session_state.show_result = False
+    save_persisted_data()
+    st.session_state["all_data_cleared"] = True
 
 # -----------------------------
 # Visualization
@@ -796,7 +1287,7 @@ def render_score_dashboard(breakdown: dict, content_type: str):
     st.markdown('<div class="chart-dashboard">', unsafe_allow_html=True)
     st.markdown(
         f'<div class="chart-title">📊 {CONTENT_TYPE_LABELS.get(content_type, "콘텐츠")} 신뢰도 대시보드</div>'
-        f'<div class="chart-subtitle">막대그래프, 점수 비중, 세부 점수표를 한 번에 확인해요.</div>',
+        f'<div class="chart-subtitle">각 기준이 자기 최대점수 대비 몇 % 채워졌는지 한눈에 확인해요.</div>',
         unsafe_allow_html=True,
     )
 
@@ -833,26 +1324,45 @@ def render_score_dashboard(breakdown: dict, content_type: str):
     bar_fig.update_traces(textposition="outside")
     st.plotly_chart(bar_fig, use_container_width=True)
 
-    c1, c2 = st.columns([1, 1.15])
+    c1, c2 = st.columns([1.12, 1])
     with c1:
-        pie_fig = px.pie(df, values="점수", names="항목", title="점수 비중", hole=0.52)
-        pie_fig.update_layout(
+        ratio_df = df.sort_values("달성률", ascending=True).copy()
+        ratio_fig = px.bar(
+            ratio_df,
+            x="달성률",
+            y="항목",
+            orientation="h",
+            text="달성률",
+            title="항목별 달성률",
+            range_x=[0, 100],
+            color="달성률",
+            color_continuous_scale="Blues",
+        )
+        ratio_fig.update_layout(
             template="plotly_white",
             paper_bgcolor="#ffffff",
             plot_bgcolor="#ffffff",
             font=dict(color="#172033", size=13),
-            title=dict(font=dict(size=18, color="#172033"), x=0.03),
-            height=340,
-            margin=dict(l=10, r=135, t=70, b=20),
-            showlegend=True,
-            legend=dict(font=dict(color="#172033", size=12), orientation="v", x=1.02, y=0.5),
+            title=dict(font=dict(size=18, color="#172033"), x=0.02),
+            coloraxis_showscale=False,
+            xaxis_title="최대점수 대비 달성률(%)",
+            yaxis_title="평가 항목",
+            height=360,
+            margin=dict(l=20, r=55, t=70, b=40),
         )
-        st.plotly_chart(pie_fig, use_container_width=True)
+        ratio_fig.update_traces(
+            texttemplate="%{text:.1f}%",
+            textposition="outside",
+            cliponaxis=False,
+        )
+        st.plotly_chart(ratio_fig, use_container_width=True)
     with c2:
         table_df = df.copy()
-        table_df["표시"] = table_df.apply(lambda row: f"{int(row['점수'])} / {int(row['최대점수'])}점 ({row['달성률']}%)", axis=1)
+        table_df["점수"] = table_df.apply(lambda row: f"{int(row['점수'])} / {int(row['최대점수'])}점", axis=1)
+        table_df["달성률"] = table_df["달성률"].apply(lambda x: f"{x}%")
         st.markdown("#### 세부 점수표")
-        st.dataframe(table_df[["항목", "표시"]], use_container_width=True, hide_index=True)
+        st.caption("점수와 달성률을 같이 보면 어떤 기준이 부족한지 바로 보여요.")
+        st.dataframe(table_df[["항목", "점수", "달성률"]], use_container_width=True, hide_index=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -876,8 +1386,27 @@ def render_result(result, extracted_text=None, final_url=None):
     ad_text = {"low": "낮음", "mid": "주의", "high": "위험"}.get(ad_risk, "-")
     content_label = CONTENT_TYPE_LABELS.get(content_type, content_type)
 
-    st.markdown('<div class="result-shell">', unsafe_allow_html=True)
+    # result-shell wrapper removed
     st.markdown("## 📊 신뢰도 분석 결과")
+
+    url_feedback = st.session_state.get(
+        "auto_feedback_stats",
+        {}
+    ).get(final_url or "", {})
+
+    ratings = url_feedback.get("ratings", [])
+
+    avg_rating = (
+        round(sum(ratings) / len(ratings), 1)
+        if ratings else 0
+    )
+
+    if ratings:
+        st.info(
+            f"⭐ 사용자 평균 만족도 "
+            f"{avg_rating}/5 · "
+            f"누적 평가 {len(ratings)}건"
+        )
     if final_url:
         st.caption(f"분석 URL: {final_url}")
 
@@ -897,6 +1426,33 @@ def render_result(result, extracted_text=None, final_url=None):
         st.success(f"✅ 공식 출처 확인됨 — {official_org}")
     elif content_type == "policy":
         st.warning("⚠️ 정책/지원사업 정보인데 공식 출처가 확인되지 않았어요. 공식 사이트 추가 확인을 추천해요.")
+
+    official_matches = detect_official_source(final_url or "", st.session_state.get("last_text", ""))
+    if content_type == "policy":
+        if official_matches:
+            official_html = "".join([f'<span class="reason-chip">{item["label"]} · {item["domain"]}</span>' for item in official_matches])
+            st.markdown(
+                f'''
+                <div class="official-card">
+                ✅ <b>공식 출처 우선 필터</b><br>
+                정책/지원사업 정보에서 공식 기관 신호를 감지했어요.<br>
+                {official_html}<br>
+                공식 페이지 기준으로 신청기간, 자격조건, 제출서류를 최종 확인하는 것을 추천해요.
+                </div>
+                ''',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                '''
+                <div class="official-warning-card">
+                ⚠️ <b>공식 출처 우선 확인 필요</b><br>
+                정책/지원사업 정보인데 URL 또는 본문에서 공식 기관 도메인 신호가 약해요.<br>
+                go.kr, seoul.go.kr, work24.go.kr, hrd.go.kr 같은 공식 사이트에서 한 번 더 확인해보세요.
+                </div>
+                ''',
+                unsafe_allow_html=True,
+            )
 
     st.divider()
 
@@ -933,14 +1489,25 @@ def render_result(result, extracted_text=None, final_url=None):
             if clean_tag:
                 tag_html += f'<span class="tag-warn-badge">⚠ #{clean_tag}</span>'
         st.markdown(tag_html if tag_html else "생성된 태그가 없어요.", unsafe_allow_html=True)
+        
+        st.markdown("### 🧠 AI 학습 신호")
 
+        if ratings:
+            st.success(
+                f"사용자들이 이 분석을 "
+                f"평균 {avg_rating}/5 로 평가했어요."
+            )
+        else:
+            st.caption(
+                "아직 사용자 평가 데이터가 없어요."
+            )
     st.divider()
     render_score_dashboard(breakdown, content_type)
 
     st.divider()
     st.markdown('<div class="feedback-shell">', unsafe_allow_html=True)
     st.markdown("### ⭐ 사용자 피드백으로 TrustLens 개선하기")
-    st.caption("분석 결과가 맞았는지 바로 평가해주세요. 이 피드백은 이후 점수 기준, 태그 추천, AI 초안 개선 데이터로 쌓입니다.")
+    st.caption("AI 분석에 사용자의 집단 검증을 더해요. AI 점수와 사람의 신뢰 판단 차이가 이후 보정 데이터가 됩니다.")
 
     feedback_base = final_url or "current"
     rating_key = f"feedback_rating_{feedback_base}"
@@ -952,6 +1519,12 @@ def render_result(result, extracted_text=None, final_url=None):
     quick_col1, quick_col2, quick_col3 = st.columns([0.8, 1.1, 1.1])
     with quick_col1:
         st.slider("만족도", min_value=1, max_value=5, value=4, key=rating_key)
+        st.radio(
+            "AI 분석에 대한 내 판단",
+            ["신뢰함", "신뢰 안함", "판단 보류"],
+            horizontal=False,
+            key=f"trust_vote_{final_url or 'current'}",
+        )
     with quick_col2:
         st.multiselect(
             "도움 된 부분",
@@ -959,8 +1532,14 @@ def render_result(result, extracted_text=None, final_url=None):
             default=["핵심 요약", "차트 시각화"],
             key=useful_key,
         )
+        st.multiselect(
+            "평가 이유",
+            FEEDBACK_REASON_OPTIONS,
+            default=[],
+            key=f"feedback_reasons_{final_url or 'current'}",
+        )
     with quick_col3:
-        st.text_area("추가 필요/아쉬운 점", placeholder="예: 사진 개수 반영, 점수 기준 설명 강화 등", height=96, key=missing_key)
+        st.text_area("추가 필요/아쉬운 점", placeholder="예: 사진 개수 반영, 점수 기준 설명 강화 등", height=140, key=missing_key)
 
     with st.expander("✍️ 자세한 피드백 남기기"):
         st.text_area("틀렸거나 어색한 부분", placeholder="예: 맛집 후기인데 공식 출처 기준이 보이면 어색함 / 점수가 너무 낮음", height=90, key=wrong_key)
@@ -991,6 +1570,24 @@ def render_result(result, extracted_text=None, final_url=None):
             unsafe_allow_html=True,
         )
 
+    feedback_summary = summarize_user_feedback_for_url(final_url or "")
+    st.markdown("### 🤝 AI vs 사용자 의견 비교")
+    if feedback_summary["total"] == 0:
+        st.info("아직 이 URL에 대한 사용자 평가가 없어요. 첫 평가를 남기면 비교 데이터가 시작돼요.")
+    else:
+        a, b, c = st.columns(3)
+        with a:
+            st.markdown(f'<div class="compare-box"><div class="metric-label">사용자 신뢰함</div><div class="compare-number">{feedback_summary["trust_pct"]}%</div><div class="metric-sub">{feedback_summary["trust"]}명 / 총 {feedback_summary["total"]}명</div></div>', unsafe_allow_html=True)
+        with b:
+            st.markdown(f'<div class="compare-box"><div class="metric-label">사용자 신뢰 안함</div><div class="compare-number">{feedback_summary["distrust_pct"]}%</div><div class="metric-sub">{feedback_summary["distrust"]}명 / 총 {feedback_summary["total"]}명</div></div>', unsafe_allow_html=True)
+        with c:
+            gap = abs(score - feedback_summary["trust_pct"])
+            st.markdown(f'<div class="compare-box"><div class="metric-label">AI-사용자 차이</div><div class="compare-number">{gap}p</div><div class="metric-sub">AI {score}점 vs 사용자 신뢰 {feedback_summary["trust_pct"]}%</div></div>', unsafe_allow_html=True)
+
+        if feedback_summary["reason_counts"]:
+            reason_html = "".join([f'<span class="reason-chip">{reason} {count}</span>' for reason, count in sorted(feedback_summary["reason_counts"].items(), key=lambda x: x[1], reverse=True)])
+            st.markdown(f"**사용자 평가 이유 Top 신호**<br>{reason_html}", unsafe_allow_html=True)
+
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.divider()
@@ -1015,8 +1612,8 @@ def render_result(result, extracted_text=None, final_url=None):
 
     st.divider()
     st.markdown('<div class="memo-shell">', unsafe_allow_html=True)
-    st.markdown("### 📝 내 지식 아카이브용 메모")
-    st.caption("원문 전체 기반 AI 초안을 만들고, 내가 수정한 뒤 태그와 함께 저장해요.")
+    st.markdown("### 🗂️ 저장 및 메모 만들기")
+    st.caption("왼쪽은 긴 지식 메모 작성, 오른쪽은 분석결과 자체 저장용이에요.")
 
     tag_options = []
     for tag in result.get("tags_positive", []) + result.get("tags_warning", []):
@@ -1024,48 +1621,137 @@ def render_result(result, extracted_text=None, final_url=None):
         if clean_tag and clean_tag not in tag_options:
             tag_options.append(clean_tag)
 
-    selected_tags = st.multiselect("저장할 태그 선택", options=tag_options, default=tag_options, key=f"selected_tags_{final_url or 'current'}")
-    template_type = st.selectbox("AI 초안 템플릿 선택", ["보고서 형식", "일기 형식", "블로그 초안 형식", "체크리스트 형식", "자유 형식"], key=f"template_{final_url or 'current'}")
-    user_draft_prompt = st.text_area("초안에 반영할 추가 요청", placeholder="예: 가격과 팁을 표로 정리해줘 / 블로그에 올릴 수 있게 정리해줘 / 내 말투처럼 자연스럽게 정리해줘", height=90, key=f"draft_prompt_{final_url or 'current'}")
-
-    draft_key = f"note_draft_{final_url or 'current'}"
+    draft_fingerprint = f"{final_url or 'current'}::{result.get('archive_title', '')}::{result.get('trust_score', '')}"
+    draft_hash = hashlib.sha256(draft_fingerprint.encode("utf-8")).hexdigest()[:12]
+    draft_key = f"note_draft_{draft_hash}"
     note_key = f"edited_{draft_key}"
 
     if draft_key not in st.session_state:
-        # 분석 직후 자동으로 Groq를 한 번 더 호출하면 무료 한도/분당 제한에 쉽게 걸릴 수 있음.
-        # 그래서 기본 초안은 로컬에서 즉시 만들고, 사용자가 버튼을 누를 때만 AI 초안을 다시 생성한다.
-        st.session_state[draft_key] = make_basic_note_draft(result, final_url, selected_tags)
-
+        st.session_state[draft_key] = make_basic_note_draft(
+            result,
+            final_url,
+            st.session_state.get(f"selected_tags_{final_url or 'current'}", []),
+        )
     if note_key not in st.session_state:
         st.session_state[note_key] = st.session_state[draft_key]
 
-    if st.button("✨ 원문 전체 기반 AI 초안 만들기 / 다시 만들기", key=f"refresh_{draft_key}", type="primary", use_container_width=True):
-        original_text = st.session_state.get("last_text", "")
-        if not original_text:
-            st.warning("원문이 저장되어 있지 않아요. URL을 다시 분석한 뒤 초안을 만들어주세요.")
-        else:
-            with st.spinner("원문 전체를 보고 AI가 메모 초안을 만드는 중..."):
-                try:
-                    new_draft = generate_note_draft_with_groq(original_text, result, final_url, template_type, user_draft_prompt)
+    note_panel, save_panel = st.columns([1.15, 1], gap="large")
+
+    with note_panel:
+        st.markdown(
+            '<div class="note-action-card"><h3>📝 지식 메모 만들기</h3><p>AI 초안을 만들고 수정해서 긴 메모로 저장해요.</p></div>',
+            unsafe_allow_html=True,
+        )
+        template_type = st.selectbox(
+            "AI 초안 템플릿 선택",
+            ["보고서 형식", "일기 형식", "블로그 초안 형식", "체크리스트 형식", "자유 형식"],
+            key=f"template_{final_url or 'current'}",
+        )
+        user_draft_prompt = st.text_area(
+            "초안에 반영할 추가 요청",
+            placeholder="예: 가격과 팁을 표로 정리해줘 / 블로그에 올릴 수 있게 정리해줘 / 내 말투처럼 자연스럽게 정리해줘",
+            height=110,
+            key=f"draft_prompt_{final_url or 'current'}",
+        )
+        st.markdown('<div class="ai-draft-button-scope"></div>', unsafe_allow_html=True)
+        if st.button(
+            "🔄 지식 메모 초안 다시 만들기",
+            key=f"refresh_{draft_key}",
+            type="secondary",
+            use_container_width=True,
+        ):
+            original_text = st.session_state.get("last_text", "")
+            if not original_text:
+                st.warning("원문이 저장되어 있지 않아요.")
+            else:
+                draft_cache_key = f"{final_url or 'current'}::{result.get('archive_title', '')}::{template_type}::{user_draft_prompt.strip()}"
+                if draft_cache_key in st.session_state.draft_cache:
+                    new_draft = st.session_state.draft_cache[draft_cache_key]
                     st.session_state[draft_key] = new_draft
                     st.session_state[note_key] = new_draft
-                    st.success("AI 초안을 만들었어요. 아래 메모창에서 수정 후 저장할 수 있어요.")
-                except Exception as e:
-                    st.error(f"AI 초안 생성 중 오류 발생: {e}")
+                    st.info("같은 조건의 AI 초안이 있어 다시 불러왔어요.")
+                else:
+                    with st.spinner("원문 전체를 보고 AI가 메모 초안을 만드는 중..."):
+                        try:
+                            new_draft = generate_note_draft_with_groq(
+                                original_text,
+                                result,
+                                final_url,
+                                template_type,
+                                user_draft_prompt,
+                            )
+                            st.session_state.draft_cache[draft_cache_key] = new_draft
+                            st.session_state[draft_key] = new_draft
+                            st.session_state[note_key] = new_draft
+                            save_persisted_data()
+                            st.success("AI 초안을 만들었어요. 아래에서 수정 후 저장할 수 있어요.")
+                        except Exception as e:
+                            st.error(f"AI 초안 생성 중 오류 발생: {e}")
 
+    with save_panel:
+        st.markdown(
+            '<div class="archive-action-card"><h3>📌 분석결과 바로 저장</h3><p>지금 분석한 결과를 아카이브에 저장해요.</p></div>',
+            unsafe_allow_html=True,
+        )
+        selected_tags = st.multiselect(
+            "저장할 태그 선택",
+            options=tag_options,
+            default=tag_options,
+            key=f"selected_tags_{final_url or 'current'}",
+        )
+        analysis_archive_memo_key = f"analysis_archive_memo_{final_url or 'current'}"
+        st.text_area(
+            "분석결과에 남길 짧은 메모",
+            placeholder="예: 속초 맛집 후보 / 정책 정보 재확인 필요 / 광고성 낮아 보임",
+            height=120,
+            key=analysis_archive_memo_key,
+        )
+        if st.button(
+            "🔴 현재 분석결과 아카이브에 저장",
+            key=f"save_analysis_archive_{final_url or 'current'}",
+            use_container_width=True,
+            type="primary",
+        ):
+            save_current_analysis_to_archive(
+                result,
+                final_url,
+                selected_tags=selected_tags,
+                memo=st.session_state.get(analysis_archive_memo_key, ""),
+            )
+        if st.session_state.get("analysis_archive_saved"):
+            st.success("분석결과 아카이브에 저장했어요.")
+            st.session_state["analysis_archive_saved"] = False
+
+    st.markdown("### ✍️ 메모 초안 편집")
+    st.caption("AI 초안을 기반으로 내 메모를 정리한 뒤, 맨 아래에서 지식 메모로 저장해요.")
     st.text_area("AI 초안 기반으로 내 메모 정리하기", height=460, key=note_key)
 
-    save_col, close_col = st.columns(2)
-    with save_col:
-        st.button("🗂️ 이 메모 저장하기", key=f"save_{draft_key}", use_container_width=True, on_click=save_note_to_archive, args=(note_key, result, final_url, selected_tags))
-    with close_col:
-        st.button("닫기 / 나가기", key=f"close_{draft_key}", use_container_width=True, on_click=close_current_result)
+    bottom_save_col, bottom_close_col = st.columns(2)
+    with bottom_save_col:
+        st.button(
+            "🗂️ 지식 메모 저장",
+            key=f"save_{draft_key}",
+            use_container_width=True,
+            on_click=save_note_to_archive,
+            args=(
+                note_key,
+                result,
+                final_url,
+                st.session_state.get(f"selected_tags_{final_url or 'current'}", []),
+            ),
+        )
+    with bottom_close_col:
+        if st.button(
+            "닫기 / 나가기",
+            key=f"close_{draft_key}",
+            use_container_width=True,
+        ):
+            close_current_result()
+            st.rerun()
 
     if st.session_state.get("note_saved"):
-        st.success("지식 아카이브에 저장했어요. 왼쪽 메뉴의 🗂️ 지식 아카이브에서 확인할 수 있어요.")
+        st.success("지식 아카이브에 저장했어요.")
         st.session_state.note_saved = False
-
-    st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1077,23 +1763,262 @@ if menu == "📊 분석 결과":
     if st.session_state.last_result:
         render_result(st.session_state.last_result, extracted_text=None, final_url=st.session_state.last_final_url)
     else:
-        st.info("아직 분석 결과가 없습니다. 먼저 URL을 분석해주세요.")
+        st.info("아직 열려 있는 분석 결과가 없어요. 최근 검색 기록 탭에서 저장된 분석 결과를 다시 불러올 수 있어요.")
+    st.divider()
+
+    st.markdown(
+
+        "## 📈 누적 사용자 학습 데이터"
+
+    )
+
+    stats = st.session_state.get(
+
+        "auto_feedback_stats",
+
+        {}
+
+    )
+
+    if stats:
+
+        st.write(
+
+            f"저장된 URL 평가 수: {len(stats)}"
+
+        )
+
+    else:
+
+        st.caption(
+
+            "아직 누적 학습 데이터가 없어요."
+
+        )
+            
     st.stop()
 
 if menu == "🔎 신뢰도 근거":
     st.markdown("## 🔎 신뢰도 근거")
+    st.caption("TrustLens가 어떤 기준으로 신뢰도를 판단하는지 보고, 나만의 기준도 추가할 수 있어요.")
+
+    st.markdown("### 🧭 TrustLens 기본 신뢰도 기준")
+    for name, desc in DEFAULT_TRUST_CRITERIA:
+        with st.expander(name, expanded=False):
+            st.write(desc)
+
+    st.divider()
+    st.markdown("### 🛠️ 나만의 커스텀 신뢰도 기준")
+    st.caption("예: 사진 많은 후기 더 신뢰 / 가격 공개 필수 / 정책 글은 신청기간 명확해야 함")
+
+    t_key = "custom_criterion_title"
+    d_key = "custom_criterion_desc"
+    w_key = "custom_criterion_weight"
+
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        st.text_input("기준 이름", placeholder="예: 실제 사진 근거", key=t_key)
+    with c2:
+        st.selectbox("중요도", ["낮음", "보통", "높음"], index=1, key=w_key)
+
+    st.text_area("기준 설명", placeholder="예: 사진이 많고 상황 설명이 구체적인 글을 더 신뢰한다.", height=90, key=d_key)
+
+    st.button("➕ 커스텀 기준 추가", use_container_width=True, on_click=save_custom_trust_criterion, args=(t_key, d_key, w_key))
+
+    if st.session_state.get("custom_criterion_saved"):
+        st.success("커스텀 기준을 저장했어요. 다음 분석부터 반영돼요.")
+        st.session_state["custom_criterion_saved"] = False
+
+    if st.session_state.get("custom_criterion_error"):
+        st.warning(st.session_state["custom_criterion_error"])
+        st.session_state["custom_criterion_error"] = ""
+
+    if st.session_state.custom_trust_criteria:
+        for idx, item in enumerate(st.session_state.custom_trust_criteria):
+            st.markdown(f"**{idx+1}. {item.get('title')}** · 중요도 {item.get('weight')}")
+            st.caption(item.get("description", ""))
+            st.button("🗑️ 삭제", key=f"delete_custom_criterion_{idx}", on_click=delete_custom_trust_criterion, args=(idx,))
+
+    st.divider()
+    st.markdown("### 📊 현재 분석 결과의 신뢰도 근거")
+
     if st.session_state.last_result:
-        evidence = st.session_state.last_result.get("evidence", {})
+        result = st.session_state.last_result
+        evidence = result.get("evidence", {})
+        breakdown = result.get("score_breakdown", {})
+        content_type = result.get("content_type", "unknown")
+        score = result.get("trust_score", 0)
+        ad_risk = result.get("ad_risk", "mid")
+        ad_text = {"low": "낮음", "mid": "주의", "high": "위험"}.get(ad_risk, ad_risk)
+
+        a, b, c = st.columns(3)
+        with a:
+            st.metric("현재 신뢰도", f"{score}점")
+        with b:
+            st.metric("콘텐츠 유형", CONTENT_TYPE_LABELS.get(content_type, content_type))
+        with c:
+            st.metric("광고 위험도", ad_text)
+
+        st.markdown("#### 📌 점수 산정 근거")
+        for key, label, max_val in get_score_items_for_type(content_type):
+            val = get_int_score(breakdown, key)
+            st.markdown(f"**{label}** · {val}/{max_val}점")
+            st.progress(float(val / max_val if max_val else 0))
+
+        st.markdown("#### 🧾 원문 기반 판단 근거")
         st.markdown(f"**공식 출처 근거:** {evidence.get('official_source', '없음')}")
         st.markdown(f"**광고 판단 근거:** {evidence.get('ad_signal', '없음')}")
         st.markdown(f"**경험 신호 근거:** {evidence.get('experience_signal', '없음')}")
         st.markdown(f"**단점/비판 신호:** {evidence.get('negative_signal', '없음')}")
     else:
-        st.info("먼저 URL을 분석해주세요.")
+        st.info("현재 열려 있는 신뢰도 근거가 없어요.")
+
+    st.stop()
+
+if menu == "🏷️ 분석결과 아카이브":
+    st.markdown("## 🏷️ 분석결과 아카이브")
+    st.caption("최근 검색기록은 단순 이력이고, 이 탭은 내가 저장한 분석 결과를 태그·메모·즐겨찾기로 관리하는 공간이에요.")
+
+    if st.session_state.get("analysis_archive_restored"):
+        st.success("저장된 분석 결과를 다시 불러왔어요. 왼쪽 메뉴의 📊 분석 결과에서 확인할 수 있어요.")
+        st.session_state["analysis_archive_restored"] = False
+    if st.session_state.get("saved_analysis_deleted"):
+        st.success("저장된 분석 결과를 삭제했어요.")
+        st.session_state["saved_analysis_deleted"] = False
+
+    archive_search = st.text_input("🔍 저장된 분석 검색", placeholder="제목, URL, 태그, 메모로 검색")
+    only_favorite_analysis = st.checkbox("⭐ 즐겨찾기 분석만 보기", value=False)
+
+    all_archive_tags = []
+    for item in st.session_state.saved_analyses:
+        for tag in item.get("tags", []):
+            clean = str(tag).replace("#", "").strip()
+            if clean and clean not in all_archive_tags:
+                all_archive_tags.append(clean)
+
+    selected_archive_tag = st.selectbox("태그 필터", ["전체"] + all_archive_tags) if all_archive_tags else "전체"
+
+    analyses_to_show = list(enumerate(st.session_state.saved_analyses))
+
+    if archive_search.strip():
+        q = archive_search.strip().lower()
+        analyses_to_show = [
+            (idx, item) for idx, item in analyses_to_show
+            if q in str(item.get("title", "")).lower()
+            or q in str(item.get("url", "")).lower()
+            or q in str(item.get("memo", "")).lower()
+            or q in " ".join([str(t) for t in item.get("tags", [])]).lower()
+        ]
+
+    if only_favorite_analysis:
+        analyses_to_show = [(idx, item) for idx, item in analyses_to_show if item.get("favorite", False)]
+
+    if selected_archive_tag != "전체":
+        analyses_to_show = [
+            (idx, item) for idx, item in analyses_to_show
+            if selected_archive_tag in [str(t).replace("#", "").strip() for t in item.get("tags", [])]
+        ]
+
+    if analyses_to_show:
+        for display_idx, (original_index, item) in enumerate(analyses_to_show, start=1):
+            star = "⭐" if item.get("favorite", False) else "☆"
+            tags_text = ", ".join([str(t) for t in item.get("tags", [])]) or "태그 없음"
+            with st.expander(f"{display_idx}. {star} {item.get('title', '저장 분석')} · {item.get('score', 0)}점 · {tags_text}", expanded=False):
+                st.markdown(f"**URL:** {item.get('url', '')}")
+                st.markdown(f"**저장일:** {item.get('saved_at', '')}")
+                st.markdown(f"**콘텐츠 유형:** {CONTENT_TYPE_LABELS.get(item.get('content_type', 'unknown'), item.get('content_type', 'unknown'))}")
+                st.markdown(f"**광고 위험도:** {item.get('ad_risk', '-')}")
+                st.markdown(f"**작성자 유형:** {item.get('author_type', '-')}")
+
+                summary = item.get("summary", [])
+                if summary:
+                    st.markdown("**요약**")
+                    if isinstance(summary, list):
+                        for s in summary:
+                            st.markdown(f"- {s}")
+                    else:
+                        st.markdown(str(summary))
+
+                title_key = f"saved_analysis_title_{original_index}"
+                memo_key = f"saved_analysis_memo_{original_index}"
+                tags_key = f"saved_analysis_tags_{original_index}"
+                new_tags_key = f"saved_analysis_new_tags_{original_index}"
+
+                st.text_input("제목 수정", value=item.get("title", ""), key=title_key)
+                st.text_area("분석 메모 수정", value=item.get("memo", ""), height=100, key=memo_key)
+                existing_tag_options = get_tag_edit_options(item)
+                st.multiselect(
+                    "기존 태그 선택/삭제",
+                    options=existing_tag_options,
+                    default=[tag for tag in item.get("tags", []) if tag in existing_tag_options],
+                    key=tags_key,
+                )
+                st.text_area(
+                    "새 태그 추가",
+                    placeholder="예: 맛집후보, 재확인필요\n쉼표 또는 엔터로 여러 개 입력",
+                    height=70,
+                    key=new_tags_key,
+                    help="입력 후 바로 아래의 새 태그 추가 버튼을 누르면 위 태그 목록에 반영돼요.",
+                )
+                if st.button("➕ 새 태그 추가", key=f"add_new_tag_{new_tags_key}", use_container_width=True):
+                    if "saved_analysis" in new_tags_key:
+                        add_tags_to_saved_analysis(original_index, new_tags_key)
+                    else:
+                        add_tags_to_archive_note(original_index, new_tags_key)
+                    st.rerun()
+
+                b1, b2, b3, b4 = st.columns(4)
+                with b1:
+                    st.button("🔁 분석결과 불러오기", key=f"restore_saved_analysis_{original_index}", use_container_width=True, on_click=restore_analysis_from_archive, args=(original_index,))
+                with b2:
+                    fav_label = "⭐ 즐겨찾기 해제" if item.get("favorite", False) else "☆ 즐겨찾기"
+                    st.button(fav_label, key=f"fav_saved_analysis_{original_index}", use_container_width=True, on_click=toggle_saved_analysis_favorite, args=(original_index,))
+                with b3:
+                    if st.button("💾 제목/태그/메모 수정 저장", key=f"update_saved_analysis_{original_index}", use_container_width=True):
+                        update_saved_analysis(original_index, memo_key, tags_key, new_tags_key, title_key)
+                        st.rerun()
+                with b4:
+                    st.button("🗑️ 삭제", key=f"delete_saved_analysis_{original_index}", use_container_width=True, on_click=delete_saved_analysis, args=(original_index,))
+
+                if st.session_state.get(f"saved_analysis_updated_{original_index}"):
+                    st.success("분석 메모와 태그를 저장했어요.")
+                    st.session_state[f"saved_analysis_updated_{original_index}"] = False
+    else:
+        st.info("아직 저장된 분석결과가 없어요. 분석 결과 하단의 '현재 분석결과 저장' 버튼으로 저장해보세요.")
     st.stop()
 
 if menu == "🏷️ 태그 관리":
     st.markdown("## 🏷️ 태그 관리")
+
+    all_global_tags = collect_all_existing_tags()
+    if all_global_tags:
+        st.markdown("### ✏️ 태그 이름 수정")
+        rename_col1, rename_col2 = st.columns([1, 1])
+        with rename_col1:
+            rename_old_tag = st.selectbox("바꿀 기존 태그", all_global_tags, key="tag_rename_old_global")
+        with rename_col2:
+            rename_new_tag = st.text_input("새 태그명", placeholder="예: 속초맛집", key="tag_rename_new_global")
+
+        if st.button("🔁 태그명 전체 수정", key="rename_tag_global_btn", use_container_width=True):
+            old_tag = str(rename_old_tag).replace("#", "").strip()
+            new_tag = str(rename_new_tag).replace("#", "").strip()
+            if not old_tag or not new_tag:
+                st.warning("기존 태그와 새 태그명을 모두 입력해주세요.")
+            else:
+                for source_name in ["archive_notes", "saved_analyses"]:
+                    for saved_item in st.session_state.get(source_name, []):
+                        renamed_tags = []
+                        for tag in saved_item.get("tags", []):
+                            clean = str(tag).replace("#", "").strip()
+                            if clean == old_tag:
+                                clean = new_tag
+                            if clean and clean not in renamed_tags:
+                                renamed_tags.append(clean)
+                        saved_item["tags"] = renamed_tags
+                save_persisted_data()
+                st.success("태그명을 전체 기록에 반영했어요.")
+                st.rerun()
+        st.divider()
     all_tags = []
     for item in st.session_state.archive_notes:
         for tag in item.get("tags", []):
@@ -1103,23 +2028,58 @@ if menu == "🏷️ 태그 관리":
 
     if all_tags:
         selected_tag = st.selectbox("태그를 선택하면 해당 메모만 볼 수 있어요", ["전체"] + all_tags)
-        filtered_notes = st.session_state.archive_notes
+        filtered_notes = list(enumerate(st.session_state.archive_notes))
         if selected_tag != "전체":
-            filtered_notes = [note for note in st.session_state.archive_notes if selected_tag in [str(t).replace("#", "").strip() for t in note.get("tags", [])]]
-        for idx, item in enumerate(filtered_notes, start=1):
+            filtered_notes = [
+                (original_index, note)
+                for original_index, note in filtered_notes
+                if selected_tag in [str(t).replace("#", "").strip() for t in note.get("tags", [])]
+            ]
+        for idx, (original_index, item) in enumerate(filtered_notes, start=1):
             with st.expander(f"{idx}. {item.get('title', '저장 메모')} · {item.get('score', 0)}점", expanded=False):
                 st.markdown(f"**URL:** {item.get('url', '')}")
                 st.markdown(f"**저장일:** {item.get('saved_at', '')}")
-                st.markdown(f"**태그:** {', '.join(item.get('tags', []))}")
-                original_index = st.session_state.archive_notes.index(item)
+                title_key = f"tag_note_title_{original_index}_{selected_tag}"
                 edit_key = f"tag_note_{original_index}_{selected_tag}"
+                tags_key = f"tag_note_tags_{original_index}_{selected_tag}"
+                new_tags_key = f"tag_note_new_tags_{original_index}_{selected_tag}"
+                tag_options_for_edit = get_tag_edit_options(item)
+
+                st.text_input("제목 수정", value=item.get("title", ""), key=title_key)
+                st.multiselect(
+                    "기존 태그 선택/삭제",
+                    options=tag_options_for_edit,
+                    default=[tag for tag in item.get("tags", []) if tag in tag_options_for_edit],
+                    key=tags_key,
+                    help="기존 태그를 선택/해제할 수 있어요.",
+                )
+                st.text_area(
+                    "새 태그 추가",
+                    placeholder="예: 맛집후보, 재확인필요\n쉼표 또는 엔터로 여러 개 입력",
+                    height=70,
+                    key=new_tags_key,
+                    help="입력 후 바로 아래의 새 태그 추가 버튼을 누르면 위 태그 목록에 반영돼요.",
+                )
+                if st.button("➕ 새 태그 추가", key=f"add_new_tag_{new_tags_key}", use_container_width=True):
+                    if "saved_analysis" in new_tags_key:
+                        add_tags_to_saved_analysis(original_index, new_tags_key)
+                    else:
+                        add_tags_to_archive_note(original_index, new_tags_key)
+                    st.rerun()
                 st.text_area("메모 수정", value=item.get("note", ""), height=260, key=edit_key)
-                st.button(
-                    "💾 수정 내용 저장",
+                if st.button(
+                    "💾 제목/태그/메모 수정 저장",
                     key=f"save_tag_note_{original_index}_{selected_tag}",
                     use_container_width=True,
-                    on_click=update_archive_note,
-                    args=(original_index, edit_key),
+                ):
+                    update_archive_note_and_tags(original_index, edit_key, tags_key, new_tags_key, title_key)
+                    st.rerun()
+                st.button(
+                    "🗑️ 이 메모 삭제",
+                    key=f"delete_tag_note_{original_index}_{selected_tag}",
+                    use_container_width=True,
+                    on_click=delete_archive_note,
+                    args=(original_index,),
                 )
                 if st.session_state.get(f"archive_updated_{original_index}"):
                     st.success("수정한 메모를 저장했어요.")
@@ -1131,22 +2091,82 @@ if menu == "🏷️ 태그 관리":
 if menu == "🗂️ 지식 아카이브":
     st.markdown("## 🗂️ 지식 아카이브")
     st.caption("분석 결과에서 저장한 메모가 여기에 쌓여요. 테스트 단계에서는 trustlens_data.json 파일에 저장돼서 재실행해도 유지돼요.")
-    if st.session_state.archive_notes:
-        for idx, item in enumerate(st.session_state.archive_notes, start=1):
+    if st.session_state.get("archive_deleted"):
+        st.success("저장된 메모를 삭제했어요.")
+        st.session_state["archive_deleted"] = False
+    search_query = st.text_input("🔍 아카이브 검색", placeholder="제목, URL, 태그, 메모 내용으로 검색")
+    only_fav = st.checkbox("⭐ 즐겨찾기만 보기", value=False)
+
+    notes_to_show = list(enumerate(st.session_state.archive_notes))
+    if search_query.strip():
+        q = search_query.strip().lower()
+        notes_to_show = [
+            (original_index, note) for original_index, note in notes_to_show
+            if q in str(note.get("title", "")).lower()
+            or q in str(note.get("url", "")).lower()
+            or q in str(note.get("note", "")).lower()
+            or q in " ".join([str(t) for t in note.get("tags", [])]).lower()
+        ]
+
+    if only_fav:
+        notes_to_show = [(original_index, note) for original_index, note in notes_to_show if note.get("favorite", False)]
+
+    if notes_to_show:
+        for idx, (original_index, item) in enumerate(notes_to_show, start=1):
             tags_text = ", ".join([str(t) for t in item.get("tags", [])])
             with st.expander(f"{idx}. {item.get('title', '저장 메모')} · {item.get('content_type', '')} · {item.get('score', 0)}점 · {tags_text}", expanded=False):
                 st.markdown(f"**URL:** {item.get('url', '')}")
                 st.markdown(f"**저장일:** {item.get('saved_at', '')}")
-                st.markdown("**메모**")
-                original_index = idx - 1
+                st.markdown("**제목, 태그와 메모 수정**")
+                title_key = f"archive_note_title_{original_index}"
                 edit_key = f"archive_note_{original_index}"
+                tags_key = f"archive_note_tags_{original_index}"
+                new_tags_key = f"archive_note_new_tags_{original_index}"
+                tag_options_for_edit = get_tag_edit_options(item)
+
+                st.text_input("제목 수정", value=item.get("title", ""), key=title_key)
+                st.multiselect(
+                    "기존 태그 선택/삭제",
+                    options=tag_options_for_edit,
+                    default=[tag for tag in item.get("tags", []) if tag in tag_options_for_edit],
+                    key=tags_key,
+                    help="기존 기록의 태그를 선택/해제할 수 있어요.",
+                )
+                st.text_area(
+                    "새 태그 추가",
+                    placeholder="예: 맛집후보, 재확인필요\n쉼표 또는 엔터로 여러 개 입력",
+                    height=70,
+                    key=new_tags_key,
+                    help="입력 후 바로 아래의 새 태그 추가 버튼을 누르면 위 태그 목록에 반영돼요.",
+                )
+                if st.button("➕ 새 태그 추가", key=f"add_new_tag_{new_tags_key}", use_container_width=True):
+                    if "saved_analysis" in new_tags_key:
+                        add_tags_to_saved_analysis(original_index, new_tags_key)
+                    else:
+                        add_tags_to_archive_note(original_index, new_tags_key)
+                    st.rerun()
                 st.text_area("저장된 메모 수정", value=item.get("note", ""), height=320, key=edit_key)
+                fav_label = "⭐ 즐겨찾기 해제" if item.get("favorite", False) else "☆ 즐겨찾기"
                 st.button(
-                    "💾 수정 내용 저장",
+                    fav_label,
+                    key=f"favorite_archive_note_{original_index}",
+                    use_container_width=True,
+                    on_click=toggle_archive_favorite,
+                    args=(original_index,),
+                )
+                if st.button(
+                    "💾 제목/태그/메모 수정 저장",
                     key=f"save_archive_note_{original_index}",
                     use_container_width=True,
-                    on_click=update_archive_note,
-                    args=(original_index, edit_key),
+                ):
+                    update_archive_note_and_tags(original_index, edit_key, tags_key, new_tags_key, title_key)
+                    st.rerun()
+                st.button(
+                    "🗑️ 이 메모 삭제",
+                    key=f"delete_archive_note_{original_index}",
+                    use_container_width=True,
+                    on_click=delete_archive_note,
+                    args=(original_index,),
                 )
                 if st.session_state.get(f"archive_updated_{original_index}"):
                     st.success("수정한 메모를 저장했어요.")
@@ -1157,38 +2177,85 @@ if menu == "🗂️ 지식 아카이브":
 
 if menu == "🕘 최근 검색 기록":
     st.markdown("## 🕘 최근 검색 기록")
+    st.caption("같은 URL은 저장된 캐시를 불러와서 API 호출 없이 다시 볼 수 있어요.")
+
+    if st.session_state.get("history_restored"):
+        st.success("저장된 분석 결과를 다시 불러왔어요. 왼쪽 메뉴의 📊 분석 결과에서 확인할 수 있어요.")
+        st.session_state["history_restored"] = False
+
+    if st.session_state.get("feedback_deleted"):
+        st.success("피드백 기록을 삭제했어요.")
+        st.session_state["feedback_deleted"] = False
+
+    if st.session_state.get("all_data_cleared"):
+        st.success("테스트 저장 데이터를 모두 초기화했어요.")
+        st.session_state["all_data_cleared"] = False
+
     if st.session_state.search_history:
         for idx, item in enumerate(st.session_state.search_history[:20], start=1):
+            cache_key = item.get("cache_key") or f'{item.get("url", "")}::{item.get("content_type", "unknown")}'
             st.markdown(
                 f'''
                 <div class="history-item">
                     <div class="history-title">{idx}. {item.get("title", "제목 없음")}</div>
-                    <div class="history-meta">{item.get("time", "")} · {item.get("content_type", "unknown")} · {item.get("score", 0)}점</div>
+                    <div class="history-meta">{item.get("time", "")} · {item.get("input_mode", "링크로 조회하기")} · {item.get("content_type", "unknown")} · {item.get("score", 0)}점</div>
                     <div class="history-meta">{item.get("url", "")}</div>
                 </div>
                 ''',
                 unsafe_allow_html=True,
             )
+            st.button(
+                "🔁 이 분석 결과 다시 보기",
+                key=f"restore_history_{idx}_{cache_key}",
+                use_container_width=True,
+                on_click=restore_analysis_from_history,
+                args=(cache_key,),
+            )
     else:
         st.info("아직 검색 기록이 없어요.")
+
     st.divider()
     st.markdown("## 📩 사용자 피드백 기록")
     if st.session_state.feedback_history:
         for idx, item in enumerate(st.session_state.feedback_history[:20], start=1):
+            original_index = idx - 1
             st.markdown(
                 f'''
                 <div class="history-item">
                     <div class="history-title">{idx}. {item.get("title", "피드백")}</div>
                     <div class="history-meta">{item.get("saved_at", "")} · 만족도 {item.get("rating", "-")} / 5 · {item.get("content_type", "unknown")}</div>
                     <div class="history-meta">도움 된 부분: {", ".join(item.get("useful_points", [])) or "없음"}</div>
+                    <div class="history-meta">사용자 판단: {item.get("trust_vote", "판단 보류")} · 이유: {", ".join(item.get("feedback_reasons", [])) or "없음"}</div>
                     <div class="history-meta">보완 요청: {item.get("missing_points", "없음") or "없음"}</div>
                     <div class="history-meta">틀렸거나 어색한 부분: {item.get("wrong_points", "없음") or "없음"}</div>
                 </div>
                 ''',
                 unsafe_allow_html=True,
             )
+            st.button(
+                "🗑️ 이 피드백 삭제",
+                key=f"delete_feedback_{original_index}",
+                use_container_width=True,
+                on_click=delete_feedback_item,
+                args=(original_index,),
+            )
     else:
         st.info("아직 저장된 사용자 피드백이 없어요.")
+
+    st.divider()
+    st.divider()
+    st.markdown("## 💾 로컬 백업")
+    st.caption("저장 데이터는 trustlens_data.json에 저장되고, 날짜별 백업은 trustlens_backups 폴더에 생성돼요.")
+
+    with st.expander("⚠️ 테스트 데이터 전체 초기화"):
+        st.warning("지식 아카이브, 검색 기록, 피드백, 분석 캐시, 초안 캐시가 모두 삭제돼요.")
+        st.button(
+            "🧹 전체 저장 데이터 초기화",
+            key="clear_all_saved_data",
+            type="primary",
+            use_container_width=True,
+            on_click=clear_all_saved_data,
+        )
     st.stop()
 
 # -----------------------------
@@ -1200,7 +2267,7 @@ with left_col:
     st.markdown('<div class="input-shell">', unsafe_allow_html=True)
     st.markdown('<span class="progress-pill">1 / 1</span>', unsafe_allow_html=True)
     st.markdown('<div class="progress-line"><div class="progress-fill"></div></div>', unsafe_allow_html=True)
-    st.markdown('<div class="question-title">분석할 정보 유형과 URL을 입력해주세요</div>', unsafe_allow_html=True)
+    st.markdown('<div class="question-title">분석할 정보 유형과 입력 방식을 선택해주세요</div>', unsafe_allow_html=True)
     st.markdown('<div class="question-subtitle">맛집 후기와 정책 정보는 신뢰도 기준이 다르게 적용돼요.</div>', unsafe_allow_html=True)
 
     selected_type_label = st.radio(
@@ -1216,19 +2283,38 @@ with left_col:
     }
     selected_type = selected_type_map[selected_type_label]
 
+    input_mode = st.radio(
+        "분석 방식",
+        ["링크로 조회하기", "글 붙여넣기로 조회하기"],
+        horizontal=True,
+    )
+
     st.markdown(
         f'''
         <div class="choice-box">
-            <div class="choice-box-title">현재 선택: {selected_type_label}</div>
+            <div class="choice-box-title">현재 선택: {selected_type_label} · {input_mode}</div>
             <div class="choice-box-desc">선택한 유형에 맞춰 점수 기준과 분석 근거가 다르게 적용돼요.</div>
         </div>
         ''',
         unsafe_allow_html=True,
     )
 
-    url_input = st.text_input("🔗 분석할 URL", placeholder="https://example.com/article")
-    show_debug = st.checkbox("추출 본문 디버그 보기", value=False)
+    pasted_text = ""
+    if input_mode == "링크로 조회하기":
+        url_input = st.text_input("🔗 분석할 URL", placeholder="https://example.com/article", key="url_input_value")
+    else:
+        url_input = ""
+        pasted_text = st.text_area(
+            "📝 분석할 글 붙여넣기",
+            placeholder="블로그 글, 정책 안내문, 상품 후기, 기사 일부 등을 여기에 붙여넣어주세요.",
+            height=260,
+            key="pasted_text_input_value",
+        )
+
+    show_debug = st.checkbox("추출/입력 본문 디버그 보기", value=False)
     analyze_btn = st.button("🔍 신뢰도 분석 시작", type="primary", use_container_width=True)
+    if analyze_btn:
+        st.session_state.analysis_requested = True
 
     st.markdown("""
     <div class="info-note">
@@ -1242,7 +2328,7 @@ with left_col:
 with right_col:
     st.markdown('<div class="side-help-card">', unsafe_allow_html=True)
     st.markdown("### ✨ 예상 결과 미리보기")
-    st.caption("URL 분석 후 아래 항목들이 카드 형태로 제공돼요.")
+    st.caption("분석 후 제공되는 결과와 현재 적용 중인 신뢰도 기준을 미리 확인해요.")
     card_col1, card_col2 = st.columns(2)
     with card_col1:
         st.markdown('<div class="help-grid-card"><div class="help-grid-title">🛡️ 신뢰도 분석</div><div class="help-grid-desc">콘텐츠 유형에 맞는 기준으로 점수를 계산해요.</div></div>', unsafe_allow_html=True)
@@ -1256,52 +2342,162 @@ with right_col:
     st.markdown("""
     <div class="info-note" style="margin-top:18px;">
     🧠 <b>지식 아카이브 흐름</b><br>
-    URL 분석 → 태그 추천 → AI 초안 생성 → 사용자 수정 → 저장 → 태그별 조회
+    URL 분석 또는 글 붙여넣기 → 태그 추천 → AI 초안 생성 → 사용자 수정 → 저장 → 태그별 조회<br><br>
+    ⚡ 같은 URL은 캐시를 사용해서 API 호출을 줄여요.<br>
+    💾 메모/기록은 trustlens_data.json에 저장돼요.
     </div>
     """, unsafe_allow_html=True)
+
+    st.divider()
+    st.markdown("### 🛠️ 이번 분석에 적용할 신뢰도 기준")
+    st.caption("저장된 기준 중 이번 분석에 사용할 기준을 선택하거나, 아래에서 새 기준을 바로 추가할 수 있어요.")
+
+    criterion_titles = [c.get("title") for c in st.session_state.custom_trust_criteria if c.get("title")]
+    active_defaults = st.session_state.get("active_custom_criteria_titles", [])
+    active_defaults = [title for title in active_defaults if title in criterion_titles]
+
+    if criterion_titles:
+        selected_active_titles = st.multiselect(
+            "저장된 커스텀 기준 불러오기",
+            options=criterion_titles,
+            default=active_defaults or criterion_titles,
+            help="선택한 기준만 다음 분석 프롬프트에 반영돼요.",
+        )
+        st.session_state.active_custom_criteria_titles = selected_active_titles
+        save_persisted_data()
+
+        if selected_active_titles:
+            st.success(f"이번 분석에 {len(selected_active_titles)}개의 커스텀 기준이 반영돼요.")
+            for idx, title in enumerate(selected_active_titles[:3], start=1):
+                matched = next((c for c in st.session_state.custom_trust_criteria if c.get("title") == title), {})
+                st.markdown(
+                    f"""
+                    <div class="history-item">
+                        <div class="history-title">{idx}. {matched.get('title', title)} · 중요도 {matched.get('weight', '보통')}</div>
+                        <div class="history-meta">{matched.get('description', '설명 없음')}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.warning("이번 분석에는 커스텀 기준이 적용되지 않아요.")
+    else:
+        st.info("아직 저장된 커스텀 기준이 없어요. 아래에서 바로 하나 추가할 수 있어요.")
+
+    quick_custom_title_key = "quick_custom_criterion_title"
+    quick_custom_desc_key = "quick_custom_criterion_desc"
+    quick_custom_weight_key = "quick_custom_criterion_weight"
+
+    with st.expander("➕ 새 신뢰도 기준 빠르게 추가하기", expanded=not bool(criterion_titles)):
+        st.text_input("빠른 기준 이름", placeholder="예: 실제 사진 근거", key=quick_custom_title_key)
+        st.text_area(
+            "빠른 기준 설명",
+            placeholder="예: 사진이 많고 상황 설명이 구체적인 글을 더 신뢰한다.",
+            height=86,
+            key=quick_custom_desc_key,
+        )
+        st.selectbox(
+            "빠른 기준 중요도",
+            ["낮음", "보통", "높음"],
+            index=1,
+            key=quick_custom_weight_key,
+        )
+        st.button(
+            "➕ 이 기준 추가하고 이번 분석에 반영하기",
+            key="quick_add_custom_trust_criterion",
+            use_container_width=True,
+            on_click=save_custom_trust_criterion,
+            args=(quick_custom_title_key, quick_custom_desc_key, quick_custom_weight_key),
+        )
+
+    if st.session_state.get("custom_criterion_saved"):
+        st.success("커스텀 기준을 저장했어요. 이번 분석부터 반영돼요.")
+        st.session_state["custom_criterion_saved"] = False
+    if st.session_state.get("custom_criterion_error"):
+        st.warning(st.session_state["custom_criterion_error"])
+        st.session_state["custom_criterion_error"] = ""
+
     st.markdown("</div>", unsafe_allow_html=True)
 
-if analyze_btn:
-    if not url_input.strip():
+
+if st.session_state.get("analysis_requested", False):
+    st.session_state.analysis_requested = False
+    pasted_text = st.session_state.get("pasted_text_input_value", "")
+    url_input = st.session_state.get("url_input_value", "")
+    st.session_state.show_result = False
+    st.session_state.last_result = None
+    st.session_state.last_final_url = None
+    st.session_state.last_text = ""
+    analysis_succeeded = False
+
+    if input_mode == "링크로 조회하기" and not url_input.strip():
         st.warning("URL을 입력해주세요.")
-    elif not url_input.startswith("http"):
+    elif input_mode == "링크로 조회하기" and not url_input.startswith("http"):
         st.warning("http:// 또는 https://로 시작하는 URL을 입력해주세요.")
-    elif not os.getenv("GROQ_API_KEY"):
-        st.error("API 키가 없어요. .env 파일에 GROQ_API_KEY를 입력해주세요.")
+    elif input_mode == "글 붙여넣기로 조회하기" and len(pasted_text.strip()) < 100:
+        st.warning("분석할 글을 100자 이상 붙여넣어주세요.")
     else:
-        with st.spinner("본문 추출 중..."):
-            text, err, final_url = extract_text(url_input.strip())
+        if input_mode == "링크로 조회하기":
+            with st.spinner("본문 추출 중..."):
+                text, err, final_url = extract_text(url_input.strip())
+            analysis_source = url_input.strip()
+        else:
+            text = clean_text(pasted_text.strip())[:6000]
+            err = ""
+            pasted_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+            final_url = f"pasted://{pasted_hash}"
+            analysis_source = "사용자 붙여넣기 글"
 
         if err:
             st.error(err)
         elif not text or len(text) < 100:
-            st.error("본문을 충분히 추출할 수 없어요. 다른 URL을 넣어보세요.")
+            st.error("본문을 충분히 확보할 수 없어요.")
             if text:
                 st.text(text[:1000])
         else:
-            with st.spinner("AI가 분석 중..."):
-                try:
-                    result = analyze_with_groq(text, url_input.strip(), selected_type)
-                    st.session_state.last_result = result
-                    st.session_state.last_final_url = final_url
-                    st.session_state.last_text = text
-                    st.session_state.search_history.insert(
-                        0,
-                        {
-                            "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                            "url": final_url,
-                            "title": result.get("archive_title", "제목 없음"),
-                            "content_type": result.get("content_type", "unknown"),
-                            "score": result.get("trust_score", 0),
-                        },
-                    )
-                    st.session_state.show_result = True
-                except json.JSONDecodeError as e:
-                    st.error(f"분석 결과 JSON 파싱 오류: {e}")
-                except Exception as e:
-                    st.error(f"분석 중 오류 발생: {e}")
-                    if "429" in str(e) or "사용량 제한" in str(e) or "Too Many Requests" in str(e):
-                        st.info("지금은 Groq 무료/분당 호출 제한에 걸린 상태예요. 1~3분 뒤 다시 시도하거나, AI 초안 생성 버튼은 분석 후 따로 눌러주세요.")
+            criteria_signature = "|".join(st.session_state.get("active_custom_criteria_titles", []))
+            cache_key = f"{final_url}::{selected_type}::{input_mode}::{criteria_signature}"
+            if cache_key in st.session_state.analysis_cache:
+                result = st.session_state.analysis_cache[cache_key]
+                st.session_state.last_result = result
+                st.session_state.last_final_url = final_url
+                st.session_state.last_text = text
+                st.session_state.show_result = True
+                analysis_succeeded = True
+                st.info("같은 조건의 분석 결과가 있어서 저장된 결과를 다시 불러왔어요.")
+            else:
+                with st.spinner("AI가 분석 중..."):
+                    try:
+                        result = analyze_with_groq(text, analysis_source, selected_type)
+                        st.session_state.analysis_cache[cache_key] = result
+                        st.session_state.last_result = result
+                        st.session_state.last_final_url = final_url
+                        st.session_state.last_text = text
+                        st.session_state.show_result = True
+                        analysis_succeeded = True
+                    except json.JSONDecodeError as e:
+                        st.error(f"분석 결과 JSON 파싱 오류: {e}")
+                    except Exception as e:
+                        st.error(f"분석 중 오류 발생: {e}")
+                        if "429" in str(e) or "사용량 제한" in str(e) or "Too Many Requests" in str(e):
+                            st.info("Groq 제한에 걸렸어요. 잠시 후 다시 시도해주세요.")
+
+            if analysis_succeeded and st.session_state.get("last_result"):
+                st.session_state.search_history.insert(
+                    0,
+                    {
+                        "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        "url": final_url,
+                        "cache_key": cache_key,
+                        "title": st.session_state.last_result.get("archive_title", "제목 없음"),
+                        "content_type": st.session_state.last_result.get("content_type", "unknown"),
+                        "score": st.session_state.last_result.get("trust_score", 0),
+                        "source": "cache" if cache_key in st.session_state.analysis_cache else "new_analysis",
+                        "input_mode": input_mode,
+                    },
+                )
+                st.session_state.search_history = st.session_state.search_history[:30]
+                save_persisted_data()
 
 if st.session_state.show_result and st.session_state.last_result:
     render_result(

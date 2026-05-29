@@ -7,12 +7,38 @@ import json
 import re
 from urllib.parse import urlparse
 from datetime import datetime
+from pathlib import Path
 import pandas as pd
 import plotly.express as px
 
 load_dotenv()
 
 st.set_page_config(page_title="TrustLens", page_icon="🔍", layout="wide")
+
+DATA_FILE = Path("trustlens_data.json")
+
+def load_persisted_data():
+    if not DATA_FILE.exists():
+        return {}
+    try:
+        with DATA_FILE.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def save_persisted_data():
+    data = {
+        "archive_notes": st.session_state.get("archive_notes", []),
+        "search_history": st.session_state.get("search_history", []),
+        "feedback_history": st.session_state.get("feedback_history", []),
+        "analysis_cache": st.session_state.get("analysis_cache", {}),
+        "draft_cache": st.session_state.get("draft_cache", {}),
+    }
+    try:
+        with DATA_FILE.open("w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        st.warning(f"저장 파일을 쓰는 중 문제가 생겼어요: {e}")
 
 st.markdown("""
 <style>
@@ -171,15 +197,18 @@ with st.sidebar:
 # Session State
 # -----------------------------
 def init_state():
+    persisted = load_persisted_data()
     defaults = {
         "last_result": None,
         "last_final_url": None,
         "last_text": "",
-        "archive_notes": [],
-        "search_history": [],
+        "archive_notes": persisted.get("archive_notes", []),
+        "search_history": persisted.get("search_history", []),
         "show_result": False,
         "note_saved": False,
-        "feedback_history": [],
+        "feedback_history": persisted.get("feedback_history", []),
+        "analysis_cache": persisted.get("analysis_cache", {}),
+        "draft_cache": persisted.get("draft_cache", {}),
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -258,7 +287,7 @@ def extract_text(url):
         text = clean_text(text)
         if title:
             text = f"[페이지 제목]\n{title}\n\n[본문]\n{text}"
-        return text[:10000], "", target_url
+        return text[:6000], "", target_url
     except requests.exceptions.Timeout:
         return "", "페이지 로딩 시간이 초과됐어요.", url
     except Exception as e:
@@ -482,7 +511,7 @@ URL:
 {selected_type}
 
 본문:
-{text}
+{text[:5000]}
 
 [중요한 분석 원칙]
 1. 글의 유형을 먼저 판단해라.
@@ -558,8 +587,8 @@ URL:
     body = {
         "model": "llama-3.3-70b-versatile",
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 1600,
-        "temperature": 0.15,
+        "max_tokens": 900,
+        "temperature": 0.1,
     }
     res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=body, timeout=45)
     if res.status_code == 429:
@@ -660,7 +689,7 @@ def generate_note_draft_with_groq(original_text, result, final_url, template_typ
 {user_prompt or "없음"}
 
 [원문 전체]
-{original_text[:9000]}
+{original_text[:4500]}
 
 [작성 규칙]
 - 한국어로 작성해라.
@@ -675,8 +704,8 @@ def generate_note_draft_with_groq(original_text, result, final_url, template_typ
     body = {
         "model": "llama-3.3-70b-versatile",
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 2200,
-        "temperature": 0.25,
+        "max_tokens": 1200,
+        "temperature": 0.2,
     }
     res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=body, timeout=60)
     if res.status_code == 429:
@@ -702,6 +731,7 @@ def save_note_to_archive(note_key, result, final_url, selected_tags):
     )
     st.session_state.note_saved = True
     st.session_state.show_result = True
+    save_persisted_data()
 
 # -----------------------------
 # Archive Note Update Function
@@ -712,6 +742,7 @@ def update_archive_note(index, note_key):
         st.session_state.archive_notes[index]["note"] = edited_note
         st.session_state.archive_notes[index]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
         st.session_state[f"archive_updated_{index}"] = True
+        save_persisted_data()
 
 # -----------------------------
 # User Feedback Save Function
@@ -738,6 +769,7 @@ def save_user_feedback(result, final_url, rating_key, useful_key, wrong_key, mis
 
     st.session_state.feedback_history.insert(0, feedback)
     st.session_state["feedback_saved"] = True
+    save_persisted_data()
 
 
 def close_current_result():
@@ -1098,7 +1130,7 @@ if menu == "🏷️ 태그 관리":
 
 if menu == "🗂️ 지식 아카이브":
     st.markdown("## 🗂️ 지식 아카이브")
-    st.caption("분석 결과에서 저장한 메모가 여기에 쌓여요. 지금은 세션 저장 방식이라 앱을 끄면 사라져요.")
+    st.caption("분석 결과에서 저장한 메모가 여기에 쌓여요. 테스트 단계에서는 trustlens_data.json 파일에 저장돼서 재실행해도 유지돼요.")
     if st.session_state.archive_notes:
         for idx, item in enumerate(st.session_state.archive_notes, start=1):
             tags_text = ", ".join([str(t) for t in item.get("tags", [])])

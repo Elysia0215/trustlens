@@ -891,45 +891,145 @@ URL:
     return result
 
 
+def detect_knowledge_document_type(text: str) -> str:
+    t = text or ""
+    if any(w in t for w in ["회의", "팀플", "담당", "일정", "PPT", "발표", "컨펌"]):
+        return "팀 프로젝트/회의 자료"
+    if any(w in t for w in ["논문", "연구", "실험", "방법론", "결과", "한계"]):
+        return "논문/연구자료"
+    if any(w in t for w in ["뉴스", "기자", "입력", "수정", "투표율", "기사"]):
+        return "뉴스/기사"
+    if any(w in t for w in ["정책", "지원대상", "신청기간", "공고", "정부", "지자체"]):
+        return "정책/공공정보"
+    if any(w in t for w in ["강의", "시험", "교재", "주차", "개념", "학습"]):
+        return "강의/학습노트"
+    return "일반 자료"
+
+
 def make_basic_note_draft(result, final_url=None, selected_tags=None):
+    original_text = st.session_state.get("last_text", "") or ""
+    cleaned = clean_text(original_text)
+    lines = [line.strip() for line in cleaned.splitlines() if line.strip()]
+
     content_type = result.get("content_type", "unknown")
     score = result.get("trust_score", 0)
     ad_risk = result.get("ad_risk", "mid")
     author_type = result.get("author_type", "-")
-    summary = result.get("summary", [])
-    evidence = result.get("evidence", {})
-    summary_text = "\n".join([f"- {s}" for s in summary]) if isinstance(summary, list) else str(summary)
-    selected_tags = selected_tags or []
-    tag_text = ", ".join([str(t).replace("#", "").strip() for t in selected_tags if str(t).strip()])
-    ad_text = {"low": "낮음", "mid": "주의", "high": "위험"}.get(ad_risk, ad_risk)
     content_label = CONTENT_TYPE_LABELS.get(content_type, content_type)
+    ad_text = {"low": "낮음", "mid": "주의", "high": "위험"}.get(ad_risk, ad_risk)
 
-    return f"""# {result.get('archive_title', 'TrustLens 정보 정리 노트')}
+    doc_type = detect_knowledge_document_type(cleaned)
 
-## 1. 기본 정보
-- URL: {final_url or ""}
+    skip_words = [
+        "NAVER", "본문 바로가기", "로그아웃", "서비스 더보기", "뉴스엔터",
+        "댓글 보기", "함께 볼만한 뉴스", "랭킹 뉴스", "많이 본 뉴스",
+        "언론사홈", "기자 프로필", "Copyright", "무단 전재",
+        "SNS 보내기", "글자 크기", "텍스트 음성", "이 기사를 추천합니다",
+        "구독", "알림", "메일"
+    ]
+
+    useful_lines = []
+    for line in lines:
+        if any(word in line for word in skip_words):
+            continue
+        if len(line) < 8:
+            continue
+        if line not in useful_lines:
+            useful_lines.append(line)
+
+    title = result.get("archive_title", "AI 지식 리포트")
+
+    number_pattern = r"\d+(?:\.\d+)?\s*(?:%|％|명|만명|개|곳|원|억원|조원|달러|건|회|일|년|월|시|분|포인트|p)"
+    numeric_lines = [line for line in useful_lines if re.search(number_pattern, line)]
+
+    decision_keywords = ["결정", "확정", "필요", "해야", "컨펌", "확인", "변경", "목표", "제안", "전략"]
+    schedule_keywords = ["~", "까지", "이후", "발표", "12/", "11/", "월)", "화)", "수)", "목)", "금)", "토)", "일)"]
+    source_keywords = ["출처", "http", "https", "기사", "보고서", "인터뷰", "링크"]
+    insight_keywords = ["강점", "약점", "기회", "위협", "부족", "차별", "성장", "가능", "위험", "신뢰", "투명"]
+
+    decisions = [line for line in useful_lines if any(k in line for k in decision_keywords)]
+    schedules = [line for line in useful_lines if any(k in line for k in schedule_keywords)]
+    sources = [line for line in useful_lines if any(k in line for k in source_keywords)]
+    insights = [line for line in useful_lines if any(k in line for k in insight_keywords)]
+
+    overview = useful_lines[:6]
+    main_points = useful_lines[6:18]
+    details = useful_lines[18:36]
+
+    def bullets(items, empty="- 원문에서 충분히 추출되지 않았어요.", limit=None):
+        if limit:
+            items = items[:limit]
+        return "\n".join([f"- {x}" for x in items]) if items else empty
+
+    if numeric_lines:
+        numeric_text = "| 수치/사실 | 활용 메모 |\n|---|---|\n"
+        numeric_text += "\n".join([f"| {x} | 원문 기반 확인 필요 |" for x in numeric_lines[:14]])
+    else:
+        numeric_text = "- 표로 정리할 수 있는 수치가 충분히 추출되지 않았어요."
+
+    tag_text = ", ".join([str(t).replace("#", "").strip() for t in (selected_tags or []) if str(t).strip()])
+
+    return f"""# 🧠 AI 지식 리포트: {title}
+
+> 📌 글을 직접 붙여넣으면 링크 조회보다 본문 중심으로 더 잘 정리돼요.  
+> 이 메모는 단순 요약이 아니라, 나중에 다시 꺼내보기 좋게 원문을 지식 구조로 재구성한 초안입니다.
+
+## 0. 지식 메모 상태
+- 문서 유형: {doc_type}
+- 분석 방식: 본문 기반 구조화 정리
 - 콘텐츠 유형: {content_label}
 - 신뢰도 점수: {score}점
 - 광고 위험도: {ad_text}
 - 작성자 유형: {author_type}
+- URL/출처: {final_url or "붙여넣은 글"}
+- 선택 태그: {tag_text or "없음"}
 
-## 2. 핵심 요약
-{summary_text}
+## 1. 한 줄 핵심
+- 이 자료는 `{doc_type}` 성격의 문서이며, 핵심 정보·결정사항·수치·활용 포인트를 다시 꺼내보기 좋게 정리할 필요가 있어요.
 
-## 3. 판단 근거
-- 광고 판단 근거: {evidence.get("ad_signal", "없음")}
-- 경험 신호 근거: {evidence.get("experience_signal", "없음")}
-- 단점/비판 신호: {evidence.get("negative_signal", "없음")}
+## 2. 전체 개요
+{bullets(overview, limit=6)}
 
-## 4. 내가 선택한 태그
-{tag_text}
+## 3. 핵심 내용 정리
+{bullets(main_points, limit=12)}
 
-## 5. 내 메모
-- 내가 추가로 확인할 점:
-- 나중에 다시 볼 이유:
-- 최종 판단:
+## 4. 주요 수치·사실 데이터
+{numeric_text}
+
+## 5. 결정사항 / 해야 할 일 / 확인 필요 포인트
+{bullets(decisions, "- 명확한 결정사항이나 확인 포인트는 원문에서 뚜렷하게 추출되지 않았어요.", limit=12)}
+
+## 6. 일정 / 진행 흐름
+{bullets(schedules, "- 일정 정보는 원문에서 뚜렷하게 추출되지 않았어요.", limit=10)}
+
+## 7. 분석 인사이트
+{bullets(insights, "- 강점·약점·기회·위험 요소는 추가 검토가 필요해요.", limit=12)}
+
+## 8. 세부 내용 보관
+{bullets(details, limit=18)}
+
+## 9. 출처·근거 후보
+{bullets(sources, "- 출처 정보는 원문에서 뚜렷하게 추출되지 않았어요.", limit=12)}
+
+## 10. 신뢰성 체크 메모
+- 출처가 명시된 내용과 사용자의 해석/추정이 섞여 있는지 구분이 필요해요.
+- 수치, 날짜, 투자금, 시장규모, 법령명은 공식 자료나 원문 링크로 재확인하면 좋아요.
+- 팀플/보고서 자료라면 교수님 기준과 실제 자료 근거가 맞는지 마지막에 한 번 더 점검하는 게 좋아요.
+
+## 11. 나중에 활용할 포인트
+- 발표 대본 작성
+- PPT 목차 정리
+- 보고서 본문 구성
+- 시장/경쟁/CREST/STP 분석 재료
+- 교수님 컨펌 전 체크리스트
+
+## 12. 추천 태그
+- {doc_type}
+- 지식메모
+- 자료정리
+- 보고서초안
+- 신뢰도검토
 """
-
 
 def generate_note_draft_with_groq(original_text, result, final_url, template_type, user_prompt):
     api_key = os.getenv("GROQ_API_KEY")
@@ -947,7 +1047,8 @@ def generate_note_draft_with_groq(original_text, result, final_url, template_typ
     prompt = f"""
 너는 TrustLens의 지식 아카이브 메모 작성 보조 AI다.
 아래 원문 전체를 보고, 사용자가 나중에 다시 열람하기 좋은 메모 초안을 만들어라.
-단순 요약이 아니라 원문의 중요한 내용을 최대한 빠짐없이 구조화해서 정리해라.
+단순 요약이 아니라 사용자가 나중에 지식 메모로 다시 꺼내볼 수 있도록 원문의 중요한 내용을 최대한 빠짐없이 구조화해서 정리해라.
+특히 사용자가 글 붙여넣기로 긴 본문을 제공한 경우, 기사/자료 전문을 읽고 보고서처럼 재구성하듯이 핵심 수치, 흐름, 비교, 배경, 시사점, 활용 포인트까지 체계적으로 정리해라.
 광고성 판단, 신뢰도 판단은 이미 끝났으므로 여기서는 '내용 정리'에 집중해라.
 
 [URL]
@@ -975,6 +1076,12 @@ def generate_note_draft_with_groq(original_text, result, final_url, template_typ
 - 한국어로 작성해라.
 - Markdown 형식으로 작성해라.
 - 원문에 있는 구체 정보, 가격, 메뉴, 장소, 팁, 장단점, 재방문 의사 등을 최대한 반영해라.
+- 뉴스/정책/공공정보 글이면 반드시 개요, 핵심 수치, 주요 내용, 비교/맥락, 시사점, 활용 메모를 나누어 정리해라.
+- 팀플/회의/프로젝트 자료면 반드시 역할, 일정, 결정사항, 미해결 안건, 자료조사 내용, 발표/PPT 활용 포인트를 나누어 정리해라.
+- 시장조사/기업분석 자료면 반드시 기업소개, 시장규모, 경쟁사, CREST/STP/4P 등 분석 프레임, 신뢰성 확인 포인트를 나누어 정리해라.
+- 단순히 3문장 요약으로 끝내지 말고, 원문을 보고서·리포트처럼 다시 읽기 좋은 형태로 재구성해라.
+- 표로 정리할 수 있는 수치가 있으면 표를 사용해라.
+- 사용자가 나중에 과제, 블로그, 발표, 리서치에 다시 활용할 수 있게 작성해라.
 - 없는 정보는 지어내지 마라.
 - 지식 아카이브에서 다시 읽기 좋은 완성형 초안으로 써라.
 - 태그는 본문 맨 아래에 '추천 태그'로만 정리해라.
@@ -1612,8 +1719,9 @@ def render_result(result, extracted_text=None, final_url=None):
 
     st.divider()
     st.markdown('<div class="memo-shell">', unsafe_allow_html=True)
-    st.markdown("### 🗂️ 저장 및 메모 만들기")
-    st.caption("왼쪽은 긴 지식 메모 작성, 오른쪽은 분석결과 자체 저장용이에요.")
+    st.markdown("### 🗂️ 저장 및 지식 메모 만들기")
+    st.info("글을 직접 붙여넣으면 본문 중심으로 더 잘 정리돼요. 지식 메모는 단순 요약이 아니라, 나중에 다시 꺼내볼 수 있게 원문을 보고서·리포트처럼 체계적으로 재구성하는 공간이에요.")
+    st.caption("왼쪽은 지식 메모 초안 작성, 오른쪽은 분석결과 자체 저장용이에요.")
 
     tag_options = []
     for tag in result.get("tags_positive", []) + result.get("tags_warning", []):
@@ -1649,7 +1757,7 @@ def render_result(result, extracted_text=None, final_url=None):
         )
         user_draft_prompt = st.text_area(
             "초안에 반영할 추가 요청",
-            placeholder="예: 가격과 팁을 표로 정리해줘 / 블로그에 올릴 수 있게 정리해줘 / 내 말투처럼 자연스럽게 정리해줘",
+            placeholder="예: 이 본문을 보고서 형식으로 전체 내용이 드러나게 정리해줘 / 핵심 수치와 비교를 표로 정리해줘 / 과제 리포트에 쓸 수 있게 배경·맥락·시사점까지 정리해줘",
             height=110,
             key=f"draft_prompt_{final_url or 'current'}",
         )

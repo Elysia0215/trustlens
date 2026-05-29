@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 테스트/
 
+.env

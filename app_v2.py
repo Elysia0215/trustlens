@@ -906,6 +906,62 @@ def render_result(result, extracted_text=None, final_url=None):
     render_score_dashboard(breakdown, content_type)
 
     st.divider()
+    st.markdown('<div class="feedback-shell">', unsafe_allow_html=True)
+    st.markdown("### ⭐ 사용자 피드백으로 TrustLens 개선하기")
+    st.caption("분석 결과가 맞았는지 바로 평가해주세요. 이 피드백은 이후 점수 기준, 태그 추천, AI 초안 개선 데이터로 쌓입니다.")
+
+    feedback_base = final_url or "current"
+    rating_key = f"feedback_rating_{feedback_base}"
+    useful_key = f"feedback_useful_{feedback_base}"
+    wrong_key = f"feedback_wrong_{feedback_base}"
+    missing_key = f"feedback_missing_{feedback_base}"
+    memo_key = f"feedback_memo_{feedback_base}"
+
+    quick_col1, quick_col2, quick_col3 = st.columns([0.8, 1.1, 1.1])
+    with quick_col1:
+        st.slider("만족도", min_value=1, max_value=5, value=4, key=rating_key)
+    with quick_col2:
+        st.multiselect(
+            "도움 된 부분",
+            ["신뢰도 점수", "광고 위험도", "작성자 유형", "핵심 요약", "AI 메모 초안", "태그 추천", "차트 시각화"],
+            default=["핵심 요약", "차트 시각화"],
+            key=useful_key,
+        )
+    with quick_col3:
+        st.text_area("추가 필요/아쉬운 점", placeholder="예: 사진 개수 반영, 점수 기준 설명 강화 등", height=96, key=missing_key)
+
+    with st.expander("✍️ 자세한 피드백 남기기"):
+        st.text_area("틀렸거나 어색한 부분", placeholder="예: 맛집 후기인데 공식 출처 기준이 보이면 어색함 / 점수가 너무 낮음", height=90, key=wrong_key)
+        st.text_area("자유 피드백", placeholder="TrustLens가 다음 분석에서 더 잘 판단했으면 하는 기준을 적어주세요.", height=90, key=memo_key)
+
+    if st.button("📩 피드백 저장하기", key=f"save_feedback_{feedback_base}", use_container_width=True, type="primary"):
+        save_user_feedback(result, final_url, rating_key, useful_key, wrong_key, missing_key, memo_key)
+
+    if st.session_state.get("feedback_saved"):
+        st.success("피드백을 저장했어요. 최근 검색 기록 메뉴에서 피드백 기록도 확인할 수 있어요.")
+        st.session_state["feedback_saved"] = False
+
+    if st.session_state.feedback_history:
+        recent_feedback = st.session_state.feedback_history[0]
+        st.markdown(
+            f'''
+            <div class="learning-box">
+            🧠 <b>누적 피드백 기반 개선 신호</b><br>
+            최근 만족도: {recent_feedback.get("rating", "-")} / 5<br>
+            도움 된 부분: {", ".join(recent_feedback.get("useful_points", [])) or "없음"}<br>
+            보완 요청: {recent_feedback.get("missing_points", "없음") or "없음"}<br><br>
+            <span class="feedback-chip">사용자 피드백</span>
+            <span class="feedback-chip">점수 기준 보정</span>
+            <span class="feedback-chip">AI 초안 개선</span>
+            <span class="feedback-chip">태그 학습 데이터</span>
+            </div>
+            ''',
+            unsafe_allow_html=True,
+        )
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.divider()
     st.markdown("### 🔎 판단 근거")
     tab1, tab2, tab3 = st.tabs(["원문 근거", "작성자 분석", "광고 판단"])
     with tab1:
@@ -979,59 +1035,6 @@ def render_result(result, extracted_text=None, final_url=None):
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-    st.divider()
-    st.markdown('<div class="feedback-shell">', unsafe_allow_html=True)
-    st.markdown("### ⭐ 사용자 피드백으로 TrustLens 개선하기")
-    st.caption("분석 결과와 AI 초안이 맞았는지 평가해주면, 이후 점수 기준과 메모 정리 방향을 개선하는 학습 데이터처럼 쌓을 수 있어요.")
-
-    feedback_base = final_url or "current"
-    rating_key = f"feedback_rating_{feedback_base}"
-    useful_key = f"feedback_useful_{feedback_base}"
-    wrong_key = f"feedback_wrong_{feedback_base}"
-    missing_key = f"feedback_missing_{feedback_base}"
-    memo_key = f"feedback_memo_{feedback_base}"
-
-    f1, f2 = st.columns([0.9, 1.1])
-    with f1:
-        st.slider("정리된 내용 만족도", min_value=1, max_value=5, value=4, key=rating_key)
-        st.multiselect(
-            "도움 된 부분 선택",
-            ["신뢰도 점수", "광고 위험도", "작성자 유형", "핵심 요약", "AI 메모 초안", "태그 추천", "차트 시각화"],
-            default=["핵심 요약", "AI 메모 초안"],
-            key=useful_key,
-        )
-    with f2:
-        st.text_area("틀렸거나 어색한 부분", placeholder="예: 맛집 후기에 공식 출처 항목이 보이면 어색함 / 점수가 너무 낮음", height=90, key=wrong_key)
-        st.text_area("추가로 필요했던 정보", placeholder="예: 사진 개수 반영 / 가격표 요약 / 장소 정보 더 강조", height=90, key=missing_key)
-
-    st.text_area("자유 피드백", placeholder="TrustLens가 다음 분석에서 더 잘 판단했으면 하는 기준을 적어주세요.", height=90, key=memo_key)
-
-    if st.button("📩 피드백 저장하기", key=f"save_feedback_{feedback_base}", use_container_width=True, type="primary"):
-        save_user_feedback(result, final_url, rating_key, useful_key, wrong_key, missing_key, memo_key)
-
-    if st.session_state.get("feedback_saved"):
-        st.success("피드백을 저장했어요. 왼쪽 메뉴의 최근 검색 기록 아래에서 피드백 히스토리도 확인할 수 있게 확장할 수 있어요.")
-        st.session_state["feedback_saved"] = False
-
-    if st.session_state.feedback_history:
-        recent_feedback = st.session_state.feedback_history[0]
-        st.markdown(
-            f'''
-            <div class="learning-box">
-            🧠 <b>누적 피드백 기반 개선 신호</b><br>
-            최근 만족도: {recent_feedback.get("rating", "-")} / 5<br>
-            도움 된 부분: {", ".join(recent_feedback.get("useful_points", [])) or "없음"}<br>
-            보완 요청: {recent_feedback.get("missing_points", "없음") or "없음"}<br><br>
-            <span class="feedback-chip">사용자 피드백</span>
-            <span class="feedback-chip">점수 기준 보정</span>
-            <span class="feedback-chip">AI 초안 개선</span>
-            <span class="feedback-chip">태그 학습 데이터</span>
-            </div>
-            ''',
-            unsafe_allow_html=True,
-        )
-
-    st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 # -----------------------------

@@ -266,6 +266,77 @@ section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked)
     margin: 0 !important;
     font-size: 15px !important;
 }
+
+@media (max-width: 768px) {
+    .block-container {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+        padding-top: 1rem !important;
+        max-width: 100% !important;
+    }
+
+    .hero-title {
+        font-size: 24px !important;
+    }
+
+    .hero-subtitle {
+        font-size: 13px !important;
+    }
+
+    .input-shell,
+    .side-help-card,
+    .result-shell,
+    .page-card,
+    .chart-dashboard,
+    .memo-shell {
+        padding: 16px !important;
+        border-radius: 18px !important;
+        margin-bottom: 14px !important;
+    }
+
+    .metric-card {
+        min-height: auto !important;
+        padding: 14px !important;
+        margin-bottom: 10px !important;
+    }
+
+    .metric-value {
+        font-size: 20px !important;
+    }
+
+    .metric-label,
+    .metric-sub,
+    .history-meta {
+        font-size: 12px !important;
+    }
+
+    .history-title {
+        font-size: 14px !important;
+    }
+
+    .chart-title {
+        font-size: 18px !important;
+    }
+
+    .chart-subtitle {
+        font-size: 12px !important;
+    }
+
+    h1, h2, h3 {
+        font-size: 1.25rem !important;
+    }
+
+    iframe {
+        max-width: 100% !important;
+    }
+
+    [data-testid="column"] {
+        width: 100% !important;
+        flex: 1 1 100% !important;
+        min-width: 100% !important;
+    }
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -308,6 +379,8 @@ def init_state():
         "auto_feedback_stats": persisted.get("auto_feedback_stats", {}),
         "custom_trust_criteria": persisted.get("custom_trust_criteria", []),
         "active_custom_criteria_titles": persisted.get("active_custom_criteria_titles", []),
+        "result_closed_by_user": False,
+        "analysis_done_message": "",
         "result_closed_by_user": False,
         "analysis_done_message": "",
     }
@@ -2778,6 +2851,7 @@ if st.session_state.get("analysis_requested", False):
                         st.session_state.last_text = text
                         st.session_state.show_result = True
                         st.session_state.analysis_done_message = "✅ 분석 완료했어요. 아래에서 신뢰도 결과와 지식 메모 초안을 확인할 수 있어요."
+                        st.session_state.analysis_done_message = "✅ 분석 완료했어요. 아래에서 신뢰도 결과와 지식 메모 초안을 확인할 수 있어요."
                         analysis_succeeded = True
                     except json.JSONDecodeError as e:
                         st.error(f"분석 결과 JSON 파싱 오류: {e}")
@@ -2802,6 +2876,9 @@ if st.session_state.get("analysis_requested", False):
                 )
                 st.session_state.search_history = st.session_state.search_history[:30]
                 save_persisted_data()
+
+if st.session_state.get("analysis_done_message"):
+    st.success(st.session_state.analysis_done_message)
 
 if st.session_state.get("analysis_done_message"):
     st.success(st.session_state.analysis_done_message)

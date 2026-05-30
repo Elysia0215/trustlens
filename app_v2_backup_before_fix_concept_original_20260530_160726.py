@@ -250,7 +250,7 @@ section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked)
     min-height: 112px !important;
     padding: 18px 22px !important;
 }
-..note-action-card h2,
+....note-action-card h2,
 .archive-action-card h2 {
     font-size: clamp(22px, 1.65vw, 30px) !important;
     line-height: 1.22 !important;
@@ -1213,20 +1213,6 @@ def generate_note_draft_with_groq(original_text, result, final_url, template_typ
 # -----------------------------
 def save_note_to_archive(note_key, result, final_url, selected_tags):
     note_text = st.session_state.get(note_key, "")
-    original_text = st.session_state.get("last_text", "")
-    is_pasted_source = str(final_url or "").startswith("pasted://")
-
-    if is_pasted_source and original_text and "## 원문 보관" not in note_text:
-        note_text = (
-            note_text.rstrip()
-            + "\n\n---\n\n"
-            + "## 원문 보관\n"
-            + "> 글 붙여넣기로 분석한 자료라 원문 링크가 없어, 저장 시점의 원문을 함께 보관합니다.\n\n"
-            + "```text\n"
-            + original_text[:6000]
-            + "\n```\n"
-        )
-
     st.session_state.archive_notes.append(
         {
             "url": final_url or "",
@@ -1238,7 +1224,6 @@ def save_note_to_archive(note_key, result, final_url, selected_tags):
             "favorite": False,
             "tags": selected_tags,
             "note": note_text,
-            "original_text": original_text if is_pasted_source else "",
             "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
         }
     )
@@ -1963,11 +1948,9 @@ def render_result(result, extracted_text=None, final_url=None):
             value="일반",
             key="note_section_name",
         )
-        st.markdown("## ✍️ 메모 초안 편집")
-        st.caption("AI 초안을 기반으로 내 메모를 정리한 뒤, 맨 아래에서 지식 메모로 저장해요.")
-
-        if str(final_url or "").startswith("pasted://"):
-            st.info("붙여넣기로 분석한 글은 원문 링크가 없어서, 지식 메모 저장 시 원문이 메모 맨 아래에 자동 보관돼요.")    
+    st.markdown("## ✍️ 메모 초안 편집")
+    st.caption("AI 초안을 기반으로 내 메모를 정리한 뒤, 맨 아래에서 지식 메모로 저장해요.")
+    st.text_area("AI 초안 기반으로 내 메모 정리하기", height=700, key=note_key)
 
     bottom_save_col, bottom_close_col = st.columns(2)
     with bottom_save_col:
@@ -2022,7 +2005,7 @@ def get_all_knowledge_items():
             "tags": item.get("tags", []),
             "date": item.get("saved_at", ""),
             "memo": item.get("note", ""),
-            "full_text": "\n".join([str(item.get("note", "")), str(item.get("original_text", ""))]),
+            "full_text": item.get("note", ""),
             "favorite": item.get("favorite", False),
             "raw_item": item,
             "raw_index": f"item_{idx}_{len(items)}",
@@ -2297,116 +2280,6 @@ def render_knowledge_map_page():
         st.metric("태그 수", f"{len(total_tags)}개")
     with m3:
         st.metric("평균 신뢰도", f"{avg_score}점")
-
-    from collections import Counter
-
-    with st.expander("🛠️ 핵심 개념 직접 관리", expanded=False):
-        st.caption("자동으로 안 잡히는 개념은 직접 추가할 수 있어요.")
-        new_concept = st.text_input("새 핵심 개념", placeholder="예: ESG, CREST, 결제시스템", key="pkm_new_concept")
-        new_folder = st.text_input("개념 폴더", placeholder="예: 마케팅 / 기술 / 정책 / 취업", key="pkm_new_concept_folder")
-        if st.button("➕ 핵심 개념 추가", key="add_pkm_custom_concept", use_container_width=True):
-            clean = new_concept.strip().replace("#", "")
-            if clean:
-                concepts = st.session_state.get("pkm_custom_concepts", [])
-                if clean not in concepts:
-                    concepts.append(clean)
-                st.session_state.pkm_custom_concepts = concepts
-
-                folders = st.session_state.get("pkm_concept_folders", {})
-                folders[clean] = new_folder.strip() or "기본"
-                st.session_state.pkm_concept_folders = folders
-                save_persisted_data()
-                st.success("핵심 개념을 추가했어요.")
-                st.rerun()
-
-    st.markdown("### 🧠 핵심 개념 허브")
-    st.caption("내 문서에서 자주 등장하는 태그와 개념이에요. 누르면 관련 문서를 모아볼 수 있어요.")
-
-    concept_counter = Counter()
-    concept_source_items = get_all_knowledge_items()
-
-    for item in concept_source_items:
-        for tag in item.get("tags", []):
-            clean = str(tag).replace("#", "").strip()
-            if clean:
-                concept_counter[clean] += 1
-
-        for concept in extract_local_concepts(
-            str(item.get("full_text", "")) + " " + str(item.get("memo", "")),
-            item.get("tags", []),
-            limit=8,
-        ):
-            if concept:
-                concept_counter[concept] += 1
-
-    for custom_concept in st.session_state.get("pkm_custom_concepts", []):
-        if custom_concept:
-            concept_counter[custom_concept] += 3
-
-    top_concepts = concept_counter.most_common(20)
-
-    if top_concepts:
-        cols = st.columns(4)
-        for idx, (concept, count) in enumerate(top_concepts):
-            with cols[idx % 4]:
-                folder = st.session_state.get("pkm_concept_folders", {}).get(concept, "자동")
-                st.markdown(
-                    f"""
-                    <div class="pkm-sidebar-card">
-                        <div class="pkm-sidebar-title">🧠 {concept}</div>
-                        <div class="pkm-sidebar-meta">{folder} · {count}개 연결</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-                if st.button("관련 문서 보기", key=f"concept_hub_open_{idx}_{abs(hash(str(concept)))}", use_container_width=True):
-                    st.session_state["selected_concept_v2"] = concept
-                    st.rerun()
-    else:
-        st.caption("아직 추출된 핵심 개념이 없어요.")
-
-    selected_concept_v2 = st.session_state.get("selected_concept_v2")
-    if selected_concept_v2:
-        st.markdown(f"### 🔗 '{selected_concept_v2}' 관련 문서")
-        related_items_v2 = []
-        selected_norm = str(selected_concept_v2).replace("#", "").strip().lower()
-
-        for item in concept_source_items:
-            tags = [str(t).replace("#", "").strip().lower() for t in item.get("tags", [])]
-            combined_text = " ".join([
-                str(item.get("title", "")),
-                str(item.get("memo", "")),
-                str(item.get("full_text", "")),
-                " ".join(tags),
-            ]).lower()
-
-            if selected_norm in tags or selected_norm in combined_text:
-                related_items_v2.append(item)
-
-        if related_items_v2:
-            st.success(f"{len(related_items_v2)}개 문서가 연결되어 있어요.")
-            rcols = st.columns(3)
-            for related_idx, item in enumerate(related_items_v2[:12]):
-                with rcols[related_idx % 3]:
-                    with st.container(border=True):
-                        st.markdown(f"**{item.get('title', '제목 없음')}**")
-                        st.caption(f"{item.get('kind')} · {item.get('score', 0)}점")
-                        st.caption(f"{item.get('project', '기본 프로젝트')} / {item.get('section', '일반')}")
-                        st.button(
-                            "열기",
-                            key=f"concept_related_open_fixed_{related_idx}_{abs(hash(str(item.get('title', '')) + str(item.get('date', ''))))}",
-                            use_container_width=True,
-                            on_click=restore_item_from_knowledge,
-                            args=(item,),
-                        )
-        else:
-            st.warning("연결된 문서를 못 찾았어요.")
-
-        if st.button("선택 해제", key="clear_selected_concept_v2"):
-            st.session_state["selected_concept_v2"] = None
-            st.rerun()
-
-        st.divider()
 
     tab1, tab2, tab3, tab4 = st.tabs(["📚 원노트 목차", "🧩 노션 보드", "🕸️ 태그 마인드맵", "🧠 지식 페이지"])
 

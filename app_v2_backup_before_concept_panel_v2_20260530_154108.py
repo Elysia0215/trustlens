@@ -247,7 +247,7 @@ section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked)
     min-height: 112px !important;
     padding: 18px 22px !important;
 }
-...note-action-card h2,
+.note-action-card h2,
 .archive-action-card h2 {
     font-size: clamp(22px, 1.65vw, 30px) !important;
     line-height: 1.22 !important;
@@ -2048,13 +2048,20 @@ def infer_middle_category(item):
 
 
 def date_color_group(date_text):
-    date_text = str(date_text or "")[:10]
+    date_text = str(date_text or "").strip()
+    if not date_text:
+        return "날짜 없음"
+
     try:
         from datetime import datetime
-        saved = datetime.strptime(date_text, "%Y-%m-%d")
-        diff = (datetime.now() - saved).days
+        saved = datetime.strptime(date_text[:10], "%Y-%m-%d").date()
+        today = datetime.now().date()
+        diff = (today - saved).days
     except Exception:
         return "날짜 없음"
+
+    if diff < 0:
+        return "오늘/어제"
     if diff <= 1:
         return "오늘/어제"
     if diff <= 7:
@@ -2224,8 +2231,6 @@ def render_knowledge_map_page():
         st.session_state["knowledge_item_restored"] = False
 
     items = get_all_knowledge_items()
-
-    
     if not items:
         st.info("아직 지식 맵에 표시할 저장 메모나 분석결과가 없어요.")
         return
@@ -2241,6 +2246,59 @@ def render_knowledge_map_page():
         st.metric("태그 수", f"{len(total_tags)}개")
     with m3:
         st.metric("평균 신뢰도", f"{avg_score}점")
+
+    from collections import Counter
+
+    st.markdown("### 🧠 핵심 개념 허브")
+    st.caption("내 문서에서 가장 자주 등장하는 태그와 개념을 모아 보여줘요.")
+
+    concept_counter = Counter()
+
+    for item in items:
+        for tag in item.get("tags", []):
+            clean = str(tag).replace("#", "").strip()
+            if clean:
+                concept_counter[clean] += 1
+
+        combined_text = " ".join([
+            str(item.get("title", "")),
+            str(item.get("memo", "")),
+            str(item.get("full_text", "")),
+        ])
+
+        for concept in extract_local_concepts(combined_text, item.get("tags", []), limit=10):
+            clean = str(concept).replace("#", "").strip()
+            if clean:
+                concept_counter[clean] += 1
+
+    top_concepts = concept_counter.most_common(20)
+
+    if "selected_concept" not in st.session_state:
+        st.session_state.selected_concept = None
+
+    if top_concepts:
+        cols = st.columns(4)
+        for idx, (concept, count) in enumerate(top_concepts):
+            with cols[idx % 4]:
+                st.markdown(
+                    f"""
+                    <div class="pkm-sidebar-card">
+                        <div class="pkm-sidebar-title">🧠 {concept}</div>
+                        <div class="pkm-sidebar-meta">{count}개 문서 연결</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                if st.button(
+                    "관련 문서 보기",
+                    key=f"concept_open_{idx}_{abs(hash(concept))}",
+                    use_container_width=True,
+                ):
+                    st.session_state.selected_concept = concept
+    else:
+        st.caption("아직 태그/개념 데이터가 없어요.")
+
+    st.divider()
 
     tab1, tab2, tab3, tab4 = st.tabs(["📚 원노트 목차", "🧩 노션 보드", "🕸️ 태그 마인드맵", "🧠 지식 페이지"])
 

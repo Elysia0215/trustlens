@@ -2224,8 +2224,6 @@ def render_knowledge_map_page():
         st.session_state["knowledge_item_restored"] = False
 
     items = get_all_knowledge_items()
-
-    
     if not items:
         st.info("아직 지식 맵에 표시할 저장 메모나 분석결과가 없어요.")
         return

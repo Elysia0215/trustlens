@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import os
 import json
 import re
+import hashlib
 from urllib.parse import urlparse, urljoin
 from datetime import datetime
 from pathlib import Path
@@ -68,7 +69,13 @@ st.markdown("""
 .block-container { padding-top: 2rem; padding-bottom: 3rem; max-width: 1320px; }
 
 section[data-testid="stSidebar"] { background: linear-gradient(180deg, #203f92 0%, #18357d 100%); }
-section[data-testid="stSidebar"] * { color: white !important; }
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] span,
+section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] div,
+section[data-testid="stSidebar"] button {
+    color: white !important;
+}
 section[data-testid="stSidebar"] div[role="radiogroup"] label {
     background: transparent;
     border-radius: 12px;
@@ -229,159 +236,134 @@ section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked)
 .archive-action-card {
     background: #ffffff;
     border: 2px solid #ef4444;
-    border-radius: 28px;
-    padding: 26px;
-    box-shadow: 0 10px 24px rgba(239,68,68,0.10);
-    min-height: 150px;
+    border-radius: 22px;
+    padding: 18px 22px;
+    box-shadow: 0 8px 18px rgba(239,68,68,0.08);
+    min-height: auto;
+    margin-bottom: 14px;
 }
 .note-action-card {
     background: #ffffff;
     border: 2px solid #2563eb;
-    border-radius: 28px;
-    padding: 26px;
-    box-shadow: 0 10px 24px rgba(37,99,235,0.10);
-    min-height: 150px;
+    border-radius: 22px;
+    padding: 18px 22px;
+    box-shadow: 0 8px 18px rgba(37,99,235,0.08);
+    min-height: auto;
+    margin-bottom: 14px;
 }
-.note-action-card,
-.archive-action-card {
-    min-height: 112px !important;
-    padding: 18px 22px !important;
-}
-...note-action-card h2,
-.archive-action-card h2 {
-    font-size: clamp(22px, 1.65vw, 30px) !important;
-    line-height: 1.22 !important;
-    white-space: nowrap !important;
-    margin: 0 0 14px 0 !important;
-}
-.note-action-card p,
-.archive-action-card p {
-    font-size: clamp(15px, 1.05vw, 19px) !important;
-    line-height: 1.45 !important;
-    margin: 0 !important;
-}
-
-.ai-draft-button-scope + div[data-testid="stButton"] button,
-.big-action-button.blue-action + div[data-testid="stButton"] button,
-div[data-testid="stVerticalBlock"] > div:has(.big-action-button.blue-action) + div[data-testid="stButton"] button {
-    background: linear-gradient(180deg,#3b82f6,#1d4ed8) !important;
-    border: 1px solid #1d4ed8 !important;
+.ai-draft-button-scope + div[data-testid="stButton"] button {
+    background: #2563eb !important;
+    border: 1px solid #2563eb !important;
     color: #ffffff !important;
-    border-radius: 14px !important;
-    font-weight: 900 !important;
-    height: 58px !important;
-    font-size: 18px !important;
-}
-
-.ai-draft-button-scope + div[data-testid="stButton"] button:hover,
-.big-action-button.blue-action + div[data-testid="stButton"] button:hover,
-div[data-testid="stVerticalBlock"] > div:has(.big-action-button.blue-action) + div[data-testid="stButton"] button:hover {
-    background: linear-gradient(180deg,#2563eb,#1e40af) !important;
-    border-color: #1e40af !important;
-    color: #ffffff !important;
-}
-
-.big-action-button + div[data-testid="stButton"] button {
-    height: 58px !important;
-    border-radius: 14px !important;
-    font-size: 22px !important;
+    border-radius: 12px !important;
     font-weight: 800 !important;
 }
-
-.blue-action + div[data-testid="stButton"] button {
-    background: linear-gradient(180deg,#3b82f6,#1d4ed8) !important;
-    color: white !important;
-    border: none !important;
-}
-
- .red-action + div[data-testid="stButton"] button,
-.big-action-button.red-action + div[data-testid="stButton"] button,
-div[data-testid="stVerticalBlock"] > div:has(.big-action-button.red-action) + div[data-testid="stButton"] button {
-    background: linear-gradient(180deg,#ef4444,#dc2626) !important;
-    color: white !important;
-    border: none !important;
-    border-radius: 14px !important;
-    font-weight: 900 !important;
-    height: 58px !important;
-    font-size: 18px !important;
-}
-
-.red-action + div[data-testid="stButton"] button:hover,
-.big-action-button.red-action + div[data-testid="stButton"] button:hover,
-div[data-testid="stVerticalBlock"] > div:has(.big-action-button.red-action) + div[data-testid="stButton"] button:hover {
-    background: linear-gradient(180deg,#f43f5e,#b91c1c) !important;
-    color: white !important;
-}
-
-/* PATCH: recent-analysis-card + knowledge-map */
-.recent-card-title {font-weight:900; color:#172033; font-size:15px; line-height:1.35;}
-.recent-card-meta {color:#64748b; font-size:12px; margin-top:6px; line-height:1.45;}
-.map-mini-card {
-    background:#ffffff;
-    border:1px solid #e5edf8;
-    border-radius:18px;
-    padding:16px;
-    box-shadow:0 8px 20px rgba(15,23,42,0.04);
-    min-height:118px;
-}
-.map-mini-title {font-weight:900; color:#172033; font-size:16px;}
-.map-mini-meta {color:#64748b; font-size:13px; margin-top:6px;}
-.toc-box {
-    background:#ffffff;
-    border:1px solid #e5edf8;
-    border-radius:18px;
-    padding:16px 18px;
-    margin:10px 0;
-}
-.toc-title {font-weight:900; color:#172033;}
-.toc-meta {color:#64748b; font-size:13px; margin-top:5px;}
-.pkm-info-box {
-    background:#eff6ff;
-    border:1px solid #dbeafe;
-    border-radius:18px;
-    padding:16px 18px;
-    margin:12px 0 20px 0;
-    color:#1d4ed8;
-    line-height:1.65;
-    font-size:14px;
-    font-weight:650;
-}
-.pkm-info-box b {color:#172033; font-weight:900;}
-.pkm-sidebar-card {
-    background:#ffffff;
-    border:1px solid #e5edf8;
-    border-radius:18px;
-    padding:14px 16px;
-    margin:8px 0;
-    box-shadow:0 6px 16px rgba(15,23,42,0.035);
-}
-.pkm-sidebar-title {font-weight:900; color:#172033; font-size:15px;}
-.pkm-sidebar-meta {color:#64748b; font-size:12px; margin-top:4px;}
-.pkm-section-pill {
-    display:inline-block;
-    background:#eaf2ff;
-    color:#2563eb;
-    border-radius:999px;
-    padding:5px 10px;
-    font-size:12px;
-    font-weight:900;
-    margin:2px 4px 2px 0;
-}
-
-.knowledge-draft-blue-button + div[data-testid="stButton"] button {
-    background: linear-gradient(180deg,#3b82f6,#1d4ed8) !important;
-    border: 1px solid #1d4ed8 !important;
+.ai-draft-button-scope + div[data-testid="stButton"] button:hover {
+    background: #1d4ed8 !important;
+    border-color: #1d4ed8 !important;
     color: #ffffff !important;
-    border-radius: 14px !important;
-    font-weight: 900 !important;
-    height: 58px !important;
-    font-size: 18px !important;
 }
-.knowledge-draft-blue-button + div[data-testid="stButton"] button:hover {
-    background: linear-gradient(180deg,#2563eb,#1e40af) !important;
-    color: #ffffff !important;
+
+.note-action-card h2, .archive-action-card h2 {
+    margin: 0 0 10px 0 !important;
+    font-size: 25px !important;
+}
+.note-action-card p, .archive-action-card p {
+    margin: 0 !important;
+    font-size: 15px !important;
+}
+
+@media (max-width: 768px) {
+    .block-container {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+        padding-top: 1rem !important;
+        max-width: 100% !important;
+    }
+
+    .hero-title {
+        font-size: 24px !important;
+    }
+
+    .hero-subtitle {
+        font-size: 13px !important;
+    }
+
+    .input-shell,
+    .side-help-card,
+    .result-shell,
+    .page-card,
+    .chart-dashboard,
+    .memo-shell {
+        padding: 16px !important;
+        border-radius: 18px !important;
+        margin-bottom: 14px !important;
+    }
+
+    .metric-card {
+        min-height: auto !important;
+        padding: 14px !important;
+        margin-bottom: 10px !important;
+    }
+
+    .metric-value {
+        font-size: 20px !important;
+    }
+
+    .metric-label,
+    .metric-sub,
+    .history-meta {
+        font-size: 12px !important;
+    }
+
+    .history-title {
+        font-size: 14px !important;
+    }
+
+    .chart-title {
+        font-size: 18px !important;
+    }
+
+    .chart-subtitle {
+        font-size: 12px !important;
+    }
+
+    h1, h2, h3 {
+        font-size: 1.25rem !important;
+    }
+
+    iframe {
+        max-width: 100% !important;
+    }
+
+    
+}
+
+
+body,
+.stApp,
+[data-testid="stAppViewContainer"] {
+    color: #172033 !important;
+}
+
+h1,h2,h3,h4,h5,h6,
+p,span,label,li {
+    color: #172033 !important;
+}
+
+body,
+.stApp,
+[data-testid="stAppViewContainer"] {
+    color: #172033 !important;
+}
+
+h1,h2,h3,h4,h5,h6,
+p,span,label,li {
+    color: #172033 !important;
 }
 </style>
+
+
 """, unsafe_allow_html=True)
 
 with st.sidebar:
@@ -396,7 +378,6 @@ with st.sidebar:
             "🏷️ 분석결과 아카이브",
             "🏷️ 태그 관리",
             "🗂️ 지식 아카이브",
-            "🧠 지식 맵",
             "🕘 최근 검색 기록",
         ],
         label_visibility="collapsed",
@@ -424,6 +405,10 @@ def init_state():
         "auto_feedback_stats": persisted.get("auto_feedback_stats", {}),
         "custom_trust_criteria": persisted.get("custom_trust_criteria", []),
         "active_custom_criteria_titles": persisted.get("active_custom_criteria_titles", []),
+        "result_closed_by_user": False,
+        "analysis_done_message": "",
+        "result_closed_by_user": False,
+        "analysis_done_message": "",
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -432,7 +417,7 @@ def init_state():
 
 def hydrate_last_result_from_cache():
     """앱 재실행 후에도 최근 분석 결과 탭이 비지 않도록 저장된 캐시에서 마지막 결과를 복구한다."""
-    if st.session_state.get("result_closed"):
+    if st.session_state.get("result_closed_by_user"):
         return
     if st.session_state.get("last_result"):
         return
@@ -454,23 +439,9 @@ def hydrate_last_result_from_cache():
 init_state()
 hydrate_last_result_from_cache()
 
-st.markdown(
-    '''
-    <div class="page-card" style="margin-bottom:24px;">
-        <div class="hero-title">🛡️ TrustLens</div>
-        <div class="hero-subtitle">
-            기사 신뢰도 분석을 넘어, 내가 저장한 정보와 생각을 연결하는 개인 AI 지식 아카이브
-        </div>
-        <div style="margin-top:14px;">
-            <span class="tag-badge">신뢰도 분석</span>
-            <span class="tag-badge">지식 메모</span>
-            <span class="tag-badge">태그 연결</span>
-            <span class="tag-badge">개인 AI 두뇌</span>
-        </div>
-    </div>
-    ''',
-    unsafe_allow_html=True,
-)
+
+st.markdown('<div class="hero-title">안녕하세요 👋</div>', unsafe_allow_html=True)
+st.markdown('<div class="hero-subtitle">URL이나 붙여넣은 글을 기준으로 신뢰도, 광고 위험도, 작성자 성향을 분석해드릴게요.</div>', unsafe_allow_html=True)
 
 # -----------------------------
 # Basic Helpers
@@ -487,6 +458,36 @@ def clean_text(text: str) -> str:
         seen.add(line)
         cleaned.append(line)
     return "\n".join(cleaned)
+
+
+def prepare_pasted_text(text: str) -> str:
+    """네이버 뉴스/블로그처럼 주변 메뉴와 추천뉴스가 같이 복사된 본문을 정리한다."""
+    cleaned = clean_text(text or "")
+    lines = [line.strip() for line in cleaned.splitlines() if line.strip()]
+
+    stop_markers = [
+        "함께 볼만한 뉴스", "언론사 주요뉴스", "랭킹 뉴스", "많이 본 뉴스",
+        "이 기사를 추천합니다", "댓글 보기", "함께 볼만한", "연합뉴스 주요뉴스",
+        "네이버 AI 뉴스", "로그아웃", "전체서비스", "서비스안내"
+    ]
+    skip_exact = {
+        "NAVER", "뉴스", "엔터", "스포츠", "날씨", "프리미엄", "검색",
+        "정치", "경제", "사회", "생활/문화", "IT/과학", "세계", "랭킹",
+        "신문보기", "오피니언", "TV", "팩트체크", "MY", "알림", "메일"
+    }
+
+    result = []
+    for line in lines:
+        if any(marker in line for marker in stop_markers):
+            break
+        if line in skip_exact:
+            continue
+        if len(line) <= 2:
+            continue
+        if line not in result:
+            result.append(line)
+
+    return "\n".join(result)[:6000]
 
 
 def convert_naver_mobile_url(url: str) -> str:
@@ -562,6 +563,7 @@ def safe_json_parse(raw: str):
 CONTENT_TYPE_LABELS = {
     "review": "후기/리뷰",
     "policy": "정책/공공정보",
+    "news": "뉴스/기사",
     "info": "일반 정보글",
     "unknown": "판단 어려움",
 }
@@ -581,6 +583,7 @@ SCORE_META = {
 SCORE_KEYS_BY_TYPE = {
     "review": ["recency", "ad_free", "info_density", "experience_specificity", "balanced_review", "revisit_mention"],
     "policy": ["official_source", "recency", "source_diversity", "ad_free", "info_density"],
+    "news": ["official_source", "recency", "source_diversity", "ad_free", "info_density"],
     "info": ["official_source", "recency", "source_diversity", "ad_free", "info_density", "experience_specificity", "balanced_review"],
     "unknown": list(SCORE_META.keys()),
 }
@@ -601,6 +604,12 @@ REVIEW_HINTS = [
 POLICY_HINTS = [
     "신청기간", "지원대상", "지원금", "모집공고", "공고문", "정부", "서울시",
     "고용노동부", "사업", "정책"
+]
+
+NEWS_HINTS = [
+    "기자", "입력", "수정", "기사원문", "연합뉴스", "뉴시스", "뉴스1",
+    "중앙선거관리위원회", "선관위", "투표율", "보도", "종합", "속보",
+    "Copyright", "재판매 및 DB 금지"
 ]
 
 OFFICIAL_DOMAIN_HINTS = {
@@ -683,8 +692,14 @@ def summarize_user_feedback_for_url(final_url: str):
 def infer_content_type_from_text(text: str, selected_type: str = "unknown") -> str:
     if selected_type and selected_type != "unknown":
         return selected_type
-    review_count = sum(1 for word in REVIEW_HINTS if word in text)
+
+    news_count = sum(1 for word in NEWS_HINTS if word in text)
     policy_count = sum(1 for word in POLICY_HINTS if word in text)
+    review_count = sum(1 for word in REVIEW_HINTS if word in text)
+
+    # 기사/뉴스 신호가 있으면 리뷰 단어가 섞여도 뉴스로 우선 분류
+    if news_count >= 2 or ("기자" in text and ("입력" in text or "수정" in text or "기사원문" in text)):
+        return "news"
     if policy_count >= 3:
         return "policy"
     if review_count >= 3:
@@ -879,7 +894,80 @@ def delete_custom_trust_criterion(index):
 # -----------------------------
 # AI Functions
 # -----------------------------
+
+def make_local_analysis_result(text, url, selected_type):
+    """분석 시작 버튼용 로컬 분석 엔진. Groq API를 쓰지 않는다."""
+    content_type = infer_content_type_from_text(text, selected_type)
+    breakdown = normalize_review_breakdown({}, text) if content_type == "review" else {
+        "official_source": 18 if detect_official_source(url or "", text) else 8,
+        "recency": 15 if has_recent_date_signal(text) else 8,
+        "source_diversity": 8 if len(re.findall(r"https?://|출처|기자|공식|위원회|기관", text)) >= 2 else 4,
+        "ad_free": 4 if any(k in text for k in AD_KEYWORDS) else 15,
+        "info_density": 18 if len(text) >= 1500 else 12,
+        "experience_specificity": 8,
+        "balanced_review": 8,
+        "revisit_mention": 0,
+    }
+
+    score = calculate_score_by_type(breakdown, content_type)
+
+    lines = [line.strip() for line in clean_text(text).splitlines() if len(line.strip()) >= 12]
+    noise = ["NAVER", "댓글", "함께 볼만한 뉴스", "랭킹", "Copyright", "로그아웃", "서비스 더보기"]
+    useful = []
+    for line in lines:
+        if any(n in line for n in noise):
+            continue
+        if line not in useful:
+            useful.append(line)
+        if len(useful) >= 8:
+            break
+
+    title = "붙여넣은 글 분석"
+    for line in useful[:5]:
+        if 8 <= len(line) <= 80:
+            title = re.sub(r"^[\[\]#\s]+", "", line)
+            break
+
+    tags = []
+    if content_type == "policy":
+        tags = ["정책", "공공정보", "확인필요"]
+    elif content_type == "news":
+        tags = ["뉴스", "기사", "팩트체크"]
+    elif content_type == "review":
+        tags = ["후기", "리뷰", "경험기반"]
+    else:
+        tags = ["정보글", "자료정리", "지식메모"]
+
+    ad_risk = "high" if any(k in text for k in AD_KEYWORDS) else "low"
+
+    return {
+        "content_type": content_type,
+        "score_breakdown": breakdown,
+        "ad_risk": ad_risk,
+        "ad_risk_reason": "명시적 광고/협찬 문구를 로컬 규칙으로 확인했습니다.",
+        "author_type": "기록형",
+        "author_reason": "본문의 사실, 수치, 일정, 정보 나열 비중이 높아 기록형으로 분류했습니다.",
+        "is_official": bool(detect_official_source(url or "", text)),
+        "official_org": "",
+        "tags_positive": tags,
+        "tags_warning": [] if ad_risk == "low" else ["광고문구"],
+        "summary": useful[:3] if useful else ["본문을 기반으로 로컬 분석을 완료했습니다."],
+        "evidence": {
+            "official_source": "공식 도메인/기관명/출처 표현을 로컬 규칙으로 확인했습니다.",
+            "ad_signal": "광고 키워드 없음" if ad_risk == "low" else "광고성 키워드 감지",
+            "experience_signal": "본문 내 구체 정보와 상황 묘사를 확인했습니다.",
+            "negative_signal": "비판/주의 신호는 본문 표현 기준으로 별도 확인이 필요합니다."
+        },
+        "archive_title": title[:60],
+        "trust_score": score,
+    }
+
+
 def analyze_with_groq(text, url, selected_type):
+    # 분석 시작 버튼에서는 Groq API를 쓰지 않고 로컬 규칙으로만 분석한다.
+    # Groq는 아래 AI 지식 메모 초안 생성 버튼에서만 사용한다.
+    return make_local_analysis_result(text, url, selected_type)
+
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         content_type = infer_content_type_from_text(text, selected_type)
@@ -915,7 +1003,7 @@ def analyze_with_groq(text, url, selected_type):
                 "experience_signal": "Mock 모드",
                 "negative_signal": "Mock 모드"
             },
-            "archive_title": "Mock 테스트 분석",
+            "archive_title": "붙여넣은 글 분석",
             "trust_score": calculate_score_by_type(breakdown, content_type),
         }
 
@@ -1036,114 +1124,180 @@ URL:
     return result
 
 
+def detect_knowledge_document_type(text: str) -> str:
+    t = text or ""
+    news_score = sum(w in t for w in ["기자", "입력", "수정", "기사원문", "연합뉴스", "중앙선거관리위원회", "투표율"])
+    project_score = sum(w in t for w in ["팀플", "회의", "PPT", "발표 준비", "조원", "컨펌", "자료조사"])
+    if news_score >= 2:
+        return "뉴스/기사"
+    if project_score >= 2:
+        return "팀 프로젝트/회의 자료"
+    if any(w in t for w in ["정책", "지원대상", "신청기간", "공고", "정부", "지자체"]):
+        return "정책/공공정보"
+    if any(w in t for w in ["논문", "연구", "실험", "방법론", "결과", "한계"]):
+        return "논문/연구자료"
+    if any(w in t for w in ["강의", "시험", "교재", "주차", "개념", "학습"]):
+        return "강의/학습노트"
+    return "일반 자료"
+
+
 def make_basic_note_draft(result, final_url=None, selected_tags=None):
-    content_type = result.get("content_type", "unknown")
-    score = result.get("trust_score", 0)
-    ad_risk = result.get("ad_risk", "mid")
-    author_type = result.get("author_type", "-")
-    summary = result.get("summary", [])
-    evidence = result.get("evidence", {})
-    summary_text = "\n".join([f"- {s}" for s in summary]) if isinstance(summary, list) else str(summary)
-    selected_tags = selected_tags or []
-    tag_text = ", ".join([str(t).replace("#", "").strip() for t in selected_tags if str(t).strip()])
-    ad_text = {"low": "낮음", "mid": "주의", "high": "위험"}.get(ad_risk, ad_risk)
-    content_label = CONTENT_TYPE_LABELS.get(content_type, content_type)
-
-    return f"""# {result.get('archive_title', 'TrustLens 정보 정리 노트')}
-
-## 1. 기본 정보
-- 출처: {display_source_label(final_url)}
-- 콘텐츠 유형: {content_label}
-- 신뢰도 점수: {score}점
-- 광고 위험도: {ad_text}
-- 작성자 유형: {author_type}
-
-## 2. 핵심 요약
-{summary_text}
-
-## 3. 판단 근거
-- 광고 판단 근거: {evidence.get("ad_signal", "없음")}
-- 경험 신호 근거: {evidence.get("experience_signal", "없음")}
-- 단점/비판 신호: {evidence.get("negative_signal", "없음")}
-
-## 4. 내가 선택한 태그
-{tag_text}
-
-## 5. 내 메모
-- 내가 추가로 확인할 점:
-- 나중에 다시 볼 이유:
-- 최종 판단:
-"""
-
-
-# --- Local fallback draft generator when no GROQ_API_KEY is present ---
-def make_local_content_note_draft(original_text, result, final_url=None, template_type="보고서 형식", user_prompt=""):
-    """GROQ_API_KEY가 없을 때도 붙여넣은 본문을 메모용으로 정리해주는 로컬 fallback."""
-    content_type = result.get("content_type", "unknown")
-    score = result.get("trust_score", 0)
-    ad_risk = result.get("ad_risk", "mid")
-    author_type = result.get("author_type", "-")
-    content_label = CONTENT_TYPE_LABELS.get(content_type, content_type)
-    ad_text = {"low": "낮음", "mid": "주의", "high": "위험"}.get(ad_risk, ad_risk)
-
-    cleaned = clean_text(original_text or "")
+    original_text = st.session_state.get("last_text", "") or ""
+    cleaned = clean_text(original_text)
     lines = [line.strip() for line in cleaned.splitlines() if line.strip()]
-    title_candidates = [line for line in lines[:20] if len(line) >= 8]
-    title = result.get("archive_title") or (title_candidates[0] if title_candidates else "붙여넣은 글 정리")
 
-    useful_lines = []
-    skip_words = ["NAVER", "본문 바로가기", "로그아웃", "서비스", "댓글", "함께 볼만한 뉴스", "랭킹", "Copyright"]
+    doc_type = detect_knowledge_document_type(cleaned)
+    content_type = result.get("content_type", "unknown")
+    score = result.get("trust_score", 0)
+    ad_risk = result.get("ad_risk", "mid")
+    author_type = result.get("author_type", "-")
+    content_label = CONTENT_TYPE_LABELS.get(content_type, content_type)
+    ad_text = {"low": "낮음", "mid": "주의", "high": "위험"}.get(ad_risk, ad_risk)
+    title = result.get("archive_title", "AI 지식 리포트")
+
+    noise_words = [
+        "NAVER", "내 프로필", "알림", "메일", "서비스 더보기", "구독", "댓글", "함께 볼만한 뉴스",
+        "많이 본 뉴스", "랭킹", "언론사홈", "기자 프로필", "Copyright", "무단 전재",
+        "SNS", "글자 크기", "텍스트 음성", "이 기사를 추천합니다", "섬네일", "로그아웃",
+        "전체서비스", "고객센터", "뉴스 알고리즘", "다음", "이전", "반응", "클립"
+    ]
+
+    useful = []
     for line in lines:
-        if any(word in line for word in skip_words):
+        if any(w in line for w in noise_words):
             continue
         if len(line) < 12:
             continue
-        if line not in useful_lines:
-            useful_lines.append(line)
-        if len(useful_lines) >= 16:
-            break
+        if line not in useful:
+            useful.append(line)
 
-    key_points = useful_lines[:6]
-    detail_points = useful_lines[6:14]
+    # 뉴스 본문용 핵심 문장 필터
+    news_core_keywords = [
+        "투표율", "유권자", "사전투표", "중앙선거관리위원회", "집계", "기록", "비교",
+        "전남", "대구", "서울", "인천", "경기", "재보선", "선거구", "최종", "신분증", "투표소"
+    ]
+    if doc_type == "뉴스/기사":
+        core = [x for x in useful if any(k in x for k in news_core_keywords)]
+        if len(core) >= 5:
+            useful = core
 
-    key_text = "\n".join([f"- {item}" for item in key_points]) if key_points else "- 핵심 문장을 충분히 추출하지 못했어요. 원문을 확인해주세요."
-    detail_text = "\n".join([f"- {item}" for item in detail_points]) if detail_points else "- 추가 세부 내용은 원문 확인이 필요해요."
+    def bullets(items, empty="- 원문에서 충분히 추출되지 않았어요.", limit=None):
+        if limit:
+            items = items[:limit]
+        return "\n".join([f"- {x}" for x in items]) if items else empty
 
-    request_text = user_prompt.strip() if user_prompt else "없음"
+    number_pattern = r"\d+(?:\.\d+)?\s*(?:%|％|명|만명|개|곳|원|억원|조원|달러|건|회|일|년|월|시|분|포인트|p)"
+    numeric_lines = [line for line in useful if re.search(number_pattern, line)]
 
-    return f"""# {title}
+    numeric_text = "- 표로 정리할 수 있는 수치가 충분히 추출되지 않았어요."
+    if numeric_lines:
+        numeric_text = "| 항목 | 원문 수치/사실 | 메모 |\n|---|---|---|\n"
+        for x in numeric_lines[:12]:
+            numeric_text += f"| 주요 데이터 | {x} | 원문 기준 확인 |\n"
 
-## 1. 기본 정보
-- 출처: {display_source_label(final_url)}
+    tag_text = ", ".join([str(t).replace("#", "").strip() for t in (selected_tags or []) if str(t).strip()])
+
+    if doc_type == "뉴스/기사":
+        return f"""# 🧠 AI 지식 리포트: {title}
+
+> 📌 글을 직접 붙여넣으면 링크 조회보다 본문 중심으로 더 잘 정리돼요.  
+> 이 메모는 뉴스 전문을 나중에 다시 읽기 좋게 `핵심 사실 → 수치 → 맥락 → 확인 포인트` 구조로 재구성한 초안입니다.
+
+## 0. 문서 정보
+- 문서 유형: 뉴스/기사
 - 콘텐츠 유형: {content_label}
 - 신뢰도 점수: {score}점
 - 광고 위험도: {ad_text}
 - 작성자 유형: {author_type}
-- 초안 형식: {template_type}
-- 추가 요청: {request_text}
+- URL/출처: {final_url or "붙여넣은 글"}
+- 선택 태그: {tag_text or "없음"}
 
-## 2. 핵심 내용 정리
-{key_text}
+## 1. 핵심 요약
+{bullets(useful[:5])}
 
-## 3. 세부 내용
-{detail_text}
+## 2. 주요 수치·사실 데이터
+{numeric_text}
 
-## 4. 신뢰도 관점 메모
-- 이 초안은 GROQ_API_KEY 없이 로컬 규칙으로 만든 기본 정리입니다.
-- 실제 API를 켜면 본문 전체를 더 자연스럽게 재구성하고, 보고서/블로그/체크리스트 형식에 맞춰 다시 작성할 수 있어요.
-- 현재는 본문에서 의미 있는 문장을 추려 메모용 뼈대를 만든 상태입니다.
+## 3. 기사 흐름 정리
+{bullets(useful[5:14], limit=9)}
 
-## 5. 내가 추가로 확인할 점
-- 원문에서 중요한 수치, 날짜, 출처가 정확한지 확인하기
-- 공식 출처 또는 다른 기사와 내용이 일치하는지 확인하기
-- 나중에 다시 볼 때 필요한 태그 붙이기
+## 4. 맥락 해석
+- 이 기사는 사전투표 첫날 투표율이 과거 지방선거 대비 높은 수준인지 확인하는 데 의미가 있어요.
+- 단순히 “역대 최고”라는 표현만 볼 것이 아니라, 대선·총선과의 차이, 지역별 편차, 최종 사전투표율 변화 가능성을 함께 봐야 해요.
+- 기사 안에서도 선관위 관계자는 첫날 투표율만으로 유의미한 상승이라고 단정하기는 어렵다고 설명하고 있어요.
+
+## 5. 신뢰성 체크 포인트
+- 중앙선거관리위원회 발표 수치인지 확인
+- 기사 입력/수정 시점 확인
+- 첫날 투표율과 최종 투표율을 구분
+- 지방선거, 대선, 총선의 투표율 비교 기준 구분
+- 지역별 투표율 수치 재확인
+
+## 6. 나중에 활용할 포인트
+- 선거 참여율 변화 분석
+- 지역별 정치 관심도 비교
+- 기사 기반 요약/리포트 작성
+- 통계 수치 인용 자료
+- 공공정보 신뢰도 판단 사례
+
+## 7. 추천 태그
+- 뉴스/기사
+- 선거
+- 사전투표
+- 투표율
+- 공공정보
 """
 
+    return f"""# 🧠 AI 지식 리포트: {title}
+
+> 📌 글을 직접 붙여넣으면 링크 조회보다 본문 중심으로 더 잘 정리돼요.  
+> 이 메모는 단순 요약이 아니라, 나중에 다시 꺼내보기 좋게 원문을 지식 구조로 재구성한 초안입니다.
+
+## 0. 지식 메모 상태
+- 문서 유형: {doc_type}
+- 분석 방식: 본문 기반 구조화 정리
+- 콘텐츠 유형: {content_label}
+- 신뢰도 점수: {score}점
+- 광고 위험도: {ad_text}
+- 작성자 유형: {author_type}
+- URL/출처: {final_url or "붙여넣은 글"}
+- 선택 태그: {tag_text or "없음"}
+
+## 1. 전체 개요
+{bullets(useful[:8])}
+
+## 2. 핵심 내용 정리
+{bullets(useful[8:22])}
+
+## 3. 주요 수치·사실 데이터
+{numeric_text}
+
+## 4. 세부 내용 보관
+{bullets(useful[22:40])}
+
+## 5. 신뢰성 체크 메모
+- 출처가 명시된 내용과 사용자의 해석/추정이 섞여 있는지 구분이 필요해요.
+- 수치, 날짜, 투자금, 시장규모, 법령명은 공식 자료나 원문 링크로 재확인하면 좋아요.
+
+## 6. 나중에 활용할 포인트
+- 보고서 본문 구성
+- 발표 대본 작성
+- PPT 목차 정리
+- 자료조사 근거 정리
+- 신뢰도 검토
+
+## 7. 추천 태그
+- {doc_type}
+- 지식메모
+- 자료정리
+- 보고서초안
+- 신뢰도검토
+"""
 
 def generate_note_draft_with_groq(original_text, result, final_url, template_type, user_prompt):
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        return make_local_content_note_draft(original_text, result, final_url, template_type, user_prompt)
+        raise ValueError("GROQ_API_KEY가 없습니다.")
 
     template_instruction = {
         "보고서 형식": "제목, 핵심 요약, 세부 내용, 판단 근거, 활용 메모가 있는 보고서 형식으로 정리해라.",
@@ -1156,7 +1310,8 @@ def generate_note_draft_with_groq(original_text, result, final_url, template_typ
     prompt = f"""
 너는 TrustLens의 지식 아카이브 메모 작성 보조 AI다.
 아래 원문 전체를 보고, 사용자가 나중에 다시 열람하기 좋은 메모 초안을 만들어라.
-단순 요약이 아니라 원문의 중요한 내용을 최대한 빠짐없이 구조화해서 정리해라.
+단순 요약이 아니라 사용자가 나중에 지식 메모로 다시 꺼내볼 수 있도록 원문의 중요한 내용을 최대한 빠짐없이 구조화해서 정리해라.
+특히 사용자가 글 붙여넣기로 긴 본문을 제공한 경우, 기사/자료 전문을 읽고 보고서처럼 재구성하듯이 핵심 수치, 흐름, 비교, 배경, 시사점, 활용 포인트까지 체계적으로 정리해라.
 광고성 판단, 신뢰도 판단은 이미 끝났으므로 여기서는 '내용 정리'에 집중해라.
 
 [URL]
@@ -1184,6 +1339,18 @@ def generate_note_draft_with_groq(original_text, result, final_url, template_typ
 - 한국어로 작성해라.
 - Markdown 형식으로 작성해라.
 - 원문에 있는 구체 정보, 가격, 메뉴, 장소, 팁, 장단점, 재방문 의사 등을 최대한 반영해라.
+- 뉴스/정책/공공정보 글이면 반드시 개요, 핵심 수치, 주요 내용, 비교/맥락, 시사점, 활용 메모를 나누어 정리해라.
+- 팀플/회의/프로젝트 자료면 반드시 역할, 일정, 결정사항, 미해결 안건, 자료조사 내용, 발표/PPT 활용 포인트를 나누어 정리해라.
+- 시장조사/기업분석 자료면 반드시 기업소개, 시장규모, 경쟁사, CREST/STP/4P 등 분석 프레임, 신뢰성 확인 포인트를 나누어 정리해라.
+- 단순히 3문장 요약으로 끝내지 말고, 원문을 보고서·리포트처럼 다시 읽기 좋은 형태로 재구성해라.
+- 표로 정리할 수 있는 수치가 있으면 표를 사용해라.
+- 사용자가 나중에 과제, 블로그, 발표, 리서치에 다시 활용할 수 있게 작성해라.
+- 뉴스/정책/공공정보 글이면 반드시 개요, 핵심 수치, 주요 내용, 비교/맥락, 시사점, 활용 메모를 나누어 정리해라.
+- 팀플/회의/프로젝트 자료면 반드시 역할, 일정, 결정사항, 미해결 안건, 자료조사 내용, 발표/PPT 활용 포인트를 나누어 정리해라.
+- 시장조사/기업분석 자료면 반드시 기업소개, 시장규모, 경쟁사, CREST/STP/4P 등 분석 프레임, 신뢰성 확인 포인트를 나누어 정리해라.
+- 단순히 3문장 요약으로 끝내지 말고, 원문을 보고서·리포트처럼 다시 읽기 좋은 형태로 재구성해라.
+- 표로 정리할 수 있는 수치가 있으면 표를 사용해라.
+- 사용자가 나중에 과제, 블로그, 발표, 리서치에 다시 활용할 수 있게 작성해라.
 - 없는 정보는 지어내지 마라.
 - 지식 아카이브에서 다시 읽기 좋은 완성형 초안으로 써라.
 - 태그는 본문 맨 아래에 '추천 태그'로만 정리해라.
@@ -1211,8 +1378,6 @@ def save_note_to_archive(note_key, result, final_url, selected_tags):
         {
             "url": final_url or "",
             "title": result.get("archive_title", "TrustLens 메모"),
-            "project": st.session_state.get("note_project_name", "기본 프로젝트"),
-            "section": st.session_state.get("note_section_name", "일반"),
             "content_type": result.get("content_type", "unknown"),
             "score": result.get("trust_score", 0),
             "favorite": False,
@@ -1259,7 +1424,6 @@ def restore_analysis_from_archive(index):
         st.session_state.last_final_url = item.get("url", "")
         st.session_state.last_text = ""
         st.session_state.show_result = True
-        st.session_state.result_closed = False
         st.session_state["analysis_archive_restored"] = True
 
 
@@ -1277,6 +1441,7 @@ def update_saved_analysis(index, memo_key, tags_key, new_tags_key=None, title_ke
 
         st.session_state.saved_analyses[index]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
         st.session_state[f"saved_analysis_updated_{index}"] = True
+        st.session_state["tag_update_message"] = "태그/메모 수정이 저장됐어요. 새 태그는 위의 기존 태그 선택/삭제 목록에 반영됐어요."
         save_persisted_data()
 
 
@@ -1303,6 +1468,7 @@ def update_archive_note(index, note_key):
         st.session_state.archive_notes[index]["note"] = edited_note
         st.session_state.archive_notes[index]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
         st.session_state[f"archive_updated_{index}"] = True
+        st.session_state["tag_update_message"] = "태그/메모 수정이 저장됐어요. 새 태그는 위의 기존 태그 선택/삭제 목록에 반영됐어요."
         save_persisted_data()
 
 
@@ -1322,6 +1488,7 @@ def update_archive_note_and_tags(index, note_key, tags_key, new_tags_key=None, t
 
         st.session_state.archive_notes[index]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
         st.session_state[f"archive_updated_{index}"] = True
+        st.session_state["tag_update_message"] = "태그/메모 수정이 저장됐어요. 새 태그는 위의 기존 태그 선택/삭제 목록에 반영됐어요."
         save_persisted_data()
 
 
@@ -1362,6 +1529,24 @@ def merge_selected_and_new_tags(selected_tags, new_tags_text):
 
 def get_tag_edit_options(item):
     return sorted(set(collect_all_existing_tags() + item.get("tags", [])))
+
+
+def add_tags_to_archive_note(index, new_tags_key):
+    if 0 <= index < len(st.session_state.archive_notes):
+        current_tags = st.session_state.archive_notes[index].get("tags", [])
+        new_tags_text = st.session_state.get(new_tags_key, "")
+        st.session_state.archive_notes[index]["tags"] = merge_selected_and_new_tags(current_tags, new_tags_text)
+        st.session_state.archive_notes[index]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+        save_persisted_data()
+
+
+def add_tags_to_saved_analysis(index, new_tags_key):
+    if 0 <= index < len(st.session_state.saved_analyses):
+        current_tags = st.session_state.saved_analyses[index].get("tags", [])
+        new_tags_text = st.session_state.get(new_tags_key, "")
+        st.session_state.saved_analyses[index]["tags"] = merge_selected_and_new_tags(current_tags, new_tags_text)
+        st.session_state.saved_analyses[index]["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+        save_persisted_data()
 
 # -----------------------------
 # User Feedback Save Function
@@ -1406,11 +1591,18 @@ def save_user_feedback(result, final_url, rating_key, useful_key, wrong_key, mis
     save_persisted_data()
     
 def close_current_result():
+    """화면 아래에 열린 현재 분석 결과/메모 영역을 완전히 닫는다."""
     st.session_state.show_result = False
-    st.session_state.result_closed = True
     st.session_state.last_result = None
     st.session_state.last_final_url = None
     st.session_state.last_text = ""
+    st.session_state.note_saved = False
+    st.session_state.analysis_archive_saved = False
+
+    # 현재 열린 결과 관련 임시 초안 키 제거
+    for key in list(st.session_state.keys()):
+        if key.startswith("note_draft_") or key.startswith("edited_note_draft_"):
+            del st.session_state[key]
 
     st.rerun()
 
@@ -1427,7 +1619,6 @@ def restore_analysis_from_history(cache_key):
         st.session_state.last_final_url = parts[0] if parts else ""
         st.session_state.last_text = ""
         st.session_state.show_result = True
-        st.session_state.result_closed = False
         st.session_state["history_restored"] = True
 
 
@@ -1606,7 +1797,7 @@ def render_result(result, extracted_text=None, final_url=None):
             f"누적 평가 {len(ratings)}건"
         )
     if final_url:
-        st.caption(f"분석 출처: {display_source_label(final_url)}")
+        st.caption(f"분석 URL: {final_url}")
 
     st.divider()
 
@@ -1704,8 +1895,8 @@ def render_result(result, extracted_text=None, final_url=None):
 
     st.divider()
     st.markdown('<div class="feedback-shell">', unsafe_allow_html=True)
-    st.markdown("### ⭐ 사용자 피드백으로 TrustLens 개선하기")
-    st.caption("AI 분석에 사용자의 집단 검증을 더해요. AI 점수와 사람의 신뢰 판단 차이가 이후 보정 데이터가 됩니다.")
+    st.markdown("### ⭐ 간단 피드백")
+    st.caption("분석이 도움이 됐는지만 가볍게 남기고, 자세한 내용은 펼쳐서 적을 수 있어요.")
 
     feedback_base = final_url or "current"
     rating_key = f"feedback_rating_{feedback_base}"
@@ -1810,8 +2001,9 @@ def render_result(result, extracted_text=None, final_url=None):
 
     st.divider()
     st.markdown('<div class="memo-shell">', unsafe_allow_html=True)
-    st.markdown("### 🗂️ 저장 및 메모 만들기")
-    st.caption("왼쪽은 긴 지식 메모 작성, 오른쪽은 분석결과 자체 저장용이에요.")
+    st.markdown("### 🗂️ 저장 및 지식 메모 만들기")
+    st.info("글을 직접 붙여넣으면 본문 중심으로 더 잘 정리돼요. 지식 메모는 단순 요약이 아니라, 나중에 다시 꺼내볼 수 있게 원문을 보고서·리포트처럼 체계적으로 재구성하는 공간이에요.")
+    st.caption("왼쪽은 지식 메모 초안 작성, 오른쪽은 분석결과 자체 저장용이에요.")
 
     tag_options = []
     for tag in result.get("tags_positive", []) + result.get("tags_warning", []):
@@ -1819,33 +2011,25 @@ def render_result(result, extracted_text=None, final_url=None):
         if clean_tag and clean_tag not in tag_options:
             tag_options.append(clean_tag)
 
-    draft_key = f"note_draft_{final_url or 'current'}"
+    draft_fingerprint = f"{final_url or 'current'}::{result.get('archive_title', '')}::{result.get('trust_score', '')}"
+    draft_hash = hashlib.sha256(draft_fingerprint.encode("utf-8")).hexdigest()[:12]
+    draft_key = f"note_draft_{draft_hash}"
     note_key = f"edited_{draft_key}"
 
     if draft_key not in st.session_state:
-        original_text_for_draft = st.session_state.get("last_text", "")
-        if original_text_for_draft:
-            st.session_state[draft_key] = make_local_content_note_draft(
-                original_text_for_draft,
-                result,
-                final_url,
-                "보고서 형식",
-                "",
-            )
-        else:
-            st.session_state[draft_key] = make_basic_note_draft(
-                result,
-                final_url,
-                st.session_state.get(f"selected_tags_{final_url or 'current'}", []),
-            )
+        st.session_state[draft_key] = make_basic_note_draft(
+            result,
+            final_url,
+            st.session_state.get(f"selected_tags_{final_url or 'current'}", []),
+        )
     if note_key not in st.session_state:
         st.session_state[note_key] = st.session_state[draft_key]
 
-    note_panel, save_panel = st.columns(2, gap="large")
+    note_panel, save_panel = st.columns([1.15, 1], gap="large")
 
     with note_panel:
         st.markdown(
-            '<div class="note-action-card"><h2>🤖 AI 메모 초안 생성</h2><p>AI 초안을 만들고 수정해서 긴 메모로 저장해요.</p></div>',
+            '<div class="note-action-card"><h3>📝 지식 메모 만들기</h3><p>AI 초안을 만들고 수정해서 긴 메모로 저장해요.</p></div>',
             unsafe_allow_html=True,
         )
         template_type = st.selectbox(
@@ -1855,11 +2039,11 @@ def render_result(result, extracted_text=None, final_url=None):
         )
         user_draft_prompt = st.text_area(
             "초안에 반영할 추가 요청",
-            placeholder="예: 가격과 팁을 표로 정리해줘 / 블로그에 올릴 수 있게 정리해줘 / 내 말투처럼 자연스럽게 정리해줘",
+            placeholder="예: 이 본문을 보고서 형식으로 전체 내용이 드러나게 정리해줘 / 핵심 수치와 비교를 표로 정리해줘 / 과제 리포트에 쓸 수 있게 배경·맥락·시사점까지 정리해줘",
             height=110,
             key=f"draft_prompt_{final_url or 'current'}",
         )
-        st.markdown('<div class="ai-draft-button-scope big-action-button blue-action"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="ai-draft-button-scope"></div>', unsafe_allow_html=True)
         if st.button(
             "🔄 지식 메모 초안 다시 만들기",
             key=f"refresh_{draft_key}",
@@ -1870,7 +2054,7 @@ def render_result(result, extracted_text=None, final_url=None):
             if not original_text:
                 st.warning("원문이 저장되어 있지 않아요.")
             else:
-                draft_cache_key = f"{final_url or 'current'}::{template_type}::{user_draft_prompt.strip()}"
+                draft_cache_key = f"{final_url or 'current'}::{result.get('archive_title', '')}::{template_type}::{user_draft_prompt.strip()}"
                 if draft_cache_key in st.session_state.draft_cache:
                     new_draft = st.session_state.draft_cache[draft_cache_key]
                     st.session_state[draft_key] = new_draft
@@ -1896,10 +2080,9 @@ def render_result(result, extracted_text=None, final_url=None):
 
     with save_panel:
         st.markdown(
-            '<div class="archive-action-card"><h2>📌 분석결과 저장</h2><p>지금 분석한 결과를 아카이브에 저장해요.</p></div>',
+            '<div class="archive-action-card"><h3>📌 분석결과 바로 저장</h3><p>지금 분석한 결과를 아카이브에 저장해요.</p></div>',
             unsafe_allow_html=True,
         )
-        st.markdown('<div class="big-action-button red-action"></div>', unsafe_allow_html=True)
         selected_tags = st.multiselect(
             "저장할 태그 선택",
             options=tag_options,
@@ -1914,7 +2097,7 @@ def render_result(result, extracted_text=None, final_url=None):
             key=analysis_archive_memo_key,
         )
         if st.button(
-            "🔴 분석결과 아카이브에 저장",
+            "🔴 현재 분석결과 아카이브에 저장",
             key=f"save_analysis_archive_{final_url or 'current'}",
             use_container_width=True,
             type="primary",
@@ -1929,22 +2112,9 @@ def render_result(result, extracted_text=None, final_url=None):
             st.success("분석결과 아카이브에 저장했어요.")
             st.session_state["analysis_archive_saved"] = False
 
-    proj_col, sec_col = st.columns(2)
-    with proj_col:
-        st.text_input(
-            "프로젝트명",
-            value="기본 프로젝트",
-            key="note_project_name",
-        )
-    with sec_col:
-        st.text_input(
-            "섹션명",
-            value="일반",
-            key="note_section_name",
-        )
-    st.markdown("## ✍️ 메모 초안 편집")
+    st.markdown("### ✍️ 메모 초안 편집")
     st.caption("AI 초안을 기반으로 내 메모를 정리한 뒤, 맨 아래에서 지식 메모로 저장해요.")
-    st.text_area("AI 초안 기반으로 내 메모 정리하기", height=700, key=note_key)
+    st.text_area("AI 초안 기반으로 내 메모 정리하기", height=460, key=note_key)
 
     bottom_save_col, bottom_close_col = st.columns(2)
     with bottom_save_col:
@@ -1961,12 +2131,13 @@ def render_result(result, extracted_text=None, final_url=None):
             ),
         )
     with bottom_close_col:
-        st.button(
+        if st.button(
             "닫기 / 나가기",
             key=f"close_{draft_key}",
             use_container_width=True,
-            on_click=close_current_result,
-        )
+        ):
+            close_current_result()
+            st.rerun()
 
     if st.session_state.get("note_saved"):
         st.success("지식 아카이브에 저장했어요.")
@@ -1974,544 +2145,11 @@ def render_result(result, extracted_text=None, final_url=None):
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-
-# -----------------------------
-# PATCH: Display / Recent Cards / Knowledge Map
-# -----------------------------
-def display_source_label(value):
-    value = str(value or "")
-    if value.startswith("pasted://"):
-        return "붙여넣은 글"
-    return value or "-"
-
-
-def get_all_knowledge_items():
-    items = []
-
-    for idx, item in enumerate(st.session_state.get("archive_notes", [])):
-        items.append({
-            "kind": "지식 메모",
-            "title": item.get("title", "저장 메모"),
-            "project": item.get("project", "기본 프로젝트"),
-            "section": item.get("section", "일반"),
-            "url": item.get("url", ""),
-            "score": item.get("score", 0),
-            "tags": item.get("tags", []),
-            "date": item.get("saved_at", ""),
-            "memo": item.get("note", ""),
-            "full_text": item.get("note", ""),
-            "favorite": item.get("favorite", False),
-            "raw_item": item,
-            "raw_index": f"item_{idx}_{len(items)}",
-        })
-
-    for idx, item in enumerate(st.session_state.get("saved_analyses", [])):
-        items.append({
-            "kind": "분석 결과",
-            "title": item.get("title", "저장 분석"),
-            "project": item.get("project", "분석결과"),
-            "section": item.get("section", item.get("content_type", "일반")),
-            "url": item.get("url", ""),
-            "score": item.get("score", 0),
-            "tags": item.get("tags", []),
-            "date": item.get("saved_at", ""),
-            "memo": item.get("memo", ""),
-            "full_text": "\n".join(item.get("summary", [])) if isinstance(item.get("summary", []), list) else str(item.get("summary", "")),
-            "favorite": item.get("favorite", False),
-            "raw_item": item,
-            "raw_index": f"item_{idx}_{len(items)}",
-        })
-
-    return items
-
-
-def infer_large_category(item):
-    tags = " ".join([str(t) for t in item.get("tags", [])])
-    title = str(item.get("title", ""))
-    text = f"{tags} {title}"
-    if any(word in text for word in ["뉴스", "기사", "정치", "경제", "사회", "국제"]):
-        return "뉴스/이슈"
-    if any(word in text for word in ["정책", "지원", "청년", "정부", "공공", "신청"]):
-        return "정책/지원사업"
-    if any(word in text for word in ["맛집", "여행", "후기", "리뷰", "카페", "숙소"]):
-        return "후기/리뷰"
-    if any(word in text for word in ["공부", "취업", "SQL", "PM", "자격증", "과제"]):
-        return "공부/취업"
-    return "기타"
-
-
-def infer_middle_category(item):
-    tags = [str(t).replace("#", "").strip() for t in item.get("tags", []) if str(t).strip()]
-    if tags:
-        return tags[0]
-    return item.get("kind", "기타")
-
-
-def date_color_group(date_text):
-    date_text = str(date_text or "")[:10]
-    try:
-        from datetime import datetime
-        saved = datetime.strptime(date_text, "%Y-%m-%d")
-        diff = (datetime.now() - saved).days
-    except Exception:
-        return "날짜 없음"
-    if diff <= 1:
-        return "오늘/어제"
-    if diff <= 7:
-        return "최근 7일"
-    if diff <= 30:
-        return "최근 30일"
-    return "오래된 기록"
-
-
-def extract_local_concepts(text, tags=None, limit=18):
-    """저장된 메모에서 반복적으로 등장하는 핵심 개념을 간단한 로컬 규칙으로 추출한다."""
-    tags = tags or []
-    text = str(text or "")
-    candidates = []
-
-    for tag in tags:
-        clean = str(tag).replace("#", "").strip()
-        if len(clean) >= 2 and clean not in candidates:
-            candidates.append(clean)
-
-    keyword_pool = [
-        "CREST", "STP", "4P", "SWOT", "OAP", "ESG", "CSR", "O2O", "B2B", "B2C", "B2G",
-        "개인정보보호법", "전자금융거래법", "전자서명법", "식품위생법", "사회적기업", "공공데이터",
-        "블록체인", "위치기반", "결제시스템", "기부", "후원", "소액기부", "마케팅", "경쟁사",
-        "시장규모", "시장세분화", "포지셔닝", "정량적 목표", "사용자", "소상공인", "공공기관",
-        "결식아동", "급식카드", "지역상권", "기술", "규제", "경제", "사회", "발표대본", "자료조사"
-    ]
-    for word in keyword_pool:
-        if word in text and word not in candidates:
-            candidates.append(word)
-
-    # 한글/영문 혼합 명사 후보를 추가로 추출한다.
-    for word in re.findall(r"[A-Za-z]{2,}|[가-힣]{2,12}", text):
-        if word in candidates:
-            continue
-        if word in ["그리고", "하지만", "있는", "없는", "관련", "내용", "부분", "확인", "필요", "분석", "자료"]:
-            continue
-        if len(word) >= 2:
-            candidates.append(word)
-        if len(candidates) >= limit:
-            break
-
-    return candidates[:limit]
-
-
-def infer_thinking_chapters(item):
-    """하나의 긴 메모를 페이지 안의 장/섹션처럼 나눠 보여주기 위한 간단한 구조화 함수."""
-    text = str(item.get("full_text") or item.get("memo") or "")
-    concepts = extract_local_concepts(text, item.get("tags", []), limit=12)
-    chapters = []
-
-    chapter_rules = [
-        ("회사/배경", ["회사", "기업", "서비스", "운영", "설립", "비전", "미션"]),
-        ("시장/경쟁", ["시장", "경쟁", "경쟁사", "CREST", "시장규모", "산업"]),
-        ("규제/리스크", ["규제", "법", "개인정보", "전자금융", "식품위생", "리스크"]),
-        ("기술/데이터", ["기술", "데이터", "O2O", "블록체인", "위치기반", "결제"]),
-        ("마케팅/전략", ["마케팅", "STP", "4P", "SWOT", "포지셔닝", "목표"]),
-        ("제안/활용", ["제안", "개선", "활용", "컨설팅", "아이디어", "보완"]),
-    ]
-
-    for chapter_name, words in chapter_rules:
-        matched = [word for word in words if word in text]
-        if matched:
-            chapters.append({"name": chapter_name, "matched": matched[:4]})
-
-    if not chapters:
-        chapters.append({"name": "핵심 메모", "matched": concepts[:4]})
-
-    return chapters, concepts
-
-
-def render_thinking_page_preview(item):
-    """선택한 지식 메모를 개인 지식 페이지처럼 요약해서 보여준다."""
-    chapters, concepts = infer_thinking_chapters(item)
-    st.markdown("### 📄 지식 페이지 미리보기")
-    st.caption("원노트의 페이지처럼 한 메모 안의 장과 연결 개념을 한눈에 보여줘요.")
-
-    st.markdown(
-        f"""
-        <div class="toc-box">
-            <div class="toc-title">{item.get("title", "제목 없음")}</div>
-            <div class="toc-meta">프로젝트: {item.get("project", "기본 프로젝트")} · 섹션: {item.get("section", "일반")} · {item.get("kind", "지식")}</div>
-            <div class="toc-meta">출처: {display_source_label(item.get("url", ""))}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    c1, c2 = st.columns([1, 1])
-    with c1:
-        st.markdown("#### 🧩 자동 목차")
-        for chapter in chapters:
-            matched = ", ".join(chapter.get("matched", [])) or "핵심 문장 기반"
-            st.markdown(f"- **{chapter.get('name')}** · {matched}")
-    with c2:
-        st.markdown("#### 🧠 핵심 개념")
-        if concepts:
-            concept_html = "".join([f'<span class="reason-chip">{concept}</span>' for concept in concepts[:14]])
-            st.markdown(concept_html, unsafe_allow_html=True)
-        else:
-            st.caption("추출된 개념이 아직 없어요.")
-
-    with st.expander("원문/메모 일부 보기", expanded=False):
-        st.markdown(str(item.get("memo") or item.get("full_text") or "메모 내용이 없어요.")[:3500])
-
-
-def restore_item_from_knowledge(item):
-    if item.get("kind") == "분석 결과" and item.get("raw_item", {}).get("result"):
-        st.session_state.last_result = item.get("raw_item", {}).get("result")
-        st.session_state.last_final_url = item.get("url", "")
-        st.session_state.last_text = ""
-        st.session_state.show_result = True
-        st.session_state.result_closed = False
-        st.session_state["knowledge_item_restored"] = True
-    else:
-        st.session_state["knowledge_selected_note"] = item
-
-
-def render_recent_analysis_cards(limit=5):
-    history = st.session_state.get("search_history", [])[:limit]
-    if not history:
-        st.caption("아직 최근 분석 기록이 없어요.")
-        return
-
-    st.markdown("### 🕘 최근 분석 5개")
-    st.caption("최근 검색 기록으로 이동하지 않아도 여기서 바로 다시 열 수 있어요.")
-
-    cols = st.columns(len(history))
-    for i, item in enumerate(history):
-        with cols[i]:
-            with st.container(border=True):
-                title = item.get("title", "제목 없음")
-                score = item.get("score", 0)
-                mode = item.get("input_mode", "링크로 조회하기")
-                source = display_source_label(item.get("url", ""))
-                cache_key = item.get("cache_key") or f'{item.get("url", "")}::{item.get("content_type", "unknown")}'
-
-                st.markdown(f'<div class="recent-card-title">{title}</div>', unsafe_allow_html=True)
-                st.markdown(
-                    f'<div class="recent-card-meta">{item.get("time","")}<br>{mode}<br>{score}점 · {source}</div>',
-                    unsafe_allow_html=True,
-                )
-                st.button(
-                    "다시 보기",
-                    key=f"recent_card_restore_{i}_{cache_key}",
-                    use_container_width=True,
-                    on_click=restore_analysis_from_history,
-                    args=(cache_key,),
-                )
-
-
-def render_knowledge_map_page():
-    st.markdown("## 🧠 지식 맵")
-    st.markdown(
-        """
-        <div class="pkm-info-box">
-        💡 <b>지식 맵 사용법</b><br>
-        목차는 원노트처럼 대분류 → 중분류 → 문서 흐름으로 보고, 보드는 노션처럼 태그·기간·점수로 필터링해요.<br>
-        태그 마인드맵은 옵시디언처럼 비슷한 태그가 어떻게 연결되는지 보는 공간이에요. 카드를 누르면 분석 결과를 다시 열 수 있어요.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    if st.session_state.get("knowledge_item_restored"):
-        st.success("지식 맵에서 선택한 분석 결과를 불러왔어요. 왼쪽 메뉴의 📊 분석 결과에서 확인할 수 있어요.")
-        st.session_state["knowledge_item_restored"] = False
-
-    items = get_all_knowledge_items()
-    if not items:
-        st.info("아직 지식 맵에 표시할 저장 메모나 분석결과가 없어요.")
-        return
-
-    total_items = len(items)
-    total_tags = sorted({str(tag).replace("#", "").strip() for item in items for tag in item.get("tags", []) if str(tag).strip()})
-    avg_score = round(sum(int(item.get("score", 0) or 0) for item in items) / total_items, 1)
-
-    m1, m2, m3 = st.columns(3)
-    with m1:
-        st.metric("저장 항목", f"{total_items}개")
-    with m2:
-        st.metric("태그 수", f"{len(total_tags)}개")
-    with m3:
-        st.metric("평균 신뢰도", f"{avg_score}점")
-
-    tab1, tab2, tab3, tab4 = st.tabs(["📚 원노트 목차", "🧩 노션 보드", "🕸️ 태그 마인드맵", "🧠 지식 페이지"])
-
-    with tab1:
-        st.markdown("### 📚 원노트식 목차")
-        st.markdown(
-            """
-            <div class="pkm-info-box">
-            📒 <b>원노트식 구조</b><br>
-            날짜만 나열하지 않고, 대분류 → 중분류 → 문서 순서로 정리해요. 문서 버튼을 누르면 분석 결과는 다시 열리고, 지식 메모는 아래에 미리보기로 보여요.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        selected_large = st.selectbox(
-            "대분류 필터",
-            ["전체"] + sorted({infer_large_category(item) for item in items}),
-            key="knowledge_toc_large_filter",
-        )
-
-        toc_items = items
-        if selected_large != "전체":
-            toc_items = [item for item in toc_items if infer_large_category(item) == selected_large]
-
-        grouped = {}
-        for item in toc_items:
-            large = infer_large_category(item)
-            middle = infer_middle_category(item)
-            grouped.setdefault(large, {}).setdefault(middle, []).append(item)
-
-        for large_idx, (large, middle_groups) in enumerate(sorted(grouped.items())):
-            with st.expander(f"📒 {large} · {sum(len(v) for v in middle_groups.values())}개", expanded=True):
-                for middle_idx, (middle, group) in enumerate(sorted(middle_groups.items())):
-                    st.markdown(f'<span class="pkm-section-pill">📑 {middle}</span>', unsafe_allow_html=True)
-                    for item_i, item in enumerate(group):
-                        tag_text = ", ".join(item.get("tags", [])) or "태그 없음"
-                        item_unique_key = item.get("raw_index", f"{large_idx}_{middle_idx}_{item_i}")
-                        st.markdown(
-                            f"""
-                            <div class="toc-box">
-                                <div class="toc-title">{item.get("title", "제목 없음")}</div>
-                                <div class="toc-meta">{item.get("kind")} · {item.get("score", 0)}점 · {display_source_label(item.get("url", ""))}</div>
-                                <div class="toc-meta">태그: {tag_text}</div>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
-                        st.button(
-                            "열기",
-                            key=f"knowledge_toc_open_{large_idx}_{middle_idx}_{item_i}_{item_unique_key}",
-                            use_container_width=True,
-                            on_click=restore_item_from_knowledge,
-                            args=(item,),
-                        )
-
-        selected_note = st.session_state.get("knowledge_selected_note")
-        if selected_note:
-            with st.expander("📝 선택한 지식 메모 미리보기", expanded=True):
-                st.markdown(f"**{selected_note.get('title', '제목 없음')}**")
-                st.caption(f"{selected_note.get('kind')} · {selected_note.get('score', 0)}점 · {display_source_label(selected_note.get('url', ''))}")
-                st.markdown(selected_note.get("memo", "메모 내용이 없어요.")[:2500])
-
-    with tab2:
-        st.markdown("### 🧩 노션식 보드")
-        st.markdown(
-            """
-            <div class="pkm-info-box">
-            🧩 <b>노션식 보드</b><br>
-            점수별로만 보는 게 아니라, 대분류·태그·기간·최소 점수로 필터를 걸어서 지금 필요한 자료만 모아볼 수 있어요.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        f1, f2, f3, f4 = st.columns(4)
-        with f1:
-            board_large = st.selectbox("대분류", ["전체"] + sorted({infer_large_category(item) for item in items}), key="board_large_filter")
-        with f2:
-            board_tag = st.selectbox("태그", ["전체"] + total_tags, key="board_tag_filter")
-        with f3:
-            board_date = st.selectbox("기간", ["전체", "오늘/어제", "최근 7일", "최근 30일", "오래된 기록"], key="board_date_filter")
-        with f4:
-            min_score = st.slider("최소 점수", 0, 100, 0, 5, key="board_min_score")
-
-        board_items = items
-        if board_large != "전체":
-            board_items = [item for item in board_items if infer_large_category(item) == board_large]
-        if board_tag != "전체":
-            board_items = [item for item in board_items if board_tag in [str(t).replace("#", "").strip() for t in item.get("tags", [])]]
-        if board_date != "전체":
-            board_items = [item for item in board_items if date_color_group(item.get("date", "")) == board_date]
-        board_items = [item for item in board_items if int(item.get("score", 0) or 0) >= min_score]
-
-        col_names = ["뉴스/이슈", "정책/지원사업", "후기/리뷰", "공부/취업", "기타"]
-        board_cols = st.columns(len(col_names))
-
-        for col, name in zip(board_cols, col_names):
-            with col:
-                st.markdown(f"#### {name}")
-                group = [item for item in board_items if infer_large_category(item) == name]
-                if not group:
-                    st.caption("비어 있음")
-
-                for board_item_idx, item in enumerate(group[:12]):
-                    tags = ", ".join(item.get("tags", [])[:3]) or "태그 없음"
-                    st.markdown(
-                        f"""
-                        <div class="map-mini-card">
-                            <div class="map-mini-title">{item.get("title", "제목 없음")}</div>
-                            <div class="map-mini-meta">{item.get("kind")} · {item.get("score", 0)}점</div>
-                            <div class="map-mini-meta">{tags}</div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    board_unique_key = item.get("raw_index", f"{name}_{board_item_idx}")
-                    st.button(
-                        "열기",
-                        key=f"knowledge_board_open_{name}_{board_item_idx}_{board_unique_key}",
-                        use_container_width=True,
-                        on_click=restore_item_from_knowledge,
-                        args=(item,),
-                    )
-
-    with tab3:
-        st.markdown("### 🕸️ 옵시디언식 태그 마인드맵")
-        st.markdown(
-            """
-            <div class="pkm-info-box">
-            🕸️ <b>태그 마인드맵</b><br>
-            지금은 태그 사용 빈도를 기준으로 연결해요. 날짜 색상과 유사 태그 묶음은 다음 단계에서 더 정교하게 확장할 수 있어요.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        if not total_tags:
-            st.info("아직 태그가 없어서 마인드맵을 만들 수 없어요.")
-        else:
-            import math
-            import pandas as pd
-            import plotly.express as px
-
-            nodes = [{"label": "TrustLens 지식", "x": 0, "y": 0, "type": "center", "size": 28}]
-            edges = []
-
-            tag_counts = {tag: 0 for tag in total_tags}
-            for item in items:
-                for tag in item.get("tags", []):
-                    clean = str(tag).replace("#", "").strip()
-                    if clean:
-                        tag_counts[clean] = tag_counts.get(clean, 0) + 1
-
-            top_tags = sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)[:16]
-            n = max(len(top_tags), 1)
-
-            for idx, (tag, count) in enumerate(top_tags):
-                angle = 2 * math.pi * idx / n
-                x = math.cos(angle) * 2.2
-                y = math.sin(angle) * 2.2
-                nodes.append({"label": f"#{tag}", "x": x, "y": y, "type": "tag", "size": 14 + count * 3})
-                edges.append({"x": 0, "y": 0, "x2": x, "y2": y})
-
-            edge_fig_data = []
-            for e in edges:
-                edge_fig_data.append(dict(x=e["x"], y=e["y"], x2=e["x2"], y2=e["y2"]))
-
-            df_nodes = pd.DataFrame(nodes)
-            df_nodes["date_group"] = "태그 묶음"
-            fig = px.scatter(
-                df_nodes,
-                x="x",
-                y="y",
-                text="label",
-                size="size",
-                color="date_group",
-                hover_name="label",
-                size_max=42,
-            )
-
-            for e in edge_fig_data:
-                fig.add_shape(
-                    type="line",
-                    x0=e["x"],
-                    y0=e["y"],
-                    x1=e["x2"],
-                    y1=e["y2"],
-                    line=dict(width=1, color="#dbeafe"),
-                )
-
-            fig.update_traces(textposition="bottom center")
-            fig.update_layout(
-                height=620,
-                showlegend=False,
-                xaxis=dict(visible=False),
-                yaxis=dict(visible=False),
-                plot_bgcolor="#ffffff",
-                paper_bgcolor="#ffffff",
-                margin=dict(l=10, r=10, t=20, b=20),
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-    with tab4:
-        st.markdown("### 🧠 개인 지식 페이지")
-        st.markdown(
-            """
-            <div class="pkm-info-box">
-            🧠 <b>나만의 사고 데이터베이스</b><br>
-            긴 메모를 하나의 페이지처럼 보고, 그 안에서 자동 목차와 핵심 개념을 뽑아 연결해요.<br>
-            나중에는 ESG, CREST, STP처럼 반복 등장하는 개념을 여러 프로젝트 사이에서 자동으로 연결할 수 있어요.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        page_options = [
-            f"{idx+1}. {item.get('project', '기본 프로젝트')} / {item.get('section', '일반')} / {item.get('title', '제목 없음')}"
-            for idx, item in enumerate(items)
-        ]
-        selected_page_label = st.selectbox(
-            "지식 페이지 선택",
-            page_options,
-            key="knowledge_page_selector",
-        )
-        selected_page_index = page_options.index(selected_page_label)
-        selected_item = items[selected_page_index]
-        render_thinking_page_preview(selected_item)
-
-        st.divider()
-        st.markdown("### 🔗 연결된 개념")
-        selected_concepts = extract_local_concepts(
-            selected_item.get("full_text") or selected_item.get("memo", ""),
-            selected_item.get("tags", []),
-            limit=10,
-        )
-        if selected_concepts:
-            related_items = []
-            for other in items:
-                if other is selected_item:
-                    continue
-                other_text = " ".join([
-                    str(other.get("title", "")),
-                    str(other.get("memo", "")),
-                    " ".join([str(t) for t in other.get("tags", [])]),
-                ])
-                matched = [concept for concept in selected_concepts if concept and concept in other_text]
-                if matched:
-                    related_items.append((other, matched))
-
-            if related_items:
-                for related_idx, (related, matched) in enumerate(related_items[:8]):
-                    with st.container(border=True):
-                        st.markdown(f"**{related.get('title', '제목 없음')}**")
-                        st.caption(f"{related.get('project', '기본 프로젝트')} · {related.get('section', '일반')} · 공통 개념: {', '.join(matched[:5])}")
-                        st.button(
-                            "이 지식 열기",
-                            key=f"knowledge_page_related_open_{related_idx}_{related.get('raw_index', related_idx)}",
-                            use_container_width=True,
-                            on_click=restore_item_from_knowledge,
-                            args=(related,),
-                        )
-            else:
-                st.info("아직 같은 개념으로 연결된 다른 지식이 없어요. 메모가 쌓이면 자동으로 연결돼요.")
-        else:
-            st.info("이 메모에서 아직 연결할 핵심 개념을 찾지 못했어요.")
-
 # -----------------------------
 # Menu Pages
 # -----------------------------
 if menu == "📊 분석 결과":
     st.markdown("## 📊 분석 결과")
-    render_recent_analysis_cards(limit=5)
-    st.divider()
     if st.session_state.last_result:
         render_result(st.session_state.last_result, extracted_text=None, final_url=st.session_state.last_final_url)
     else:
@@ -2519,22 +2157,35 @@ if menu == "📊 분석 결과":
     st.divider()
 
     st.markdown(
+
         "## 📈 누적 사용자 학습 데이터"
+
     )
 
     stats = st.session_state.get(
+
         "auto_feedback_stats",
+
         {}
+
     )
 
     if stats:
+
         st.write(
+
             f"저장된 URL 평가 수: {len(stats)}"
+
         )
+
     else:
+
         st.caption(
+
             "아직 누적 학습 데이터가 없어요."
+
         )
+            
     st.stop()
 
 if menu == "🔎 신뢰도 근거":
@@ -2616,6 +2267,10 @@ if menu == "🔎 신뢰도 근거":
 
 if menu == "🏷️ 분석결과 아카이브":
     st.markdown("## 🏷️ 분석결과 아카이브")
+    if st.session_state.get("tag_update_message"):
+        st.success(st.session_state["tag_update_message"])
+        st.session_state["tag_update_message"] = ""
+
     st.caption("최근 검색기록은 단순 이력이고, 이 탭은 내가 저장한 분석 결과를 태그·메모·즐겨찾기로 관리하는 공간이에요.")
 
     if st.session_state.get("analysis_archive_restored"):
@@ -2663,7 +2318,7 @@ if menu == "🏷️ 분석결과 아카이브":
             star = "⭐" if item.get("favorite", False) else "☆"
             tags_text = ", ".join([str(t) for t in item.get("tags", [])]) or "태그 없음"
             with st.expander(f"{display_idx}. {star} {item.get('title', '저장 분석')} · {item.get('score', 0)}점 · {tags_text}", expanded=False):
-                st.markdown(f"**출처:** {display_source_label(item.get('url', ''))}")
+                st.markdown(f"**URL:** {item.get('url', '')}")
                 st.markdown(f"**저장일:** {item.get('saved_at', '')}")
                 st.markdown(f"**콘텐츠 유형:** {CONTENT_TYPE_LABELS.get(item.get('content_type', 'unknown'), item.get('content_type', 'unknown'))}")
                 st.markdown(f"**광고 위험도:** {item.get('ad_risk', '-')}")
@@ -2687,17 +2342,24 @@ if menu == "🏷️ 분석결과 아카이브":
                 st.text_area("분석 메모 수정", value=item.get("memo", ""), height=100, key=memo_key)
                 existing_tag_options = get_tag_edit_options(item)
                 st.multiselect(
-                    "기존 태그 선택/삭제",
+                    "기존 태그 선택/삭제 — 선택하세요",
                     options=existing_tag_options,
                     default=[tag for tag in item.get("tags", []) if tag in existing_tag_options],
                     key=tags_key,
                 )
-                st.text_input(
+                st.text_area(
                     "새 태그 추가",
-                    placeholder="예: 맛집후보, 재확인필요 처럼 쉼표/엔터로 여러 개 입력/태그 입력 후 아래 버튼(태그수정 저장)을 누른 뒤 위 기존 태그 선택칸을 누르세요.",
+                    placeholder="예: 맛집후보, 재확인필요\n쉼표 또는 엔터로 여러 개 입력",
+                    height=70,
                     key=new_tags_key,
-                    help="입력 후 아래의 제목/태그/메모 수정 저장 버튼을 눌러야 반영돼요.",
+                    help="입력 후 바로 아래의 새 태그 추가 버튼을 누르면 위 태그 목록에 반영돼요.",
                 )
+                if st.button("➕ 새 태그 위 목록에 추가", key=f"add_new_tag_{new_tags_key}", use_container_width=True):
+                    if "saved_analysis" in new_tags_key:
+                        add_tags_to_saved_analysis(original_index, new_tags_key)
+                    else:
+                        add_tags_to_archive_note(original_index, new_tags_key)
+                    st.rerun()
 
                 b1, b2, b3, b4 = st.columns(4)
                 with b1:
@@ -2721,6 +2383,40 @@ if menu == "🏷️ 분석결과 아카이브":
 
 if menu == "🏷️ 태그 관리":
     st.markdown("## 🏷️ 태그 관리")
+    if st.session_state.get("tag_update_message"):
+        st.success(st.session_state["tag_update_message"])
+        st.session_state["tag_update_message"] = ""
+
+
+    all_global_tags = collect_all_existing_tags()
+    if all_global_tags:
+        st.markdown("### ✏️ 태그 이름 수정")
+        rename_col1, rename_col2 = st.columns([1, 1])
+        with rename_col1:
+            rename_old_tag = st.selectbox("바꿀 기존 태그", all_global_tags, key="tag_rename_old_global")
+        with rename_col2:
+            rename_new_tag = st.text_input("새 태그명", placeholder="예: 속초맛집", key="tag_rename_new_global")
+
+        if st.button("🔁 태그명 전체 수정", key="rename_tag_global_btn", use_container_width=True):
+            old_tag = str(rename_old_tag).replace("#", "").strip()
+            new_tag = str(rename_new_tag).replace("#", "").strip()
+            if not old_tag or not new_tag:
+                st.warning("기존 태그와 새 태그명을 모두 입력해주세요.")
+            else:
+                for source_name in ["archive_notes", "saved_analyses"]:
+                    for saved_item in st.session_state.get(source_name, []):
+                        renamed_tags = []
+                        for tag in saved_item.get("tags", []):
+                            clean = str(tag).replace("#", "").strip()
+                            if clean == old_tag:
+                                clean = new_tag
+                            if clean and clean not in renamed_tags:
+                                renamed_tags.append(clean)
+                        saved_item["tags"] = renamed_tags
+                save_persisted_data()
+                st.success("태그명을 전체 기록에 반영했어요.")
+                st.rerun()
+        st.divider()
     all_tags = []
     for item in st.session_state.archive_notes:
         for tag in item.get("tags", []):
@@ -2730,14 +2426,17 @@ if menu == "🏷️ 태그 관리":
 
     if all_tags:
         selected_tag = st.selectbox("태그를 선택하면 해당 메모만 볼 수 있어요", ["전체"] + all_tags)
-        filtered_notes = st.session_state.archive_notes
+        filtered_notes = list(enumerate(st.session_state.archive_notes))
         if selected_tag != "전체":
-            filtered_notes = [note for note in st.session_state.archive_notes if selected_tag in [str(t).replace("#", "").strip() for t in note.get("tags", [])]]
-        for idx, item in enumerate(filtered_notes, start=1):
+            filtered_notes = [
+                (original_index, note)
+                for original_index, note in filtered_notes
+                if selected_tag in [str(t).replace("#", "").strip() for t in note.get("tags", [])]
+            ]
+        for idx, (original_index, item) in enumerate(filtered_notes, start=1):
             with st.expander(f"{idx}. {item.get('title', '저장 메모')} · {item.get('score', 0)}점", expanded=False):
-                st.markdown(f"**출처:** {display_source_label(item.get('url', ''))}")
+                st.markdown(f"**URL:** {item.get('url', '')}")
                 st.markdown(f"**저장일:** {item.get('saved_at', '')}")
-                original_index = st.session_state.archive_notes.index(item)
                 title_key = f"tag_note_title_{original_index}_{selected_tag}"
                 edit_key = f"tag_note_{original_index}_{selected_tag}"
                 tags_key = f"tag_note_tags_{original_index}_{selected_tag}"
@@ -2746,18 +2445,25 @@ if menu == "🏷️ 태그 관리":
 
                 st.text_input("제목 수정", value=item.get("title", ""), key=title_key)
                 st.multiselect(
-                    "기존 태그 선택/삭제",
+                    "기존 태그 선택/삭제 — 선택하세요",
                     options=tag_options_for_edit,
                     default=[tag for tag in item.get("tags", []) if tag in tag_options_for_edit],
                     key=tags_key,
                     help="기존 태그를 선택/해제할 수 있어요.",
                 )
-                st.text_input(
+                st.text_area(
                     "새 태그 추가",
-                    placeholder="예: 맛집후보, 재확인필요 처럼 쉼표/엔터로 여러 개 입력/태그 입력 후 아래 버튼(태그수정 저장)을 누른 뒤 위 기존 태그 선택칸을 누르세요.",
+                    placeholder="예: 맛집후보, 재확인필요\n쉼표 또는 엔터로 여러 개 입력",
+                    height=70,
                     key=new_tags_key,
-                    help="입력 후 아래의 제목/태그/메모 수정 저장 버튼을 눌러야 반영돼요.",
+                    help="입력 후 바로 아래의 새 태그 추가 버튼을 누르면 위 태그 목록에 반영돼요.",
                 )
+                if st.button("➕ 새 태그 위 목록에 추가", key=f"add_new_tag_{new_tags_key}", use_container_width=True):
+                    if "saved_analysis" in new_tags_key:
+                        add_tags_to_saved_analysis(original_index, new_tags_key)
+                    else:
+                        add_tags_to_archive_note(original_index, new_tags_key)
+                    st.rerun()
                 st.text_area("메모 수정", value=item.get("note", ""), height=260, key=edit_key)
                 if st.button(
                     "💾 제목/태그/메모 수정 저장",
@@ -2782,6 +2488,10 @@ if menu == "🏷️ 태그 관리":
 
 if menu == "🗂️ 지식 아카이브":
     st.markdown("## 🗂️ 지식 아카이브")
+    if st.session_state.get("tag_update_message"):
+        st.success(st.session_state["tag_update_message"])
+        st.session_state["tag_update_message"] = ""
+
     st.caption("분석 결과에서 저장한 메모가 여기에 쌓여요. 테스트 단계에서는 trustlens_data.json 파일에 저장돼서 재실행해도 유지돼요.")
     if st.session_state.get("archive_deleted"):
         st.success("저장된 메모를 삭제했어요.")
@@ -2789,11 +2499,11 @@ if menu == "🗂️ 지식 아카이브":
     search_query = st.text_input("🔍 아카이브 검색", placeholder="제목, URL, 태그, 메모 내용으로 검색")
     only_fav = st.checkbox("⭐ 즐겨찾기만 보기", value=False)
 
-    notes_to_show = st.session_state.archive_notes
+    notes_to_show = list(enumerate(st.session_state.archive_notes))
     if search_query.strip():
         q = search_query.strip().lower()
         notes_to_show = [
-            note for note in notes_to_show
+            (original_index, note) for original_index, note in notes_to_show
             if q in str(note.get("title", "")).lower()
             or q in str(note.get("url", "")).lower()
             or q in str(note.get("note", "")).lower()
@@ -2801,16 +2511,15 @@ if menu == "🗂️ 지식 아카이브":
         ]
 
     if only_fav:
-        notes_to_show = [note for note in notes_to_show if note.get("favorite", False)]
+        notes_to_show = [(original_index, note) for original_index, note in notes_to_show if note.get("favorite", False)]
 
     if notes_to_show:
-        for idx, item in enumerate(notes_to_show, start=1):
+        for idx, (original_index, item) in enumerate(notes_to_show, start=1):
             tags_text = ", ".join([str(t) for t in item.get("tags", [])])
             with st.expander(f"{idx}. {item.get('title', '저장 메모')} · {item.get('content_type', '')} · {item.get('score', 0)}점 · {tags_text}", expanded=False):
-                st.markdown(f"**출처:** {display_source_label(item.get('url', ''))}")
+                st.markdown(f"**URL:** {item.get('url', '')}")
                 st.markdown(f"**저장일:** {item.get('saved_at', '')}")
                 st.markdown("**제목, 태그와 메모 수정**")
-                original_index = st.session_state.archive_notes.index(item)
                 title_key = f"archive_note_title_{original_index}"
                 edit_key = f"archive_note_{original_index}"
                 tags_key = f"archive_note_tags_{original_index}"
@@ -2819,18 +2528,25 @@ if menu == "🗂️ 지식 아카이브":
 
                 st.text_input("제목 수정", value=item.get("title", ""), key=title_key)
                 st.multiselect(
-                    "기존 태그 선택/삭제",
+                    "기존 태그 선택/삭제 — 선택하세요",
                     options=tag_options_for_edit,
                     default=[tag for tag in item.get("tags", []) if tag in tag_options_for_edit],
                     key=tags_key,
                     help="기존 기록의 태그를 선택/해제할 수 있어요.",
                 )
-                st.text_input(
+                st.text_area(
                     "새 태그 추가",
-                    placeholder="예: 맛집후보, 재확인필요 처럼 쉼표/엔터로 여러 개 입력/태그 입력 후 아래 버튼(태그수정 저장)을 누른 뒤 위 기존 태그 선택칸을 누르세요.",
+                    placeholder="예: 맛집후보, 재확인필요\n쉼표 또는 엔터로 여러 개 입력",
+                    height=70,
                     key=new_tags_key,
-                    help="입력 후 아래의 제목/태그/메모 수정 저장 버튼을 눌러야 반영돼요.",
+                    help="입력 후 바로 아래의 새 태그 추가 버튼을 누르면 위 태그 목록에 반영돼요.",
                 )
+                if st.button("➕ 새 태그 위 목록에 추가", key=f"add_new_tag_{new_tags_key}", use_container_width=True):
+                    if "saved_analysis" in new_tags_key:
+                        add_tags_to_saved_analysis(original_index, new_tags_key)
+                    else:
+                        add_tags_to_archive_note(original_index, new_tags_key)
+                    st.rerun()
                 st.text_area("저장된 메모 수정", value=item.get("note", ""), height=320, key=edit_key)
                 fav_label = "⭐ 즐겨찾기 해제" if item.get("favorite", False) else "☆ 즐겨찾기"
                 st.button(
@@ -2861,10 +2577,6 @@ if menu == "🗂️ 지식 아카이브":
         st.info("아직 저장된 메모가 없어요. 분석 결과 하단에서 메모를 저장해보세요.")
     st.stop()
 
-if menu == "🧠 지식 맵":
-    render_knowledge_map_page()
-    st.stop()
-
 if menu == "🕘 최근 검색 기록":
     st.markdown("## 🕘 최근 검색 기록")
     st.caption("같은 URL은 저장된 캐시를 불러와서 API 호출 없이 다시 볼 수 있어요.")
@@ -2889,7 +2601,7 @@ if menu == "🕘 최근 검색 기록":
                 <div class="history-item">
                     <div class="history-title">{idx}. {item.get("title", "제목 없음")}</div>
                     <div class="history-meta">{item.get("time", "")} · {item.get("input_mode", "링크로 조회하기")} · {item.get("content_type", "unknown")} · {item.get("score", 0)}점</div>
-                    <div class="history-meta">{display_source_label(item.get("url", ""))}</div>
+                    <div class="history-meta">{item.get("url", "")}</div>
                 </div>
                 ''',
                 unsafe_allow_html=True,
@@ -2991,17 +2703,20 @@ with left_col:
 
     pasted_text = ""
     if input_mode == "링크로 조회하기":
-        url_input = st.text_input("🔗 분석할 URL", placeholder="https://example.com/article")
+        url_input = st.text_input("🔗 분석할 URL", placeholder="https://example.com/article", key="url_input_value")
     else:
         url_input = ""
         pasted_text = st.text_area(
             "📝 분석할 글 붙여넣기",
             placeholder="블로그 글, 정책 안내문, 상품 후기, 기사 일부 등을 여기에 붙여넣어주세요.",
             height=260,
+            key="pasted_text_input_value",
         )
 
     show_debug = st.checkbox("추출/입력 본문 디버그 보기", value=False)
     analyze_btn = st.button("🔍 신뢰도 분석 시작", type="primary", use_container_width=True)
+    if analyze_btn:
+        st.session_state.analysis_requested = True
 
     st.markdown("""
     <div class="info-note">
@@ -3010,7 +2725,6 @@ with left_col:
     정책 글은 공식 기관, 날짜, 신청 조건, 출처를 중심으로 분석해요.
     </div>
     """, unsafe_allow_html=True)
-    analysis_status_slot = st.empty()
     st.markdown("</div>", unsafe_allow_html=True)
 
 with right_col:
@@ -3108,8 +2822,16 @@ with right_col:
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-if analyze_btn:
-    st.session_state["analysis_status_message"] = None
+if st.session_state.get("analysis_requested", False):
+    st.session_state.analysis_requested = False
+    pasted_text = st.session_state.get("pasted_text_input_value", "")
+    url_input = st.session_state.get("url_input_value", "")
+    st.session_state.show_result = False
+    st.session_state.last_result = None
+    st.session_state.last_final_url = None
+    st.session_state.last_text = ""
+    analysis_succeeded = False
+
     if input_mode == "링크로 조회하기" and not url_input.strip():
         st.warning("URL을 입력해주세요.")
     elif input_mode == "링크로 조회하기" and not url_input.startswith("http"):
@@ -3122,9 +2844,10 @@ if analyze_btn:
                 text, err, final_url = extract_text(url_input.strip())
             analysis_source = url_input.strip()
         else:
-            text = clean_text(pasted_text.strip())[:6000]
+            text = prepare_pasted_text(pasted_text.strip())
             err = ""
-            final_url = f"pasted://{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            pasted_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+            final_url = f"pasted://{pasted_hash}"
             analysis_source = "사용자 붙여넣기 글"
 
         if err:
@@ -3134,15 +2857,16 @@ if analyze_btn:
             if text:
                 st.text(text[:1000])
         else:
-            cache_key = f"{final_url}::{selected_type}::{input_mode}"
+            criteria_signature = "|".join(st.session_state.get("active_custom_criteria_titles", []))
+            cache_key = f"{final_url}::{selected_type}::{input_mode}::{criteria_signature}"
             if cache_key in st.session_state.analysis_cache:
                 result = st.session_state.analysis_cache[cache_key]
                 st.session_state.last_result = result
                 st.session_state.last_final_url = final_url
                 st.session_state.last_text = text
                 st.session_state.show_result = True
-                st.session_state.result_closed = False
-                st.session_state["analysis_status_message"] = "같은 조건의 분석 결과가 있어서 저장된 결과를 다시 불러왔어요."
+                analysis_succeeded = True
+                st.success("✅ 분석 완료했어요. 아래에서 신뢰도 결과와 지식 메모 초안을 확인할 수 있어요.")
             else:
                 with st.spinner("AI가 분석 중..."):
                     try:
@@ -3152,16 +2876,17 @@ if analyze_btn:
                         st.session_state.last_final_url = final_url
                         st.session_state.last_text = text
                         st.session_state.show_result = True
-                        st.session_state.result_closed = False
-                        st.session_state["analysis_status_message"] = "분석 완료했어요. 아래에서 신뢰도 결과와 지식 메모 초안을 확인할 수 있어요."
+                        st.session_state.analysis_done_message = "✅ 분석 완료했어요. 아래에서 신뢰도 결과와 지식 메모 초안을 확인할 수 있어요."
+                        st.session_state.analysis_done_message = "✅ 분석 완료했어요. 아래에서 신뢰도 결과와 지식 메모 초안을 확인할 수 있어요."
+                        analysis_succeeded = True
                     except json.JSONDecodeError as e:
                         st.error(f"분석 결과 JSON 파싱 오류: {e}")
                     except Exception as e:
                         st.error(f"분석 중 오류 발생: {e}")
                         if "429" in str(e) or "사용량 제한" in str(e) or "Too Many Requests" in str(e):
-                            st.info("Groq 제한에 걸렸어요. 잠시 후 다시 시도해주세요.")
+                            st.info("현재 Groq API 사용량 제한 때문에 링크 자동 분석이 원활하지 않아요. 지금은 뉴스/블로그 본문을 복사해서 '글 붙여넣기로 조회하기'로 분석하는 걸 추천해요.")
 
-            if st.session_state.get("last_result"):
+            if analysis_succeeded and st.session_state.get("last_result"):
                 st.session_state.search_history.insert(
                     0,
                     {
@@ -3178,8 +2903,11 @@ if analyze_btn:
                 st.session_state.search_history = st.session_state.search_history[:30]
                 save_persisted_data()
 
-if st.session_state.get("analysis_status_message"):
-    analysis_status_slot.info(st.session_state.get("analysis_status_message"))
+if st.session_state.get("analysis_done_message"):
+    st.success(st.session_state.analysis_done_message)
+
+if st.session_state.get("analysis_done_message"):
+    st.success(st.session_state.analysis_done_message)
 
 if st.session_state.show_result and st.session_state.last_result:
     render_result(

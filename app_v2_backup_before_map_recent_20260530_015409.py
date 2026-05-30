@@ -242,23 +242,19 @@ section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked)
     box-shadow: 0 10px 24px rgba(37,99,235,0.10);
     min-height: 150px;
 }
-.note-action-card,
-.archive-action-card {
-    min-height: 112px !important;
-    padding: 18px 22px !important;
-}
-...note-action-card h2,
+note-action-card h2,
 .archive-action-card h2 {
-    font-size: clamp(22px, 1.65vw, 30px) !important;
-    line-height: 1.22 !important;
+    font-size: clamp(30px, 2.4vw, 42px) !important;
+    line-height: 1.18 !important;
+    word-break: keep-all !important;
     white-space: nowrap !important;
-    margin: 0 0 14px 0 !important;
 }
+
 .note-action-card p,
 .archive-action-card p {
-    font-size: clamp(15px, 1.05vw, 19px) !important;
-    line-height: 1.45 !important;
-    margin: 0 !important;
+    font-size: clamp(17px, 1.25vw, 24px) !important;
+    line-height: 1.5 !important;
+    word-break: keep-all !important;
 }
 
 .ai-draft-button-scope + div[data-testid="stButton"] button,
@@ -312,75 +308,6 @@ div[data-testid="stVerticalBlock"] > div:has(.big-action-button.red-action) + di
     background: linear-gradient(180deg,#f43f5e,#b91c1c) !important;
     color: white !important;
 }
-
-/* PATCH: recent-analysis-card + knowledge-map */
-.recent-card-title {font-weight:900; color:#172033; font-size:15px; line-height:1.35;}
-.recent-card-meta {color:#64748b; font-size:12px; margin-top:6px; line-height:1.45;}
-.map-mini-card {
-    background:#ffffff;
-    border:1px solid #e5edf8;
-    border-radius:18px;
-    padding:16px;
-    box-shadow:0 8px 20px rgba(15,23,42,0.04);
-    min-height:118px;
-}
-.map-mini-title {font-weight:900; color:#172033; font-size:16px;}
-.map-mini-meta {color:#64748b; font-size:13px; margin-top:6px;}
-.toc-box {
-    background:#ffffff;
-    border:1px solid #e5edf8;
-    border-radius:18px;
-    padding:16px 18px;
-    margin:10px 0;
-}
-.toc-title {font-weight:900; color:#172033;}
-.toc-meta {color:#64748b; font-size:13px; margin-top:5px;}
-.pkm-info-box {
-    background:#eff6ff;
-    border:1px solid #dbeafe;
-    border-radius:18px;
-    padding:16px 18px;
-    margin:12px 0 20px 0;
-    color:#1d4ed8;
-    line-height:1.65;
-    font-size:14px;
-    font-weight:650;
-}
-.pkm-info-box b {color:#172033; font-weight:900;}
-.pkm-sidebar-card {
-    background:#ffffff;
-    border:1px solid #e5edf8;
-    border-radius:18px;
-    padding:14px 16px;
-    margin:8px 0;
-    box-shadow:0 6px 16px rgba(15,23,42,0.035);
-}
-.pkm-sidebar-title {font-weight:900; color:#172033; font-size:15px;}
-.pkm-sidebar-meta {color:#64748b; font-size:12px; margin-top:4px;}
-.pkm-section-pill {
-    display:inline-block;
-    background:#eaf2ff;
-    color:#2563eb;
-    border-radius:999px;
-    padding:5px 10px;
-    font-size:12px;
-    font-weight:900;
-    margin:2px 4px 2px 0;
-}
-
-.knowledge-draft-blue-button + div[data-testid="stButton"] button {
-    background: linear-gradient(180deg,#3b82f6,#1d4ed8) !important;
-    border: 1px solid #1d4ed8 !important;
-    color: #ffffff !important;
-    border-radius: 14px !important;
-    font-weight: 900 !important;
-    height: 58px !important;
-    font-size: 18px !important;
-}
-.knowledge-draft-blue-button + div[data-testid="stButton"] button:hover {
-    background: linear-gradient(180deg,#2563eb,#1e40af) !important;
-    color: #ffffff !important;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -396,7 +323,6 @@ with st.sidebar:
             "🏷️ 분석결과 아카이브",
             "🏷️ 태그 관리",
             "🗂️ 지식 아카이브",
-            "🧠 지식 맵",
             "🕘 최근 검색 기록",
         ],
         label_visibility="collapsed",
@@ -454,23 +380,9 @@ def hydrate_last_result_from_cache():
 init_state()
 hydrate_last_result_from_cache()
 
-st.markdown(
-    '''
-    <div class="page-card" style="margin-bottom:24px;">
-        <div class="hero-title">🛡️ TrustLens</div>
-        <div class="hero-subtitle">
-            기사 신뢰도 분석을 넘어, 내가 저장한 정보와 생각을 연결하는 개인 AI 지식 아카이브
-        </div>
-        <div style="margin-top:14px;">
-            <span class="tag-badge">신뢰도 분석</span>
-            <span class="tag-badge">지식 메모</span>
-            <span class="tag-badge">태그 연결</span>
-            <span class="tag-badge">개인 AI 두뇌</span>
-        </div>
-    </div>
-    ''',
-    unsafe_allow_html=True,
-)
+
+st.markdown('<div class="hero-title">안녕하세요 👋</div>', unsafe_allow_html=True)
+st.markdown('<div class="hero-subtitle">URL이나 붙여넣은 글을 기준으로 신뢰도, 광고 위험도, 작성자 성향을 분석해드릴게요.</div>', unsafe_allow_html=True)
 
 # -----------------------------
 # Basic Helpers
@@ -1052,7 +964,7 @@ def make_basic_note_draft(result, final_url=None, selected_tags=None):
     return f"""# {result.get('archive_title', 'TrustLens 정보 정리 노트')}
 
 ## 1. 기본 정보
-- 출처: {display_source_label(final_url)}
+- URL: {final_url or ""}
 - 콘텐츠 유형: {content_label}
 - 신뢰도 점수: {score}점
 - 광고 위험도: {ad_text}
@@ -1114,7 +1026,7 @@ def make_local_content_note_draft(original_text, result, final_url=None, templat
     return f"""# {title}
 
 ## 1. 기본 정보
-- 출처: {display_source_label(final_url)}
+- URL/출처: {final_url or "붙여넣은 글"}
 - 콘텐츠 유형: {content_label}
 - 신뢰도 점수: {score}점
 - 광고 위험도: {ad_text}
@@ -1211,8 +1123,6 @@ def save_note_to_archive(note_key, result, final_url, selected_tags):
         {
             "url": final_url or "",
             "title": result.get("archive_title", "TrustLens 메모"),
-            "project": st.session_state.get("note_project_name", "기본 프로젝트"),
-            "section": st.session_state.get("note_section_name", "일반"),
             "content_type": result.get("content_type", "unknown"),
             "score": result.get("trust_score", 0),
             "favorite": False,
@@ -1606,7 +1516,7 @@ def render_result(result, extracted_text=None, final_url=None):
             f"누적 평가 {len(ratings)}건"
         )
     if final_url:
-        st.caption(f"분석 출처: {display_source_label(final_url)}")
+        st.caption(f"분석 URL: {final_url}")
 
     st.divider()
 
@@ -1859,11 +1769,12 @@ def render_result(result, extracted_text=None, final_url=None):
             height=110,
             key=f"draft_prompt_{final_url or 'current'}",
         )
-        st.markdown('<div class="ai-draft-button-scope big-action-button blue-action"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="ai-draft-button-scope"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="big-action-button blue-action"></div>', unsafe_allow_html=True)
         if st.button(
             "🔄 지식 메모 초안 다시 만들기",
             key=f"refresh_{draft_key}",
-            type="secondary",
+            type="primary",
             use_container_width=True,
         ):
             original_text = st.session_state.get("last_text", "")
@@ -1929,19 +1840,6 @@ def render_result(result, extracted_text=None, final_url=None):
             st.success("분석결과 아카이브에 저장했어요.")
             st.session_state["analysis_archive_saved"] = False
 
-    proj_col, sec_col = st.columns(2)
-    with proj_col:
-        st.text_input(
-            "프로젝트명",
-            value="기본 프로젝트",
-            key="note_project_name",
-        )
-    with sec_col:
-        st.text_input(
-            "섹션명",
-            value="일반",
-            key="note_section_name",
-        )
     st.markdown("## ✍️ 메모 초안 편집")
     st.caption("AI 초안을 기반으로 내 메모를 정리한 뒤, 맨 아래에서 지식 메모로 저장해요.")
     st.text_area("AI 초안 기반으로 내 메모 정리하기", height=700, key=note_key)
@@ -1974,544 +1872,11 @@ def render_result(result, extracted_text=None, final_url=None):
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-
-# -----------------------------
-# PATCH: Display / Recent Cards / Knowledge Map
-# -----------------------------
-def display_source_label(value):
-    value = str(value or "")
-    if value.startswith("pasted://"):
-        return "붙여넣은 글"
-    return value or "-"
-
-
-def get_all_knowledge_items():
-    items = []
-
-    for idx, item in enumerate(st.session_state.get("archive_notes", [])):
-        items.append({
-            "kind": "지식 메모",
-            "title": item.get("title", "저장 메모"),
-            "project": item.get("project", "기본 프로젝트"),
-            "section": item.get("section", "일반"),
-            "url": item.get("url", ""),
-            "score": item.get("score", 0),
-            "tags": item.get("tags", []),
-            "date": item.get("saved_at", ""),
-            "memo": item.get("note", ""),
-            "full_text": item.get("note", ""),
-            "favorite": item.get("favorite", False),
-            "raw_item": item,
-            "raw_index": f"item_{idx}_{len(items)}",
-        })
-
-    for idx, item in enumerate(st.session_state.get("saved_analyses", [])):
-        items.append({
-            "kind": "분석 결과",
-            "title": item.get("title", "저장 분석"),
-            "project": item.get("project", "분석결과"),
-            "section": item.get("section", item.get("content_type", "일반")),
-            "url": item.get("url", ""),
-            "score": item.get("score", 0),
-            "tags": item.get("tags", []),
-            "date": item.get("saved_at", ""),
-            "memo": item.get("memo", ""),
-            "full_text": "\n".join(item.get("summary", [])) if isinstance(item.get("summary", []), list) else str(item.get("summary", "")),
-            "favorite": item.get("favorite", False),
-            "raw_item": item,
-            "raw_index": f"item_{idx}_{len(items)}",
-        })
-
-    return items
-
-
-def infer_large_category(item):
-    tags = " ".join([str(t) for t in item.get("tags", [])])
-    title = str(item.get("title", ""))
-    text = f"{tags} {title}"
-    if any(word in text for word in ["뉴스", "기사", "정치", "경제", "사회", "국제"]):
-        return "뉴스/이슈"
-    if any(word in text for word in ["정책", "지원", "청년", "정부", "공공", "신청"]):
-        return "정책/지원사업"
-    if any(word in text for word in ["맛집", "여행", "후기", "리뷰", "카페", "숙소"]):
-        return "후기/리뷰"
-    if any(word in text for word in ["공부", "취업", "SQL", "PM", "자격증", "과제"]):
-        return "공부/취업"
-    return "기타"
-
-
-def infer_middle_category(item):
-    tags = [str(t).replace("#", "").strip() for t in item.get("tags", []) if str(t).strip()]
-    if tags:
-        return tags[0]
-    return item.get("kind", "기타")
-
-
-def date_color_group(date_text):
-    date_text = str(date_text or "")[:10]
-    try:
-        from datetime import datetime
-        saved = datetime.strptime(date_text, "%Y-%m-%d")
-        diff = (datetime.now() - saved).days
-    except Exception:
-        return "날짜 없음"
-    if diff <= 1:
-        return "오늘/어제"
-    if diff <= 7:
-        return "최근 7일"
-    if diff <= 30:
-        return "최근 30일"
-    return "오래된 기록"
-
-
-def extract_local_concepts(text, tags=None, limit=18):
-    """저장된 메모에서 반복적으로 등장하는 핵심 개념을 간단한 로컬 규칙으로 추출한다."""
-    tags = tags or []
-    text = str(text or "")
-    candidates = []
-
-    for tag in tags:
-        clean = str(tag).replace("#", "").strip()
-        if len(clean) >= 2 and clean not in candidates:
-            candidates.append(clean)
-
-    keyword_pool = [
-        "CREST", "STP", "4P", "SWOT", "OAP", "ESG", "CSR", "O2O", "B2B", "B2C", "B2G",
-        "개인정보보호법", "전자금융거래법", "전자서명법", "식품위생법", "사회적기업", "공공데이터",
-        "블록체인", "위치기반", "결제시스템", "기부", "후원", "소액기부", "마케팅", "경쟁사",
-        "시장규모", "시장세분화", "포지셔닝", "정량적 목표", "사용자", "소상공인", "공공기관",
-        "결식아동", "급식카드", "지역상권", "기술", "규제", "경제", "사회", "발표대본", "자료조사"
-    ]
-    for word in keyword_pool:
-        if word in text and word not in candidates:
-            candidates.append(word)
-
-    # 한글/영문 혼합 명사 후보를 추가로 추출한다.
-    for word in re.findall(r"[A-Za-z]{2,}|[가-힣]{2,12}", text):
-        if word in candidates:
-            continue
-        if word in ["그리고", "하지만", "있는", "없는", "관련", "내용", "부분", "확인", "필요", "분석", "자료"]:
-            continue
-        if len(word) >= 2:
-            candidates.append(word)
-        if len(candidates) >= limit:
-            break
-
-    return candidates[:limit]
-
-
-def infer_thinking_chapters(item):
-    """하나의 긴 메모를 페이지 안의 장/섹션처럼 나눠 보여주기 위한 간단한 구조화 함수."""
-    text = str(item.get("full_text") or item.get("memo") or "")
-    concepts = extract_local_concepts(text, item.get("tags", []), limit=12)
-    chapters = []
-
-    chapter_rules = [
-        ("회사/배경", ["회사", "기업", "서비스", "운영", "설립", "비전", "미션"]),
-        ("시장/경쟁", ["시장", "경쟁", "경쟁사", "CREST", "시장규모", "산업"]),
-        ("규제/리스크", ["규제", "법", "개인정보", "전자금융", "식품위생", "리스크"]),
-        ("기술/데이터", ["기술", "데이터", "O2O", "블록체인", "위치기반", "결제"]),
-        ("마케팅/전략", ["마케팅", "STP", "4P", "SWOT", "포지셔닝", "목표"]),
-        ("제안/활용", ["제안", "개선", "활용", "컨설팅", "아이디어", "보완"]),
-    ]
-
-    for chapter_name, words in chapter_rules:
-        matched = [word for word in words if word in text]
-        if matched:
-            chapters.append({"name": chapter_name, "matched": matched[:4]})
-
-    if not chapters:
-        chapters.append({"name": "핵심 메모", "matched": concepts[:4]})
-
-    return chapters, concepts
-
-
-def render_thinking_page_preview(item):
-    """선택한 지식 메모를 개인 지식 페이지처럼 요약해서 보여준다."""
-    chapters, concepts = infer_thinking_chapters(item)
-    st.markdown("### 📄 지식 페이지 미리보기")
-    st.caption("원노트의 페이지처럼 한 메모 안의 장과 연결 개념을 한눈에 보여줘요.")
-
-    st.markdown(
-        f"""
-        <div class="toc-box">
-            <div class="toc-title">{item.get("title", "제목 없음")}</div>
-            <div class="toc-meta">프로젝트: {item.get("project", "기본 프로젝트")} · 섹션: {item.get("section", "일반")} · {item.get("kind", "지식")}</div>
-            <div class="toc-meta">출처: {display_source_label(item.get("url", ""))}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    c1, c2 = st.columns([1, 1])
-    with c1:
-        st.markdown("#### 🧩 자동 목차")
-        for chapter in chapters:
-            matched = ", ".join(chapter.get("matched", [])) or "핵심 문장 기반"
-            st.markdown(f"- **{chapter.get('name')}** · {matched}")
-    with c2:
-        st.markdown("#### 🧠 핵심 개념")
-        if concepts:
-            concept_html = "".join([f'<span class="reason-chip">{concept}</span>' for concept in concepts[:14]])
-            st.markdown(concept_html, unsafe_allow_html=True)
-        else:
-            st.caption("추출된 개념이 아직 없어요.")
-
-    with st.expander("원문/메모 일부 보기", expanded=False):
-        st.markdown(str(item.get("memo") or item.get("full_text") or "메모 내용이 없어요.")[:3500])
-
-
-def restore_item_from_knowledge(item):
-    if item.get("kind") == "분석 결과" and item.get("raw_item", {}).get("result"):
-        st.session_state.last_result = item.get("raw_item", {}).get("result")
-        st.session_state.last_final_url = item.get("url", "")
-        st.session_state.last_text = ""
-        st.session_state.show_result = True
-        st.session_state.result_closed = False
-        st.session_state["knowledge_item_restored"] = True
-    else:
-        st.session_state["knowledge_selected_note"] = item
-
-
-def render_recent_analysis_cards(limit=5):
-    history = st.session_state.get("search_history", [])[:limit]
-    if not history:
-        st.caption("아직 최근 분석 기록이 없어요.")
-        return
-
-    st.markdown("### 🕘 최근 분석 5개")
-    st.caption("최근 검색 기록으로 이동하지 않아도 여기서 바로 다시 열 수 있어요.")
-
-    cols = st.columns(len(history))
-    for i, item in enumerate(history):
-        with cols[i]:
-            with st.container(border=True):
-                title = item.get("title", "제목 없음")
-                score = item.get("score", 0)
-                mode = item.get("input_mode", "링크로 조회하기")
-                source = display_source_label(item.get("url", ""))
-                cache_key = item.get("cache_key") or f'{item.get("url", "")}::{item.get("content_type", "unknown")}'
-
-                st.markdown(f'<div class="recent-card-title">{title}</div>', unsafe_allow_html=True)
-                st.markdown(
-                    f'<div class="recent-card-meta">{item.get("time","")}<br>{mode}<br>{score}점 · {source}</div>',
-                    unsafe_allow_html=True,
-                )
-                st.button(
-                    "다시 보기",
-                    key=f"recent_card_restore_{i}_{cache_key}",
-                    use_container_width=True,
-                    on_click=restore_analysis_from_history,
-                    args=(cache_key,),
-                )
-
-
-def render_knowledge_map_page():
-    st.markdown("## 🧠 지식 맵")
-    st.markdown(
-        """
-        <div class="pkm-info-box">
-        💡 <b>지식 맵 사용법</b><br>
-        목차는 원노트처럼 대분류 → 중분류 → 문서 흐름으로 보고, 보드는 노션처럼 태그·기간·점수로 필터링해요.<br>
-        태그 마인드맵은 옵시디언처럼 비슷한 태그가 어떻게 연결되는지 보는 공간이에요. 카드를 누르면 분석 결과를 다시 열 수 있어요.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    if st.session_state.get("knowledge_item_restored"):
-        st.success("지식 맵에서 선택한 분석 결과를 불러왔어요. 왼쪽 메뉴의 📊 분석 결과에서 확인할 수 있어요.")
-        st.session_state["knowledge_item_restored"] = False
-
-    items = get_all_knowledge_items()
-    if not items:
-        st.info("아직 지식 맵에 표시할 저장 메모나 분석결과가 없어요.")
-        return
-
-    total_items = len(items)
-    total_tags = sorted({str(tag).replace("#", "").strip() for item in items for tag in item.get("tags", []) if str(tag).strip()})
-    avg_score = round(sum(int(item.get("score", 0) or 0) for item in items) / total_items, 1)
-
-    m1, m2, m3 = st.columns(3)
-    with m1:
-        st.metric("저장 항목", f"{total_items}개")
-    with m2:
-        st.metric("태그 수", f"{len(total_tags)}개")
-    with m3:
-        st.metric("평균 신뢰도", f"{avg_score}점")
-
-    tab1, tab2, tab3, tab4 = st.tabs(["📚 원노트 목차", "🧩 노션 보드", "🕸️ 태그 마인드맵", "🧠 지식 페이지"])
-
-    with tab1:
-        st.markdown("### 📚 원노트식 목차")
-        st.markdown(
-            """
-            <div class="pkm-info-box">
-            📒 <b>원노트식 구조</b><br>
-            날짜만 나열하지 않고, 대분류 → 중분류 → 문서 순서로 정리해요. 문서 버튼을 누르면 분석 결과는 다시 열리고, 지식 메모는 아래에 미리보기로 보여요.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        selected_large = st.selectbox(
-            "대분류 필터",
-            ["전체"] + sorted({infer_large_category(item) for item in items}),
-            key="knowledge_toc_large_filter",
-        )
-
-        toc_items = items
-        if selected_large != "전체":
-            toc_items = [item for item in toc_items if infer_large_category(item) == selected_large]
-
-        grouped = {}
-        for item in toc_items:
-            large = infer_large_category(item)
-            middle = infer_middle_category(item)
-            grouped.setdefault(large, {}).setdefault(middle, []).append(item)
-
-        for large_idx, (large, middle_groups) in enumerate(sorted(grouped.items())):
-            with st.expander(f"📒 {large} · {sum(len(v) for v in middle_groups.values())}개", expanded=True):
-                for middle_idx, (middle, group) in enumerate(sorted(middle_groups.items())):
-                    st.markdown(f'<span class="pkm-section-pill">📑 {middle}</span>', unsafe_allow_html=True)
-                    for item_i, item in enumerate(group):
-                        tag_text = ", ".join(item.get("tags", [])) or "태그 없음"
-                        item_unique_key = item.get("raw_index", f"{large_idx}_{middle_idx}_{item_i}")
-                        st.markdown(
-                            f"""
-                            <div class="toc-box">
-                                <div class="toc-title">{item.get("title", "제목 없음")}</div>
-                                <div class="toc-meta">{item.get("kind")} · {item.get("score", 0)}점 · {display_source_label(item.get("url", ""))}</div>
-                                <div class="toc-meta">태그: {tag_text}</div>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
-                        st.button(
-                            "열기",
-                            key=f"knowledge_toc_open_{large_idx}_{middle_idx}_{item_i}_{item_unique_key}",
-                            use_container_width=True,
-                            on_click=restore_item_from_knowledge,
-                            args=(item,),
-                        )
-
-        selected_note = st.session_state.get("knowledge_selected_note")
-        if selected_note:
-            with st.expander("📝 선택한 지식 메모 미리보기", expanded=True):
-                st.markdown(f"**{selected_note.get('title', '제목 없음')}**")
-                st.caption(f"{selected_note.get('kind')} · {selected_note.get('score', 0)}점 · {display_source_label(selected_note.get('url', ''))}")
-                st.markdown(selected_note.get("memo", "메모 내용이 없어요.")[:2500])
-
-    with tab2:
-        st.markdown("### 🧩 노션식 보드")
-        st.markdown(
-            """
-            <div class="pkm-info-box">
-            🧩 <b>노션식 보드</b><br>
-            점수별로만 보는 게 아니라, 대분류·태그·기간·최소 점수로 필터를 걸어서 지금 필요한 자료만 모아볼 수 있어요.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        f1, f2, f3, f4 = st.columns(4)
-        with f1:
-            board_large = st.selectbox("대분류", ["전체"] + sorted({infer_large_category(item) for item in items}), key="board_large_filter")
-        with f2:
-            board_tag = st.selectbox("태그", ["전체"] + total_tags, key="board_tag_filter")
-        with f3:
-            board_date = st.selectbox("기간", ["전체", "오늘/어제", "최근 7일", "최근 30일", "오래된 기록"], key="board_date_filter")
-        with f4:
-            min_score = st.slider("최소 점수", 0, 100, 0, 5, key="board_min_score")
-
-        board_items = items
-        if board_large != "전체":
-            board_items = [item for item in board_items if infer_large_category(item) == board_large]
-        if board_tag != "전체":
-            board_items = [item for item in board_items if board_tag in [str(t).replace("#", "").strip() for t in item.get("tags", [])]]
-        if board_date != "전체":
-            board_items = [item for item in board_items if date_color_group(item.get("date", "")) == board_date]
-        board_items = [item for item in board_items if int(item.get("score", 0) or 0) >= min_score]
-
-        col_names = ["뉴스/이슈", "정책/지원사업", "후기/리뷰", "공부/취업", "기타"]
-        board_cols = st.columns(len(col_names))
-
-        for col, name in zip(board_cols, col_names):
-            with col:
-                st.markdown(f"#### {name}")
-                group = [item for item in board_items if infer_large_category(item) == name]
-                if not group:
-                    st.caption("비어 있음")
-
-                for board_item_idx, item in enumerate(group[:12]):
-                    tags = ", ".join(item.get("tags", [])[:3]) or "태그 없음"
-                    st.markdown(
-                        f"""
-                        <div class="map-mini-card">
-                            <div class="map-mini-title">{item.get("title", "제목 없음")}</div>
-                            <div class="map-mini-meta">{item.get("kind")} · {item.get("score", 0)}점</div>
-                            <div class="map-mini-meta">{tags}</div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                    board_unique_key = item.get("raw_index", f"{name}_{board_item_idx}")
-                    st.button(
-                        "열기",
-                        key=f"knowledge_board_open_{name}_{board_item_idx}_{board_unique_key}",
-                        use_container_width=True,
-                        on_click=restore_item_from_knowledge,
-                        args=(item,),
-                    )
-
-    with tab3:
-        st.markdown("### 🕸️ 옵시디언식 태그 마인드맵")
-        st.markdown(
-            """
-            <div class="pkm-info-box">
-            🕸️ <b>태그 마인드맵</b><br>
-            지금은 태그 사용 빈도를 기준으로 연결해요. 날짜 색상과 유사 태그 묶음은 다음 단계에서 더 정교하게 확장할 수 있어요.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        if not total_tags:
-            st.info("아직 태그가 없어서 마인드맵을 만들 수 없어요.")
-        else:
-            import math
-            import pandas as pd
-            import plotly.express as px
-
-            nodes = [{"label": "TrustLens 지식", "x": 0, "y": 0, "type": "center", "size": 28}]
-            edges = []
-
-            tag_counts = {tag: 0 for tag in total_tags}
-            for item in items:
-                for tag in item.get("tags", []):
-                    clean = str(tag).replace("#", "").strip()
-                    if clean:
-                        tag_counts[clean] = tag_counts.get(clean, 0) + 1
-
-            top_tags = sorted(tag_counts.items(), key=lambda x: x[1], reverse=True)[:16]
-            n = max(len(top_tags), 1)
-
-            for idx, (tag, count) in enumerate(top_tags):
-                angle = 2 * math.pi * idx / n
-                x = math.cos(angle) * 2.2
-                y = math.sin(angle) * 2.2
-                nodes.append({"label": f"#{tag}", "x": x, "y": y, "type": "tag", "size": 14 + count * 3})
-                edges.append({"x": 0, "y": 0, "x2": x, "y2": y})
-
-            edge_fig_data = []
-            for e in edges:
-                edge_fig_data.append(dict(x=e["x"], y=e["y"], x2=e["x2"], y2=e["y2"]))
-
-            df_nodes = pd.DataFrame(nodes)
-            df_nodes["date_group"] = "태그 묶음"
-            fig = px.scatter(
-                df_nodes,
-                x="x",
-                y="y",
-                text="label",
-                size="size",
-                color="date_group",
-                hover_name="label",
-                size_max=42,
-            )
-
-            for e in edge_fig_data:
-                fig.add_shape(
-                    type="line",
-                    x0=e["x"],
-                    y0=e["y"],
-                    x1=e["x2"],
-                    y1=e["y2"],
-                    line=dict(width=1, color="#dbeafe"),
-                )
-
-            fig.update_traces(textposition="bottom center")
-            fig.update_layout(
-                height=620,
-                showlegend=False,
-                xaxis=dict(visible=False),
-                yaxis=dict(visible=False),
-                plot_bgcolor="#ffffff",
-                paper_bgcolor="#ffffff",
-                margin=dict(l=10, r=10, t=20, b=20),
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-    with tab4:
-        st.markdown("### 🧠 개인 지식 페이지")
-        st.markdown(
-            """
-            <div class="pkm-info-box">
-            🧠 <b>나만의 사고 데이터베이스</b><br>
-            긴 메모를 하나의 페이지처럼 보고, 그 안에서 자동 목차와 핵심 개념을 뽑아 연결해요.<br>
-            나중에는 ESG, CREST, STP처럼 반복 등장하는 개념을 여러 프로젝트 사이에서 자동으로 연결할 수 있어요.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        page_options = [
-            f"{idx+1}. {item.get('project', '기본 프로젝트')} / {item.get('section', '일반')} / {item.get('title', '제목 없음')}"
-            for idx, item in enumerate(items)
-        ]
-        selected_page_label = st.selectbox(
-            "지식 페이지 선택",
-            page_options,
-            key="knowledge_page_selector",
-        )
-        selected_page_index = page_options.index(selected_page_label)
-        selected_item = items[selected_page_index]
-        render_thinking_page_preview(selected_item)
-
-        st.divider()
-        st.markdown("### 🔗 연결된 개념")
-        selected_concepts = extract_local_concepts(
-            selected_item.get("full_text") or selected_item.get("memo", ""),
-            selected_item.get("tags", []),
-            limit=10,
-        )
-        if selected_concepts:
-            related_items = []
-            for other in items:
-                if other is selected_item:
-                    continue
-                other_text = " ".join([
-                    str(other.get("title", "")),
-                    str(other.get("memo", "")),
-                    " ".join([str(t) for t in other.get("tags", [])]),
-                ])
-                matched = [concept for concept in selected_concepts if concept and concept in other_text]
-                if matched:
-                    related_items.append((other, matched))
-
-            if related_items:
-                for related_idx, (related, matched) in enumerate(related_items[:8]):
-                    with st.container(border=True):
-                        st.markdown(f"**{related.get('title', '제목 없음')}**")
-                        st.caption(f"{related.get('project', '기본 프로젝트')} · {related.get('section', '일반')} · 공통 개념: {', '.join(matched[:5])}")
-                        st.button(
-                            "이 지식 열기",
-                            key=f"knowledge_page_related_open_{related_idx}_{related.get('raw_index', related_idx)}",
-                            use_container_width=True,
-                            on_click=restore_item_from_knowledge,
-                            args=(related,),
-                        )
-            else:
-                st.info("아직 같은 개념으로 연결된 다른 지식이 없어요. 메모가 쌓이면 자동으로 연결돼요.")
-        else:
-            st.info("이 메모에서 아직 연결할 핵심 개념을 찾지 못했어요.")
-
 # -----------------------------
 # Menu Pages
 # -----------------------------
 if menu == "📊 분석 결과":
     st.markdown("## 📊 분석 결과")
-    render_recent_analysis_cards(limit=5)
-    st.divider()
     if st.session_state.last_result:
         render_result(st.session_state.last_result, extracted_text=None, final_url=st.session_state.last_final_url)
     else:
@@ -2519,22 +1884,35 @@ if menu == "📊 분석 결과":
     st.divider()
 
     st.markdown(
+
         "## 📈 누적 사용자 학습 데이터"
+
     )
 
     stats = st.session_state.get(
+
         "auto_feedback_stats",
+
         {}
+
     )
 
     if stats:
+
         st.write(
+
             f"저장된 URL 평가 수: {len(stats)}"
+
         )
+
     else:
+
         st.caption(
+
             "아직 누적 학습 데이터가 없어요."
+
         )
+            
     st.stop()
 
 if menu == "🔎 신뢰도 근거":
@@ -2663,7 +2041,7 @@ if menu == "🏷️ 분석결과 아카이브":
             star = "⭐" if item.get("favorite", False) else "☆"
             tags_text = ", ".join([str(t) for t in item.get("tags", [])]) or "태그 없음"
             with st.expander(f"{display_idx}. {star} {item.get('title', '저장 분석')} · {item.get('score', 0)}점 · {tags_text}", expanded=False):
-                st.markdown(f"**출처:** {display_source_label(item.get('url', ''))}")
+                st.markdown(f"**URL:** {item.get('url', '')}")
                 st.markdown(f"**저장일:** {item.get('saved_at', '')}")
                 st.markdown(f"**콘텐츠 유형:** {CONTENT_TYPE_LABELS.get(item.get('content_type', 'unknown'), item.get('content_type', 'unknown'))}")
                 st.markdown(f"**광고 위험도:** {item.get('ad_risk', '-')}")
@@ -2735,7 +2113,7 @@ if menu == "🏷️ 태그 관리":
             filtered_notes = [note for note in st.session_state.archive_notes if selected_tag in [str(t).replace("#", "").strip() for t in note.get("tags", [])]]
         for idx, item in enumerate(filtered_notes, start=1):
             with st.expander(f"{idx}. {item.get('title', '저장 메모')} · {item.get('score', 0)}점", expanded=False):
-                st.markdown(f"**출처:** {display_source_label(item.get('url', ''))}")
+                st.markdown(f"**URL:** {item.get('url', '')}")
                 st.markdown(f"**저장일:** {item.get('saved_at', '')}")
                 original_index = st.session_state.archive_notes.index(item)
                 title_key = f"tag_note_title_{original_index}_{selected_tag}"
@@ -2807,7 +2185,7 @@ if menu == "🗂️ 지식 아카이브":
         for idx, item in enumerate(notes_to_show, start=1):
             tags_text = ", ".join([str(t) for t in item.get("tags", [])])
             with st.expander(f"{idx}. {item.get('title', '저장 메모')} · {item.get('content_type', '')} · {item.get('score', 0)}점 · {tags_text}", expanded=False):
-                st.markdown(f"**출처:** {display_source_label(item.get('url', ''))}")
+                st.markdown(f"**URL:** {item.get('url', '')}")
                 st.markdown(f"**저장일:** {item.get('saved_at', '')}")
                 st.markdown("**제목, 태그와 메모 수정**")
                 original_index = st.session_state.archive_notes.index(item)
@@ -2861,10 +2239,6 @@ if menu == "🗂️ 지식 아카이브":
         st.info("아직 저장된 메모가 없어요. 분석 결과 하단에서 메모를 저장해보세요.")
     st.stop()
 
-if menu == "🧠 지식 맵":
-    render_knowledge_map_page()
-    st.stop()
-
 if menu == "🕘 최근 검색 기록":
     st.markdown("## 🕘 최근 검색 기록")
     st.caption("같은 URL은 저장된 캐시를 불러와서 API 호출 없이 다시 볼 수 있어요.")
@@ -2889,7 +2263,7 @@ if menu == "🕘 최근 검색 기록":
                 <div class="history-item">
                     <div class="history-title">{idx}. {item.get("title", "제목 없음")}</div>
                     <div class="history-meta">{item.get("time", "")} · {item.get("input_mode", "링크로 조회하기")} · {item.get("content_type", "unknown")} · {item.get("score", 0)}점</div>
-                    <div class="history-meta">{display_source_label(item.get("url", ""))}</div>
+                    <div class="history-meta">{item.get("url", "")}</div>
                 </div>
                 ''',
                 unsafe_allow_html=True,
@@ -3010,7 +2384,6 @@ with left_col:
     정책 글은 공식 기관, 날짜, 신청 조건, 출처를 중심으로 분석해요.
     </div>
     """, unsafe_allow_html=True)
-    analysis_status_slot = st.empty()
     st.markdown("</div>", unsafe_allow_html=True)
 
 with right_col:
@@ -3109,7 +2482,6 @@ with right_col:
 
 
 if analyze_btn:
-    st.session_state["analysis_status_message"] = None
     if input_mode == "링크로 조회하기" and not url_input.strip():
         st.warning("URL을 입력해주세요.")
     elif input_mode == "링크로 조회하기" and not url_input.startswith("http"):
@@ -3142,7 +2514,7 @@ if analyze_btn:
                 st.session_state.last_text = text
                 st.session_state.show_result = True
                 st.session_state.result_closed = False
-                st.session_state["analysis_status_message"] = "같은 조건의 분석 결과가 있어서 저장된 결과를 다시 불러왔어요."
+                st.info("같은 조건의 분석 결과가 있어서 저장된 결과를 다시 불러왔어요.")
             else:
                 with st.spinner("AI가 분석 중..."):
                     try:
@@ -3153,7 +2525,6 @@ if analyze_btn:
                         st.session_state.last_text = text
                         st.session_state.show_result = True
                         st.session_state.result_closed = False
-                        st.session_state["analysis_status_message"] = "분석 완료했어요. 아래에서 신뢰도 결과와 지식 메모 초안을 확인할 수 있어요."
                     except json.JSONDecodeError as e:
                         st.error(f"분석 결과 JSON 파싱 오류: {e}")
                     except Exception as e:
@@ -3177,9 +2548,6 @@ if analyze_btn:
                 )
                 st.session_state.search_history = st.session_state.search_history[:30]
                 save_persisted_data()
-
-if st.session_state.get("analysis_status_message"):
-    analysis_status_slot.info(st.session_state.get("analysis_status_message"))
 
 if st.session_state.show_result and st.session_state.last_result:
     render_result(

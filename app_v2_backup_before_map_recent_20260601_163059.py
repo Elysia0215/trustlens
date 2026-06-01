@@ -319,7 +319,7 @@ section[data-testid="stSidebar"] { background: #1a2f6e !important; }
     min-height: 112px !important;
     padding: 18px 22px !important;
 }
-..note-action-card h2,
+.note-action-card h2,
 .archive-action-card h2 {
     font-size: clamp(22px, 1.65vw, 30px) !important;
     line-height: 1.22 !important;

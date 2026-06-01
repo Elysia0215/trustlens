@@ -633,11 +633,12 @@
   ],
   "hidden_concepts": [],
   "nav_group_states": {
-    "nav_grp_open_프로젝트": true,
+    "nav_grp_open_프로젝트": false,
+    "nav_grp_open_가이드북": true,
     "nav_grp_open_인사이트": false,
     "nav_grp_open_수집": false,
-    "nav_grp_open_지식": true,
-    "nav_grp_open_기록": false
+    "nav_grp_open_기록": true,
+    "nav_grp_open_지식": false
   },
   "entities": [
     {

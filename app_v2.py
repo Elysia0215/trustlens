@@ -49,6 +49,60 @@ def _render_flash():
             st.success(_msg)
 
 
+def render_collection_stepper(current_step, completed_steps=None, error_step=None):
+    """새 메모·정보 수집 4단계 진행 표시(상단 고정 느낌)."""
+    completed_steps = set(completed_steps or [])
+    steps = [
+        (1, "정보 가져오기"),
+        (2, "원문 확인"),
+        (3, "AI 정리"),
+        (4, "지식 메모 저장"),
+    ]
+    chips = []
+    for num, label in steps:
+        if error_step == num:
+            bg, color, fw, mark = "#fee2e2", "#b91c1c", "700", "⚠️ "
+        elif num in completed_steps:
+            bg, color, fw, mark = "#dbeafe", "#1d4ed8", "700", "✅ "
+        elif num == current_step:
+            bg, color, fw, mark = "#3b82f6", "#ffffff", "800", ""
+        else:
+            bg, color, fw, mark = "#f1f5f9", "#94a3b8", "500", ""
+        chips.append(
+            f'<span style="background:{bg};color:{color};padding:5px 14px;'
+            f'border-radius:999px;font-weight:{fw};font-size:0.82rem;white-space:nowrap;">'
+            f'{mark}{num} {label}</span>'
+        )
+    arrow = '<span style="color:#cbd5e1;align-self:center;">→</span>'
+    joined = arrow.join(chips)
+    pct = int(min(max(current_step, 1), 4) / 4 * 100)
+    st.markdown(
+        '<div style="position:sticky;top:0;z-index:99;background:#f8fafc;'
+        'padding:8px 0 12px;border-bottom:1px solid #e2e8f0;margin-bottom:14px;">'
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'
+        + joined +
+        '</div>'
+        f'<div style="height:6px;background:#e2e8f0;border-radius:999px;margin-top:10px;overflow:hidden;">'
+        f'<div style="height:100%;width:{pct}%;background:linear-gradient(90deg,#3b82f6,#6366f1);"></div>'
+        '</div></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def compute_collection_step():
+    """현재 수집 플로우 단계/완료 단계 계산."""
+    has_text = bool((st.session_state.get("last_text") or "").strip())
+    has_result = bool(st.session_state.get("show_result") and st.session_state.get("last_result"))
+    saved = bool(st.session_state.get("note_saved") or st.session_state.get("analysis_archive_saved"))
+    if saved:
+        return 4, [1, 2, 3]
+    if has_result:
+        return 3, [1, 2]
+    if has_text:
+        return 2, [1]
+    return 1, []
+
+
 # ══════════════════════════════════════════════════════════
 # 노션식 Select / Multi-select 속성 관리 공통 컴포넌트
 # data_editor의 SelectboxColumn은 셀 클릭 시 드롭다운이 펼쳐진다(노션과 동일).
@@ -11211,24 +11265,12 @@ st.divider()
 # -----------------------------
 st.markdown("## ➕ 새 메모·정보 수집")
 st.caption("URL이나 글을 가져와 원문을 보관하고, AI가 요약·신뢰도·개념 후보를 만든 뒤 지식 메모로 연결해요.")
-st.markdown(
-    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 14px;font-size:0.82rem;">'
-    '<span style="background:#dbeafe;color:#1d4ed8;padding:4px 12px;border-radius:999px;font-weight:700;">1 정보 가져오기</span>'
-    '<span style="color:#94a3b8;align-self:center;">→</span>'
-    '<span style="background:#f1f5f9;color:#475569;padding:4px 12px;border-radius:999px;">2 원문 확인</span>'
-    '<span style="color:#94a3b8;align-self:center;">→</span>'
-    '<span style="background:#f1f5f9;color:#475569;padding:4px 12px;border-radius:999px;">3 AI 정리</span>'
-    '<span style="color:#94a3b8;align-self:center;">→</span>'
-    '<span style="background:#f1f5f9;color:#475569;padding:4px 12px;border-radius:999px;">4 지식 메모 저장</span>'
-    '</div>',
-    unsafe_allow_html=True,
-)
+_collect_step, _collect_done = compute_collection_step()
+render_collection_stepper(_collect_step, _collect_done)
 left_col, right_col = st.columns([1.35, 1])
 
 with left_col:
     st.markdown('<div class="input-shell">', unsafe_allow_html=True)
-    st.markdown('<span class="progress-pill">1 / 1</span>', unsafe_allow_html=True)
-    st.markdown('<div class="progress-line"><div class="progress-fill"></div></div>', unsafe_allow_html=True)
     st.markdown('<div class="question-title">분석할 정보 유형과 입력 방식을 선택해주세요</div>', unsafe_allow_html=True)
     st.markdown('<div class="question-subtitle">맛집 후기와 정책 정보는 신뢰도 기준이 다르게 적용돼요.</div>', unsafe_allow_html=True)
 
@@ -11456,11 +11498,26 @@ if st.session_state.get("analysis_status_message"):
 
 if st.session_state.show_result and st.session_state.last_result:
     # ── STEP 2. 원문 확인 ──────────────────────────────
-    _step2_text = st.session_state.get("last_text", "") or ""
+    _result_obj = st.session_state.last_result or {}
+    # 원문 표시 변수 통일: 길이 metric과 textarea가 반드시 같은 _source_text 사용
+    _src_candidates = [
+        ("last_text", st.session_state.get("last_text")),
+        ("session.original_text", st.session_state.get("original_text")),
+        ("result.original_text", _result_obj.get("original_text")),
+        ("result.text", _result_obj.get("text")),
+        ("result.raw_text", _result_obj.get("raw_text")),
+    ]
+    _source_key = "(없음)"
+    _source_text = ""
+    for _k, _v in _src_candidates:
+        if _v and str(_v).strip():
+            _source_text = str(_v)
+            _source_key = _k
+            break
     _step2_url = st.session_state.get("last_final_url", "") or ""
-    _step2_title = st.session_state.last_result.get("archive_title", "제목 없음")
+    _step2_title = _result_obj.get("archive_title", "제목 없음")
     _step2_pasted = str(_step2_url).startswith("pasted://")
-    _step2_len = len(_step2_text)
+    _step2_len = len(_source_text)
     _step2_ok = _step2_len >= 100
     st.markdown("### 2️⃣ 원문 확인")
     _m1, _m2, _m3 = st.columns(3)
@@ -11469,8 +11526,17 @@ if st.session_state.show_result and st.session_state.last_result:
     _m3.metric("출처", "붙여넣기" if _step2_pasted else "URL")
     st.caption(f"📄 제목: {_step2_title}" + ("" if _step2_pasted else f" · 🔗 {_step2_url}"))
     st.success("💾 원문 전체가 메모 저장 시 `original_text`에 보관돼, 지식 AI가 깊게 읽을 수 있어요.")
+    if _step2_len > 0 and not _source_text.strip():
+        st.warning("원문 길이는 감지됐지만 표시용 원문을 찾지 못했어요. 변수 매핑을 확인해주세요.")
     with st.expander("원문 전체 보기 / 복사", expanded=False):
-        st.text_area("원문", _step2_text, height=260, key="step2_original_view")
+        # 확인/복사용(read-only) — key 미사용으로 value 바인딩 보장
+        st.text_area("원문", value=_source_text, height=400, disabled=True,
+                     label_visibility="collapsed")
+    with st.expander("🛠️ 디버그 — 원문 변수 매핑", expanded=False):
+        st.write(f"len(last_text) = {len(st.session_state.get('last_text','') or '')}")
+        st.write(f"len(result.original_text) = {len(_result_obj.get('original_text','') or '')}")
+        st.write(f"len(result.text) = {len(_result_obj.get('text','') or '')}")
+        st.write(f"현재 사용 중인 source key = **{_source_key}** ({_step2_len:,}자)")
     st.markdown("### 3️⃣ AI 정리 · 신뢰도 판단")
     render_result(
         st.session_state.last_result,

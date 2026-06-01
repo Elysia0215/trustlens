@@ -10867,10 +10867,10 @@ if menu == "패치 노트":
         st.markdown("### 🗺️ 다음 로드맵 (예정)")
         _roadmap = [
             ("v3.3", "Concept Quality Gate · 개념 품질 게이트", "AI 추출 개념을 🟢추천/🟡검토필요/🔴제외로 평가 → 사용자 승인 → DB 저장. 쓰레기 개념(여기/최근/제목) 차단", "진행 예정"),
-            ("v3.4", "Alias Network · 별칭 시스템", "역전파 알고리즘→역전파처럼 같은 개념의 다른 표기를 비파괴적으로 연결", "대기"),
-            ("v3.5", "Second Brain · 지식 아카이브 UX 개편", "‘저장소 → 두 번째 뇌’. 카드화·노트 상세(한 줄 핵심/핵심 개념/연결된 지식)·관련 메모 추천", "대기"),
-            ("v3.6", "Semantic Merge · AI 의미 병합", "문자열 유사도 대신 의미 기반으로 중복 개념 병합", "대기"),
-            ("v4.0", "Knowledge OS · 판단 패턴 분석", "판단 히스토리에서 나의 사고 구조를 발견하는 장기 비전", "장기"),
+            ("v3.4", "Second Brain · 지식 아카이브 UX 개편", "‘저장소 → 두 번째 뇌’. 카드화·노트 상세(한 줄 핵심/핵심 개념/연결된 지식)·관련 메모 추천. 사용자가 별칭보다 ‘메모가 읽기 좋은가’를 먼저 느끼므로 앞으로 배치", "대기"),
+            ("v3.5", "Alias Network · 별칭 시스템", "역전파 알고리즘→역전파처럼 같은 개념의 다른 표기를 비파괴적으로 연결", "대기"),
+            ("v3.6", "Semantic Merge · AI 의미 병합", "신경망/신경망 구조/뉴럴 네트워크를 의미 유사도로 병합", "대기"),
+            ("v4.0", "Knowledge OS · 판단 패턴 분석 + 살아있는 뇌", "홈을 ‘오늘 성장한 개념·최근 연결된 지식·연결 안 된 메모’ 중심으로, 판단 히스토리에서 사고 구조 발견", "장기"),
         ]
         for _p, _t, _d, _s in _roadmap:
             st.markdown(
@@ -10896,6 +10896,49 @@ if menu == "패치 노트":
 
 정보를 **수집 → 신뢰도 분석 → 지식 메모로 정리 → 개념·프로젝트로 연결 → 검색·AI로 재활용**하는 개인 지식 사이클을 한 앱에서 제공하는 서비스. 노션·옵시디언·ChatGPT·퍼플렉시티의 핵심 경험을 ‘판단을 돕는 도구’ 관점으로 재구성했습니다.
 """)
+        st.divider()
+        st.markdown("### 🧭 제품 진화 — 사용자의 ‘다음 불편’을 따라 피벗")
+        st.caption("기능을 늘린 게 아니라, 사용자가 다음에 느낄 불편을 예측하며 제품의 정의 자체를 바꿔왔습니다.")
+        _evolution = [
+            ("v1", "신뢰도 분석기", "“이 정보 믿어도 돼?”", "정보의 신뢰도를 판단", "#94a3b8"),
+            ("v2", "지식 저장소", "“모은 정보를 잊어버려”", "분석을 메모로 저장·구조화", "#60a5fa"),
+            ("v3", "지식 연결", "“저장한 지식을 다시 활용하고 싶어”", "개념·지식맵·지식 AI로 연결", "#2563eb"),
+            ("v4", "Knowledge OS", "“AI와 함께 내 지식을 성장시키고 싶어”", "두 번째 뇌 — 탐험·성장 경험", "#7c3aed"),
+        ]
+        for _ev, _ename, _epain, _esol, _ecolor in _evolution:
+            st.markdown(
+                f"""<div style="display:flex; gap:14px; align-items:center; background:#fff;
+     border:1px solid #e2e8f0; border-left:4px solid {_ecolor}; border-radius:8px;
+     padding:10px 16px; margin-bottom:8px;">
+    <span style="font-weight:900; color:{_ecolor}; min-width:34px;">{_ev}</span>
+    <div style="flex:1;">
+        <div style="font-weight:700; color:#1e293b;">{_ename}
+            <span style="color:#475569; font-weight:500; font-size:0.88rem;">— {_esol}</span></div>
+        <div style="color:{_ecolor}; font-size:0.9rem; font-style:italic; margin-top:2px;">사용자: {_epain}</div>
+    </div>
+</div>""",
+                unsafe_allow_html=True,
+            )
+        st.divider()
+        st.markdown("### 📊 제품 성숙도 (자체 진단)")
+        st.caption("‘AI 분석’은 충분히 성숙했고, 다음 힘은 ‘저장한 지식을 다시 보는 경험’에 실어야 한다고 판단.")
+        _maturity = [
+            ("수집 (Capture)", 85, "#16a34a"),
+            ("저장 (Store)", 80, "#16a34a"),
+            ("연결 (Connect)", 60, "#f59e0b"),
+            ("탐험·두 번째 뇌 (Explore)", 38, "#ef4444"),
+        ]
+        for _mname, _mscore, _mcolor in _maturity:
+            st.markdown(
+                f"""<div style="margin-bottom:8px;">
+    <div style="display:flex; justify-content:space-between; font-size:0.88rem; color:#334155;">
+        <span style="font-weight:600;">{_mname}</span><span style="font-weight:700; color:{_mcolor};">{_mscore}</span></div>
+    <div style="background:#e2e8f0; border-radius:6px; height:9px; margin-top:3px;">
+        <div style="width:{_mscore}%; background:{_mcolor}; height:9px; border-radius:6px;"></div></div>
+</div>""",
+                unsafe_allow_html=True,
+            )
+        st.info("👉 다음 전략: AI 분석 고도화보다 **개념 품질(v3.3) → 아카이브 UX·노트 상세(v3.4)** 로 ‘탐험 능력’을 끌어올리는 데 집중.")
         st.divider()
         st.markdown("### 📈 프로젝트 성장 타임라인")
         st.caption("기능 개수보다 ‘어떻게 진화했는가’ — 신뢰도 분석기에서 지식 OS로 피벗한 과정.")

@@ -22,7 +22,7 @@ MAX_EXTRACT_TEXT_CHARS = 20000        # extract_text() / 붙여넣기 본문 최
 MAX_ORIGINAL_TEXT_CHARS = 20000       # archive_notes.original_text 저장 한도
 MAX_NOTE_INLINE_ORIGINAL_CHARS = 12000  # 메모 본문에 직접 붙이는 "원문 보관" 섹션 한도
 MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이(비용 제한)
-EXTRACTION_VERSION = "v2-20k"         # 추출 로직 버전 — 캐시 키에 포함해 구버전(6000자) 캐시 무효화
+EXTRACTION_VERSION = "v3-study"       # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (study 유형 강제 유지 반영)
 
 def load_persisted_data():
     if not DATA_FILE.exists():
@@ -1491,6 +1491,7 @@ CONTENT_TYPE_LABELS = {
     "review": "후기/리뷰",
     "policy": "정책/공공정보",
     "info": "일반 정보글",
+    "study": "공부자료",
     "unknown": "판단 어려움",
 }
 
@@ -1510,6 +1511,7 @@ SCORE_KEYS_BY_TYPE = {
     "review": ["recency", "ad_free", "info_density", "experience_specificity", "balanced_review", "revisit_mention"],
     "policy": ["official_source", "recency", "source_diversity", "ad_free", "info_density"],
     "info": ["official_source", "recency", "source_diversity", "ad_free", "info_density", "experience_specificity", "balanced_review"],
+    "study": ["official_source", "recency", "source_diversity", "ad_free", "info_density"],
     "unknown": list(SCORE_META.keys()),
 }
 
@@ -1977,6 +1979,10 @@ URL:
     ai_content_type = result.get("content_type", selected_type or "unknown")
     inferred_content_type = infer_content_type_from_text(text, selected_type)
     content_type = inferred_content_type if selected_type == "unknown" else ai_content_type
+    # study는 AI 프롬프트 선택지(policy/review/info/unknown)에 없어 AI가 절대 못 돌려줌
+    # → 사용자가 공부자료를 명시적으로 골랐으면 study로 강제 유지 (초안 분기 보장)
+    if selected_type == "study":
+        content_type = "study"
 
     if content_type == "review":
         result["score_breakdown"] = normalize_review_breakdown(result.get("score_breakdown", {}), text)

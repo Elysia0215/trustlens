@@ -3609,7 +3609,7 @@ def render_knowledge_map_page():
 
         st.divider()
 
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📚 원노트 목차", "🧩 노션 보드", "🕸️ 태그 마인드맵", "🧠 지식 페이지", "🗂️ 개념 파인더", "🤖 AI 브레인스토밍"])
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["📚 원노트 목차", "🧩 노션 보드", "🕸️ 태그 마인드맵", "🧠 지식 페이지", "🗂️ 개념 파인더", "🤖 AI 브레인스토밍", "🗺️ 프로젝트 지식맵"])
 
     with tab1:
         _toc_mode = st.radio(
@@ -4268,6 +4268,254 @@ def render_knowledge_map_page():
                         st.session_state["brain_proj_result"] = ""
                         st.rerun()
 
+    # ══════════════════════════════════════════════
+    # TAB 7 — 프로젝트 지식맵
+    # ══════════════════════════════════════════════
+    with tab7:
+        st.markdown("### 🗺️ 프로젝트 지식맵")
+        st.caption("프로젝트 하나를 선택하면 연결된 메모·작업·개념이 마인드맵으로 표시돼요.")
+
+        _pm_projs = st.session_state.get("projects", [])
+        _pm_notes = st.session_state.get("archive_notes", [])
+        _pm_tasks = st.session_state.get("tasks", [])
+        _pm_links = st.session_state.get("note_concept_links", [])
+
+        if not _pm_projs:
+            st.info("프로젝트가 없어요. 먼저 📁 프로젝트 메뉴에서 프로젝트를 만들어보세요.")
+        else:
+            # ── 상단 컨트롤 ──────────────────────────────
+            _pmctrl1, _pmctrl2, _pmctrl3, _pmctrl4 = st.columns([2, 1, 1, 1])
+            with _pmctrl1:
+                _pm_proj_names = [p.get("name", "이름 없음") for p in _pm_projs]
+                _pm_sel_idx = st.selectbox("📁 프로젝트 선택", range(len(_pm_proj_names)),
+                    format_func=lambda i: _pm_proj_names[i], key="pm_proj_sel")
+                _pm_sel_proj = _pm_projs[_pm_sel_idx]
+                _pm_sel_name = _pm_sel_proj.get("name", "")
+            with _pmctrl2:
+                _pm_show_memo  = st.toggle("📝 메모 노드",    value=True,  key="pm_show_memo")
+            with _pmctrl3:
+                _pm_show_task  = st.toggle("✅ 작업 노드",    value=True,  key="pm_show_task")
+            with _pmctrl4:
+                _pm_show_con   = st.toggle("🧠 개념 노드",    value=True,  key="pm_show_con")
+
+            # ── 데이터 수집 ──────────────────────────────
+            _pm_proj_notes = [n for n in _pm_notes if n.get("project") == _pm_sel_name]
+            _pm_proj_tasks = [t for t in _pm_tasks if t.get("project") == _pm_sel_name]
+
+            # 개념: note_concept_links + pkm_custom_concepts에서 수집
+            _pm_note_ids = {n.get("id","") for n in _pm_proj_notes}
+            _pm_linked_cons = {}
+            for _lk in _pm_links:
+                if _lk.get("note_id","") in _pm_note_ids:
+                    _cn = _lk.get("concept","")
+                    if _cn: _pm_linked_cons[_cn] = _pm_linked_cons.get(_cn, 0) + 1
+            # 프로젝트 직접 연결 개념
+            for _c in _pm_sel_proj.get("concepts", []):
+                _pm_linked_cons[_c] = _pm_linked_cons.get(_c, 0) + 2
+
+            # ── 메트릭 요약 ──────────────────────────────
+            _ms1, _ms2, _ms3, _ms4, _ms5 = st.columns(5)
+            with _ms1: st.metric("📝 메모", f"{len(_pm_proj_notes)}개")
+            with _ms2: st.metric("✅ 작업", f"{len(_pm_proj_tasks)}개")
+            with _ms3: st.metric("🧠 개념", f"{len(_pm_linked_cons)}개")
+            with _ms4:
+                _done = sum(1 for t in _pm_proj_tasks if t.get("status") == "완료")
+                st.metric("✔ 완료 작업", f"{_done}/{len(_pm_proj_tasks)}")
+            with _ms5:
+                st.metric("📊 진행률", f"{_pm_sel_proj.get('progress', 0)}%")
+
+            st.divider()
+
+            # ── Plotly 마인드맵 ───────────────────────────
+            import math as _pm_math
+            import plotly.graph_objects as _pmgo
+
+            _pm_nx, _pm_ny = [], []
+            _pm_text, _pm_size, _pm_color, _pm_hover = [], [], [], []
+            _pm_ex, _pm_ey = [], []
+
+            def _pm_add_node(x, y, text, size, color, hover):
+                _pm_nx.append(x); _pm_ny.append(y)
+                _pm_text.append(text); _pm_size.append(size)
+                _pm_color.append(color); _pm_hover.append(hover)
+
+            def _pm_add_edge(x1, y1, x2, y2):
+                _pm_ex.extend([x1, x2, None])
+                _pm_ey.extend([y1, y2, None])
+
+            # 중심 노드 — 프로젝트
+            _pm_add_node(0, 0,
+                f"📁 {_pm_sel_name[:14]}",
+                45, "#1e3a8a",
+                f"프로젝트: {_pm_sel_name}\n상태: {_pm_sel_proj.get('status','')}\n진행률: {_pm_sel_proj.get('progress',0)}%")
+
+            # ── 메모 노드 (위쪽 반원) ─────────────────────
+            if _pm_show_memo and _pm_proj_notes:
+                _n_memo = len(_pm_proj_notes)
+                _memo_r = max(2.8, 1.0 + _n_memo * 0.3)
+                for _mi, _mn in enumerate(_pm_proj_notes[:12]):
+                    _angle = _pm_math.pi * (0.1 + 0.8 * _mi / max(_n_memo - 1, 1))
+                    _mx = _pm_math.cos(_angle) * _memo_r
+                    _my = _pm_math.sin(_angle) * _memo_r
+                    _score = _mn.get("score", 0)
+                    _score_color = "#10b981" if _score >= 75 else "#f59e0b" if _score >= 50 else "#ef4444"
+                    _title_short = _mn.get("title", "제목 없음")[:16]
+                    _pm_add_edge(0, 0, _mx, _my)
+                    _pm_add_node(_mx, _my,
+                        f"📝 {_title_short}",
+                        18 + min(_score // 10, 10),
+                        _score_color,
+                        f"메모: {_mn.get('title','')}\n신뢰도: {_score}점\n저장일: {_mn.get('saved_at','')[:10]}\n섹션: {_mn.get('section','')}")
+
+            # ── 작업 노드 (아래쪽 반원) ────────────────────
+            if _pm_show_task and _pm_proj_tasks:
+                _n_task = len(_pm_proj_tasks)
+                _task_r = max(2.8, 1.0 + _n_task * 0.3)
+                _task_status_color = {"시작전": "#94a3b8", "진행중": "#3b82f6", "완료": "#10b981", "보류": "#f59e0b"}
+                for _ti, _tn in enumerate(_pm_proj_tasks[:12]):
+                    _angle = _pm_math.pi * (1.1 + 0.8 * _ti / max(_n_task - 1, 1))
+                    _tx = _pm_math.cos(_angle) * _task_r
+                    _ty = _pm_math.sin(_angle) * _task_r
+                    _t_color = _task_status_color.get(_tn.get("status", "시작전"), "#94a3b8")
+                    _t_title = _tn.get("title", "")[:16]
+                    _pm_add_edge(0, 0, _tx, _ty)
+                    _pm_add_node(_tx, _ty,
+                        f"✅ {_t_title}",
+                        16,
+                        _t_color,
+                        f"작업: {_tn.get('title','')}\n상태: {_tn.get('status','')}\n우선순위: {_tn.get('priority','')}\n마감: {_tn.get('due_date','없음')}")
+
+            # ── 개념 노드 (오른쪽) ─────────────────────────
+            if _pm_show_con and _pm_linked_cons:
+                _con_sorted = sorted(_pm_linked_cons.items(), key=lambda x: x[1], reverse=True)[:10]
+                _n_con = len(_con_sorted)
+                _con_r = 3.2
+                for _ci, (_cname, _ccnt) in enumerate(_con_sorted):
+                    _angle = -_pm_math.pi * 0.4 + _pm_math.pi * 0.8 * _ci / max(_n_con - 1, 1)
+                    _cx = _pm_math.cos(_angle) * _con_r + 1.0
+                    _cy = _pm_math.sin(_angle) * _con_r
+                    _pm_add_edge(0, 0, _cx, _cy)
+                    _pm_add_node(_cx, _cy,
+                        f"🧠 {_cname[:14]}",
+                        13 + min(_ccnt * 2, 8),
+                        "#8b5cf6",
+                        f"개념: {_cname}\n연결 메모 수: {_ccnt}개")
+
+            # ── 태그 클러스터 (중심 주변 작은 노드) ──────────
+            from collections import Counter as _PMCnt
+            _pm_tag_cnt = _PMCnt()
+            for _pn in _pm_proj_notes:
+                for _tg in _pn.get("tags", []):
+                    _pm_tag_cnt[str(_tg).replace("#","").strip()] += 1
+            _top_pm_tags = _pm_tag_cnt.most_common(8)
+            if _top_pm_tags:
+                _n_tag = len(_top_pm_tags)
+                for _tgi, (_tgname, _tgcnt) in enumerate(_top_pm_tags):
+                    _t_angle = 2 * _pm_math.pi * _tgi / _n_tag
+                    _tgx = _pm_math.cos(_t_angle) * 1.4
+                    _tgy = _pm_math.sin(_t_angle) * 1.4
+                    _pm_add_edge(0, 0, _tgx, _tgy)
+                    _pm_add_node(_tgx, _tgy,
+                        f"#{_tgname[:10]}",
+                        9 + min(_tgcnt * 2, 6),
+                        "#60a5fa",
+                        f"태그: #{_tgname} ({_tgcnt}개 메모)")
+
+            # ── 렌더링 ─────────────────────────────────────
+            _pm_fig = _pmgo.Figure()
+
+            # 엣지
+            _pm_fig.add_trace(_pmgo.Scatter(
+                x=_pm_ex, y=_pm_ey, mode="lines",
+                line=dict(width=1.2, color="rgba(148,163,184,0.4)"),
+                hoverinfo="none", showlegend=False
+            ))
+
+            # 노드
+            _pm_fig.add_trace(_pmgo.Scatter(
+                x=_pm_nx, y=_pm_ny,
+                mode="markers+text",
+                text=_pm_text,
+                textposition="top center",
+                textfont=dict(size=10, color="#1e293b"),
+                marker=dict(
+                    size=_pm_size,
+                    color=_pm_color,
+                    line=dict(width=1.5, color="white"),
+                    opacity=0.9,
+                ),
+                hovertext=_pm_hover,
+                hoverinfo="text",
+                showlegend=False
+            ))
+
+            _pm_fig.update_layout(
+                height=620,
+                showlegend=False,
+                xaxis=dict(visible=False, range=[-5.5, 5.5]),
+                yaxis=dict(visible=False, range=[-4.5, 4.5]),
+                plot_bgcolor="#f0f4ff",
+                paper_bgcolor="#f0f4ff",
+                margin=dict(l=10, r=10, t=20, b=10),
+            )
+            st.plotly_chart(_pm_fig, use_container_width=True)
+
+            # ── 범례 ──────────────────────────────────────
+            _lg1, _lg2, _lg3, _lg4, _lg5 = st.columns(5)
+            with _lg1: st.markdown('<span style="color:#1e3a8a;font-size:1.2em">●</span> **프로젝트**', unsafe_allow_html=True)
+            with _lg2: st.markdown('<span style="color:#10b981;font-size:1.2em">●</span> **메모 (신뢰↑)**', unsafe_allow_html=True)
+            with _lg3: st.markdown('<span style="color:#f59e0b;font-size:1.2em">●</span> **메모 (신뢰중)**', unsafe_allow_html=True)
+            with _lg4: st.markdown('<span style="color:#8b5cf6;font-size:1.2em">●</span> **개념**', unsafe_allow_html=True)
+            with _lg5: st.markdown('<span style="color:#60a5fa;font-size:1.2em">●</span> **태그**', unsafe_allow_html=True)
+
+            st.divider()
+
+            # ── 선택 프로젝트 상세 패널 ────────────────────
+            _detail_t1, _detail_t2, _detail_t3 = st.tabs(["📝 연결 메모 목록", "✅ 작업 현황", "🧠 개념 목록"])
+
+            with _detail_t1:
+                if not _pm_proj_notes:
+                    st.info("이 프로젝트에 연결된 메모가 없어요.")
+                else:
+                    for _ni, _pn in enumerate(_pm_proj_notes):
+                        _score = _pn.get("score", 0)
+                        _score_emoji = "🟢" if _score >= 75 else "🟡" if _score >= 50 else "🔴"
+                        with st.expander(f"{_score_emoji} {_pn.get('title','제목 없음')} — {_pn.get('saved_at','')[:10]}", expanded=False):
+                            st.markdown(f"**섹션:** {_pn.get('section','')} | **신뢰도:** {_score}점")
+                            _tags = [str(t) for t in _pn.get("tags",[])]
+                            if _tags: st.markdown(f"**태그:** {' '.join(_tags)}")
+                            st.markdown(_pn.get("note","")[:500])
+
+            with _detail_t2:
+                if not _pm_proj_tasks:
+                    st.info("이 프로젝트에 연결된 작업이 없어요.")
+                else:
+                    _status_order = ["진행중", "시작전", "보류", "완료"]
+                    _status_emoji = {"시작전": "⬜", "진행중": "🔵", "완료": "✅", "보류": "⏸️"}
+                    for _st_grp in _status_order:
+                        _grp_tasks = [t for t in _pm_proj_tasks if t.get("status") == _st_grp]
+                        if _grp_tasks:
+                            st.markdown(f"**{_status_emoji.get(_st_grp,'')} {_st_grp}** ({len(_grp_tasks)}개)")
+                            for _gt in _grp_tasks:
+                                _pri = _gt.get("priority","")
+                                _due = _gt.get("due_date","")
+                                _due_str = f" · 마감 {_due}" if _due else ""
+                                _pri_str = f" · {_pri}" if _pri else ""
+                                st.markdown(f"  - {_gt.get('title','')}{_pri_str}{_due_str}")
+
+            with _detail_t3:
+                if not _pm_linked_cons:
+                    st.info("연결된 개념이 없어요. 메모를 저장하면 자동으로 개념이 연결돼요.")
+                else:
+                    _con_sorted2 = sorted(_pm_linked_cons.items(), key=lambda x: x[1], reverse=True)
+                    _cg1, _cg2, _cg3 = st.columns(3)
+                    for _ci2, (_cname2, _ccnt2) in enumerate(_con_sorted2):
+                        with [_cg1, _cg2, _cg3][_ci2 % 3]:
+                            st.markdown(f"""<div style="background:#ede9fe;border-radius:8px;
+                                padding:8px 12px;margin-bottom:6px;">
+                                <span style="font-weight:700;color:#5b21b6;">🧠 {_cname2}</span>
+                                <span style="color:#7c3aed;font-size:0.8em;float:right;">{_ccnt2}회</span>
+                            </div>""", unsafe_allow_html=True)
 
 
 # ─────────────────────────────────────────

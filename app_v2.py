@@ -84,26 +84,50 @@ st.markdown("""
 }
 
 /* ── 기본 레이아웃 ── */
-.stApp { background: var(--bg-main) !important; }
+.stApp {
+    background: #f8fafc !important;
+    color: #0f172a !important;
+}
 .block-container {
     padding-top: 1.5rem !important;
     padding-bottom: 3rem !important;
     max-width: 1200px !important;
 }
 
-/* ── 메인 텍스트 색상 보장 ── */
-.main .block-container,
+/* ── 메인 텍스트 색상 보장 (배포 환경 CSS 변수 미지원 대비) ── */
+.main, .main .block-container,
 .main .block-container p,
 .main .block-container span,
 .main .block-container div,
 .main .block-container label,
 .main .block-container h1,
 .main .block-container h2,
-.main .block-container h3 {
-    color: var(--text-main) !important;
+.main .block-container h3,
+.main .block-container li,
+.main .block-container td,
+.main .block-container th,
+.stMarkdown p,
+.stMarkdown span,
+.stMarkdown li {
+    color: #0f172a !important;
 }
+/* Streamlit 위젯 라벨 */
+.stTextInput label, .stTextArea label, .stSelectbox label,
+.stMultiSelect label, .stSlider label, .stRadio label,
+.stCheckbox label, .stNumberInput label, .stDateInput label {
+    color: #0f172a !important;
+}
+/* 탭 텍스트 */
+.stTabs [data-baseweb="tab"] { color: #0f172a !important; }
+/* expander 헤더 */
+.streamlit-expanderHeader { color: #0f172a !important; }
+/* metric */
+[data-testid="stMetricLabel"], [data-testid="stMetricValue"],
+[data-testid="stMetricDelta"] { color: #0f172a !important; }
+/* caption */
+.stCaption { color: #64748b !important; }
 @media (max-width: 768px) {
-    .main .block-container { color: var(--text-main) !important; }
+    .main .block-container { color: #0f172a !important; }
 }
 
 /* ── 사이드바 ── */
@@ -6423,6 +6447,351 @@ if menu == "데이터 관리":
 
     st.stop()
 
+
+
+if menu == "가이드북":
+    # ══════════════════════════════════════════════════════════
+    # 📘 TrustLens 가이드북
+    # ══════════════════════════════════════════════════════════
+    st.markdown("""
+<div style="
+    background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 50%, #3b82f6 100%);
+    border-radius: 16px;
+    padding: 28px 32px 24px;
+    margin-bottom: 24px;
+    color: white;
+">
+    <div style="font-size:2rem; font-weight:900; letter-spacing:-1px; margin-bottom:6px;">
+        📘 TrustLens 가이드북
+    </div>
+    <div style="font-size:1rem; opacity:0.85; line-height:1.6;">
+        처음 오셨나요? 이 페이지 하나로 TrustLens 모든 기능을 이해할 수 있어요.<br>
+        <strong>정보 수집 → 분석 → 저장 → 연결 → 시각화</strong>의 전체 흐름을 안내해요.
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+    _g1, _g2, _g3, _g4, _g5 = st.tabs([
+        "🚀 TrustLens란",
+        "🔍 분석·저장하기",
+        "📁 프로젝트·작업",
+        "🧠 지식맵·개념",
+        "🔗 데이터 관리",
+    ])
+
+    # ─── 탭 1: TrustLens란 ───────────────────────────────────
+    with _g1:
+        st.markdown("### 💡 TrustLens는 무엇인가요?")
+        st.markdown("""
+TrustLens는 **AI 기반 개인 지식 운영체제(Knowledge OS)** 예요.
+
+단순한 북마크나 메모 앱이 아니라, 수집한 정보를 **분석하고 → 저장하고 → 연결해서 → 지식으로 만드는** 전체 파이프라인을 제공해요.
+
+> *"AI가 대신 생각하지 않는다. 더 나은 판단을 돕는다."*
+""")
+        st.divider()
+        st.markdown("### 🗺️ 기본 사용 흐름")
+        _flow_steps = [
+            ("1️⃣", "정보 수집", "URL 붙여넣기 또는 텍스트 직접 입력", "#3b82f6"),
+            ("2️⃣", "AI 신뢰도 분석", "Groq AI가 신뢰도·편향·광고 위험도·작성자 성향 분석", "#6366f1"),
+            ("3️⃣", "지식 메모 저장", "AI 요약 + 내 생각 합쳐서 메모로 저장. 태그·개념 자동 추출", "#8b5cf6"),
+            ("4️⃣", "프로젝트·작업 연결", "메모를 프로젝트/섹션/작업에 연결해서 연구 흐름 만들기", "#10b981"),
+            ("5️⃣", "지식맵·ERD 시각화", "개념 간 연결, 마인드맵, ERD로 전체 지식 구조 한눈에 보기", "#f59e0b"),
+            ("6️⃣", "AI 브레인스토밍", "저장된 메모 기반으로 확장 주제·다음 할 일·반대 관점 제안", "#ef4444"),
+        ]
+        for _fi, _fc in enumerate(_flow_steps):
+            _ficon, _ftitle, _fdesc, _fcolor = _fc
+            st.markdown(f"""<div style="display:flex; align-items:flex-start; gap:14px; margin-bottom:12px;
+     background:#f8fafc; border-left:4px solid {_fcolor}; border-radius:8px; padding:12px 16px;">
+    <div style="font-size:1.4rem; min-width:32px;">{_ficon}</div>
+    <div>
+        <div style="font-weight:700; color:#1e293b; font-size:1rem;">{_ftitle}</div>
+        <div style="color:#64748b; font-size:0.88rem; margin-top:2px;">{_fdesc}</div>
+    </div>
+</div>""", unsafe_allow_html=True)
+        st.divider()
+        st.markdown("### ❓ 자주 묻는 질문")
+        with st.expander("🔑 Groq API 키는 어디서 구하나요?"):
+            st.markdown("""
+1. [console.groq.com](https://console.groq.com) 접속
+2. 회원가입 → API Keys → Create API Key
+3. TrustLens 사이드바 하단 ⚙️ 설정에 붙여넣기
+- 무료 플랜으로도 하루 수십 번 분석 가능해요.
+""")
+        with st.expander("💾 데이터는 어디에 저장되나요?"):
+            st.markdown("""
+현재는 **로컬 JSON 파일** (`trustlens_data.json`)에 저장돼요.
+- 앱을 재시작해도 데이터 유지
+- 클라우드 동기화는 추후 Supabase 연동 예정
+- 지금은 파일을 백업해두면 데이터 보존 가능
+""")
+        with st.expander("🤖 분석이 안 되거나 느린 경우?"):
+            st.markdown("""
+- API 키 미입력: 사이드바 ⚙️ 설정 확인
+- Groq 서버 일시 과부하: 30초 후 재시도
+- Mock 모드(API 키 없음): 더미 결과로 UI 테스트 가능
+""")
+
+    # ─── 탭 2: 분석·저장하기 ─────────────────────────────────
+    with _g2:
+        st.markdown("### 🔍 정보 분석하고 메모로 저장하기")
+        _g2a, _g2b, _g2c = st.tabs(["분석 시작하기", "지식 메모 저장", "아카이브 관리"])
+        with _g2a:
+            st.markdown("#### 📌 분석 시작하기")
+            st.markdown("""
+**입력 방법 2가지:**
+| 방법 | 설명 |
+|------|------|
+| 🔗 URL 분석 | 뉴스/블로그/논문 URL 붙여넣기 → AI가 본문 크롤링 후 분석 |
+| 📋 텍스트 붙여넣기 | URL 없이 텍스트만 직접 분석 가능 |
+
+**AI 분석 결과 4가지:**
+- **신뢰도 점수** (0~100): 정보의 전반적 신뢰 수준
+- **편향 분석**: 정치·상업·감정 편향 감지
+- **광고 위험도**: 광고·홍보 콘텐츠 판별 (3단계)
+- **작성자 성향**: 전문가/일반인/기관 분류
+
+> 💡 같은 URL은 캐시에서 재사용 → API 호출 없음
+""")
+        with _g2b:
+            st.markdown("#### 💾 지식 메모 저장하기")
+            st.markdown("""
+분석 결과 화면 하단 **빨간 저장 패널**에서:
+
+1. **AI 메모 초안 생성** 버튼 → AI가 자동으로 요약 메모 작성
+2. 메모 내용 직접 편집 가능
+3. **태그 선택** (자동 추천 + 직접 입력)
+4. **프로젝트 / 섹션 / 단계** 선택
+5. **저장 버튼** → 지식 아카이브에 보관
+
+**자동으로 일어나는 일:**
+- 핵심 개념 자동 추출 → 지식맵 업데이트
+- `note_concept_links` 자동 생성
+- 메모에 `project_id`, `task_id`, `user_id` 자동 연결
+
+**빠른 메모 (데이터 관리 → ⚡ 빠른 작업):**
+- URL 없이 텍스트만으로 메모 저장
+- AI 분석 탭: AI가 제목·태그·개념 자동 생성
+""")
+        with _g2c:
+            st.markdown("#### 🗂️ 지식 아카이브 관리")
+            st.markdown("""
+저장된 모든 메모를 **검색·필터·편집**하는 공간이에요.
+
+**검색:** 제목 + 본문 + 태그 + 프로젝트 + 섹션 통합 검색
+
+**필터:** 프로젝트 / 태그 / 콘텐츠 유형 / 날짜 / 신뢰도 점수
+
+**카드 기능:**
+- ⭐ 즐겨찾기  ✏️ 편집  🏷️ 태그 수정  🗑️ 삭제
+- 📋 원문 텍스트 펼쳐보기
+
+**보기 방식:** 카드 뷰 / 리스트 뷰 전환 가능
+""")
+
+    # ─── 탭 3: 프로젝트·작업 ────────────────────────────────
+    with _g3:
+        st.markdown("### 📁 프로젝트와 작업 관리하기")
+        _g3a, _g3b, _g3c = st.tabs(["프로젝트 만들기", "작업 관리", "보드 뷰"])
+        with _g3a:
+            st.markdown("#### 📂 프로젝트")
+            st.markdown("""
+TrustLens에서 **프로젝트**는 연구/공부/업무 단위예요.
+
+**프로젝트 구조:**
+```
+📁 프로젝트
+  ├── 📂 섹션 (예: 1차 조사, 발표 준비)
+  │     └── 📋 단계 (예: 자료 수집, 분석, 작성)
+  └── ✅ 작업들
+```
+
+**만드는 방법:**
+1. 프로젝트 메뉴 → ➕ 새 프로젝트 버튼
+2. 이름 / 설명 / 대분류 / 상태 / 우선순위 / 마감일 입력
+3. 진행률은 슬라이더로 직접 설정
+
+**프로젝트 상세 탭:**
+- 메모 목록 / 작업 목록 / 개념 맵 / 타임라인
+""")
+        with _g3b:
+            st.markdown("#### ✅ 작업 관리")
+            st.markdown("""
+**작업 필드:**
+| 필드 | 설명 |
+|------|------|
+| 제목 | 할 일 이름 |
+| 프로젝트 | 어느 프로젝트 소속인지 |
+| 상태 | 시작전 / 진행중 / 완료 / 보류 |
+| 우선순위 | 높음 / 중간 / 낮음 |
+| 마감일 | 날짜 선택 |
+
+**보기 방식:**
+- 📋 목록 뷰: 전체 작업 리스트, 빠른 상태 변경
+- 🧩 보드 뷰: 칸반 (시작전/진행중/완료/보류)
+  - **← → 버튼**으로 열(상태) 이동 가능
+""")
+        with _g3c:
+            st.markdown("#### 🧩 보드 뷰 사용법")
+            st.markdown("""
+**노션식 보드 (`🕸️ 지식 맵` → 🧩 보드 탭):**
+
+지식 메모를 **대분류별 칸반**으로 볼 수 있어요.
+
+**필터:** 프로젝트 / 대분류 / 태그 / 기간 / 최소 신뢰도 점수
+
+**← → 버튼으로 열 이동:**
+- 이동 내역은 `pkm_category_overrides`에 저장 → 재시작해도 유지
+
+**보드 종류 3가지:**
+| 보드 | 위치 | 열 구성 |
+|------|------|---------|
+| 노션식 보드 | 지식 맵 → 보드 | 대분류별 (뉴스/정책/...) |
+| 프로젝트 보드 | 프로젝트 → 보드 | 상태별 (계획중/진행중/완료/보류) |
+| 작업 보드 | 작업 관리 → 보드 | 상태별 (시작전/진행중/완료/보류) |
+""")
+
+    # ─── 탭 4: 지식맵·개념 ──────────────────────────────────
+    with _g4:
+        st.markdown("### 🧠 지식맵과 개념 관리")
+        _g4a, _g4b, _g4c = st.tabs(["지식맵 탭 구조", "개념 관리", "AI 브레인스토밍"])
+        with _g4a:
+            st.markdown("#### 🕸️ 지식맵 6가지 뷰")
+            st.markdown("""
+| 탭 | 설명 |
+|----|------|
+| 📋 목차 | 프로젝트별 계층형 목차 (섹션 > 단계 > 메모) |
+| 🧩 보드 | 대분류별 칸반 보드 |
+| 🕸️ 마인드맵 | 태그 / 프로젝트별 행성 모드 시각화 |
+| 📄 지식 페이지 | 메모를 페이지처럼 읽기 |
+| 🗂️ 개념 파인더 | 폴더 칩 필터 + 카드 그리드로 개념 탐색 |
+| 🤖 AI 브레인스토밍 | 메모/프로젝트 기반 AI 아이디어 제안 |
+
+**마인드맵 모드:**
+- **태그 중심**: 태그가 중심 노드, 메모가 연결 노드
+- **프로젝트별 행성**: 프로젝트=행성, 메모·개념=위성
+""")
+        with _g4b:
+            st.markdown("#### 🧠 개념 관리")
+            st.markdown("""
+**개념의 종류:**
+- **AI 추출 개념**: 분석·저장 시 자동 추출
+- **직접 추가 개념**: 내가 직접 등록한 개념
+
+**개념 구조:**
+```
+개념명: "CREST 프레임워크"
+폴더: "마케팅/프레임워크"
+설명: "신뢰도 평가 5요소..."
+```
+
+**관리하는 곳:** `🔗 데이터 관리` → 테이블 편집 → 🧠 개념
+- 내 개념 수정/추가/삭제
+- AI 개념 선택해서 등록
+- 개념 폴더 이동 (⚡ 빠른 작업)
+- 중복 개념 병합 (⚡ 빠른 작업)
+
+**개념 파인더 활용:**
+1. 지식 맵 → 🗂️ 개념 파인더 탭
+2. 상단 폴더 칩 클릭 → 해당 폴더 개념만 필터
+3. 카드로 개념·연결 메모 수 확인
+""")
+        with _g4c:
+            st.markdown("#### 🤖 AI 브레인스토밍")
+            st.markdown("""
+**메모 기반 분석 유형:**
+| 유형 | 결과 |
+|------|------|
+| 확장 주제 제안 | 더 탐구할 주제 3~5개 |
+| 추가 조사 질문 | 아직 답 못한 질문들 |
+| 반대 관점 | 이 정보의 반론/한계 |
+| 발표 문장 초안 | 발표/글에 쓸 문장 |
+| 연결 개념 찾기 | 관련 있는 개념들 |
+| 다음 할 일 | 구체적인 행동 제안 |
+
+**프로젝트 기반:** 부족한 자료 / 조사 방향 / 발표 목차 / 예상 질문 / 추가 작업
+
+> 💡 메모를 많이 쌓은 후 사용할수록 더 풍부한 결과가 나와요!
+""")
+
+    # ─── 탭 5: 데이터 관리 ──────────────────────────────────
+    with _g5:
+        st.markdown("### 🔗 데이터 관리 완전 정복")
+        _g5a, _g5b, _g5c = st.tabs(["테이블 편집", "관계·ERD", "빠른 작업·엔터티 DB"])
+        with _g5a:
+            st.markdown("#### 📋 테이블 편집 탭")
+            st.markdown("""
+**5가지 엔터티를 직접 표 형식으로 편집**해요.
+
+| 엔터티 | 편집 가능 항목 |
+|--------|----------------|
+| 📁 프로젝트 | 이름/상태/우선순위/설명 + 행 추가/삭제 |
+| 📝 지식 메모 | 제목/프로젝트/섹션/단계 수정 |
+| ✅ 작업 | 작업명/프로젝트/상태/우선순위/마감일 |
+| 🧠 개념 | 내 개념 추가/수정, AI 개념 선택 등록, 전체 병합 뷰 |
+| 🏷️ 태그 | 이름 변경, 삭제, 태그 병합 |
+
+**개념 서브탭:**
+- 내 개념 / AI 추출 개념 선택 등록 / 병합 뷰
+""")
+        with _g5b:
+            st.markdown("#### 🔗 관계 관리 + ERD 뷰")
+            st.markdown("""
+**관계 관리 탭:**
+
+| 관계 종류 | 설명 |
+|-----------|------|
+| 📁 프로젝트 → 🧠 개념 | 프로젝트가 다루는 핵심 개념 |
+| 📁 프로젝트 → ✅ 작업 | 프로젝트에 포함된 작업 |
+| 📝 메모 → 🧠 개념 | 메모에서 다루는 개념 수동 연결 |
+| 🧠 개념 → 🧠 개념 | 개념 간 관계 정의 |
+
+**관계 유형:** 참고 / 연속 / 파생 / 반박 / 연결 / 포함 / 기타
+→ 체크박스로 연결 시 `relations` 테이블에 유형과 함께 저장
+
+**ERD 뷰:**
+- 🔵 프로젝트  🟢 개념  🟡 작업  🟣 메모
+- 중심 프로젝트 선택 또는 전체 보기
+- 관계를 많이 연결할수록 ERD가 풍부해져요
+""")
+        with _g5c:
+            st.markdown("#### ⚡ 빠른 작업 + 🗄️ 엔터티 DB")
+            st.markdown("""
+**⚡ 빠른 작업:**
+
+| 기능 | 설명 |
+|------|------|
+| 📝 빠른 메모 추가 | 텍스트 붙여넣기로 메모 저장 (단순/AI 분석) |
+| 🔗 개념 병합 | 중복 개념 여러 개 → 하나로 합치기 |
+| 📦 개념 폴더 이동 | 개념들의 소속 폴더 일괄 변경 |
+| 📁 메모 프로젝트 이동 | 메모 여러 개를 다른 프로젝트로 이동 |
+| 🗑️ 일괄 삭제 | 프로젝트/개념/작업/태그 일괄 삭제 |
+
+**🗄️ 엔터티 DB (v2 신기능):**
+- 엔터티 목록: 타입별 필터 + 테이블 뷰 + 삭제
+- 관계 목록: 저장된 모든 관계 + 삭제 + 타입별 통계
+
+> 이 구조는 향후 **Supabase/PostgreSQL** 연동 시 그대로 DB 테이블로 전환돼요.
+> `user_id`, `created_at`, `deleted_at` 필드가 이미 포함되어 있어요.
+""")
+
+        st.divider()
+        st.markdown("### 🧭 추천 사용 시나리오")
+        _scenarios = [
+            ("📚 논문·기사 리서치",
+             "URL 분석 → 메모 저장 (프로젝트 연결) → 개념 파인더로 연결 확인 → AI 브레인스토밍으로 추가 조사 방향 생성"),
+            ("🎯 발표 준비",
+             "관련 자료 여러 개 분석 저장 → 프로젝트 생성 → 메모 연결 → AI '발표 목차 제안' → 작업 목록으로 체크리스트"),
+            ("🏢 업무 지식 관리",
+             "회의록/문서 붙여넣기 → AI 분석 후 저장 → 프로젝트/섹션 구조화 → ERD로 전체 지식 구조 파악"),
+            ("🔍 팩트체크·미디어 리터러시",
+             "의심 기사 URL 분석 → 신뢰도 점수·편향 확인 → AI '반대 관점' 브레인스토밍 → 비교 메모 저장"),
+        ]
+        for _stitle, _sdesc in _scenarios:
+            with st.expander(_stitle):
+                st.markdown(_sdesc)
+
+    st.stop()
 
 
 if menu == "최근 검색 기록":

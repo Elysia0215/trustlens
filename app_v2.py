@@ -2818,18 +2818,10 @@ def render_result(result, extracted_text=None, final_url=None):
 
     st.divider()
 
-    left, right = st.columns([1.15, 1])
-    with left:
-        st.markdown("### 📋 점수 근거")
-        st.caption("각 항목은 실제 점수 / 최대 점수 비율로 표시돼요.")
-        items = get_score_items_for_type(content_type)
-        for key, label, max_val in items:
-            val = get_int_score(breakdown, key)
-            ratio = val / max_val if max_val else 0
-            st.markdown(f"**{label}** · {val}/{max_val}점 · {round(ratio * 100)}%")
-            st.progress(float(ratio))
+    step3_tabs = st.tabs(["📌 핵심 요약", "🔍 신뢰도 판단", "🏷️ 개념·태그 후보", "▶️ 다음 행동"])
 
-    with right:
+    # ── 탭 1: 핵심 요약 ──
+    with step3_tabs[0]:
         st.markdown('<div class="summary-box">', unsafe_allow_html=True)
         st.markdown('<div class="summary-title">💡 AI 핵심 요약</div>', unsafe_allow_html=True)
         if isinstance(summary, list):
@@ -2839,7 +2831,40 @@ def render_result(result, extracted_text=None, final_url=None):
             for s in [x.strip() for x in str(summary).split(".") if x.strip()]:
                 st.markdown(f"- {s}.")
         st.markdown('</div>', unsafe_allow_html=True)
+        st.caption("이 메모의 핵심만 빠르게 확인하세요. 자세한 신뢰도 근거는 옆 탭에 있어요.")
 
+    # ── 탭 2: 신뢰도 판단 ──
+    with step3_tabs[1]:
+        st.markdown("### 📋 점수 근거")
+        st.caption("각 항목은 실제 점수 / 최대 점수 비율로 표시돼요.")
+        items = get_score_items_for_type(content_type)
+        for key, label, max_val in items:
+            val = get_int_score(breakdown, key)
+            ratio = val / max_val if max_val else 0
+            st.markdown(f"**{label}** · {val}/{max_val}점 · {round(ratio * 100)}%")
+            st.progress(float(ratio))
+
+        st.markdown("#### 🔎 판단 근거")
+        jtab1, jtab2, jtab3 = st.tabs(["원문 근거", "작성자 분석", "광고 판단"])
+        with jtab1:
+            st.markdown(f"**공식 출처 근거:** {evidence.get('official_source', '없음')}")
+            st.markdown(f"**경험 신호 근거:** {evidence.get('experience_signal', '없음')}")
+            st.markdown(f"**단점/비판 신호:** {evidence.get('negative_signal', '없음')}")
+        with jtab2:
+            st.markdown(f"**유형:** {author_type}")
+            st.markdown(f"**판단 이유:** {result.get('author_reason', '')}")
+        with jtab3:
+            st.markdown(f"**위험도:** {ad_emoji} {ad_text}")
+            st.markdown(f"**판단 이유:** {result.get('ad_risk_reason', '')}")
+            st.markdown(f"**광고 신호:** {evidence.get('ad_signal', '없음')}")
+
+        with st.expander("📊 신뢰도 점수 상세 차트 보기", expanded=False):
+            render_score_dashboard(breakdown, content_type)
+        with st.expander("⭐ 사용자 피드백 남기기 / AI vs 사용자 비교", expanded=False):
+            render_feedback_section(result, final_url, score)
+
+    # ── 탭 3: 개념·태그 후보 ──
+    with step3_tabs[2]:
         st.markdown("### 🏷️ AI 태그")
         tag_html = ""
         for tag in tags_pos:
@@ -2851,39 +2876,29 @@ def render_result(result, extracted_text=None, final_url=None):
             if clean_tag:
                 tag_html += f'<span class="tag-warn-badge">⚠ #{clean_tag}</span>'
         st.markdown(tag_html if tag_html else "생성된 태그가 없어요.", unsafe_allow_html=True)
-        
-        st.markdown("### 🧠 AI 학습 신호")
 
-        if ratings:
-            st.success(
-                f"사용자들이 이 분석을 "
-                f"평균 {avg_rating}/5 로 평가했어요."
+        _key_concepts = result.get("key_concepts", result.get("concepts", []))
+        if _key_concepts:
+            st.markdown("### 🧩 핵심 개념 후보")
+            st.caption("AI가 본문에서 뽑은 개념 후보예요. 메모 저장 시 자동으로 연결돼요.")
+            concept_html = "".join(
+                f'<span class="tag-badge">{str(c).strip()}</span>'
+                for c in _key_concepts if str(c).strip()
             )
+            st.markdown(concept_html, unsafe_allow_html=True)
         else:
-            st.caption(
-                "아직 사용자 평가 데이터가 없어요."
-            )
-    st.divider()
-    with st.expander("📊 신뢰도 점수 상세 차트 보기", expanded=False):
-        render_score_dashboard(breakdown, content_type)
+            st.caption("아직 추출된 핵심 개념 후보가 없어요. (개념 품질 평가는 추후 강화 예정)")
 
-    with st.expander("⭐ 사용자 피드백 남기기 / AI vs 사용자 비교", expanded=False):
-        render_feedback_section(result, final_url, score)
-
-    st.divider()
-    st.markdown("### 🔎 판단 근거")
-    tab1, tab2, tab3 = st.tabs(["원문 근거", "작성자 분석", "광고 판단"])
-    with tab1:
-        st.markdown(f"**공식 출처 근거:** {evidence.get('official_source', '없음')}")
-        st.markdown(f"**경험 신호 근거:** {evidence.get('experience_signal', '없음')}")
-        st.markdown(f"**단점/비판 신호:** {evidence.get('negative_signal', '없음')}")
-    with tab2:
-        st.markdown(f"**유형:** {author_type}")
-        st.markdown(f"**판단 이유:** {result.get('author_reason', '')}")
-    with tab3:
-        st.markdown(f"**위험도:** {ad_emoji} {ad_text}")
-        st.markdown(f"**판단 이유:** {result.get('ad_risk_reason', '')}")
-        st.markdown(f"**광고 신호:** {evidence.get('ad_signal', '없음')}")
+    # ── 탭 4: 다음 행동 ──
+    with step3_tabs[3]:
+        st.markdown("### ▶️ 다음 행동")
+        st.markdown("- 🗒️ 아래에서 **지식 메모**로 정리해 저장하기")
+        st.markdown("- 📁 메모를 **프로젝트/섹션**에 연결하기")
+        st.markdown("- ✅ 후속 **작업(Task)** 만들기")
+        if ratings:
+            st.success(f"🧠 사용자들이 이 분석을 평균 {avg_rating}/5 로 평가했어요.")
+        else:
+            st.caption("🧠 아직 사용자 평가 데이터가 없어요.")
 
     if extracted_text:
         with st.expander("🧪 추출된 본문 확인 / 디버그"):
@@ -3088,27 +3103,55 @@ def render_result(result, extracted_text=None, final_url=None):
         key=note_key,
     )
 
-    bottom_save_col, bottom_close_col = st.columns(2)
-    with bottom_save_col:
-        st.button(
-            "🗂️ 지식 메모 저장",
-            key=f"save_{draft_key}",
+    st.divider()
+    st.markdown("### 4️⃣ 저장 방식 선택")
+    st.caption("이 자료를 어떻게 보관할지 골라주세요. 보통은 ‘지식 메모로 저장’이면 충분해요.")
+
+    _sel_tags = st.session_state.get(f"selected_tags_{final_url or 'current'}", [])
+    save_a_col, save_b_col, save_c_col = st.columns(3)
+    with save_a_col:
+        if st.button(
+            "🗂️ 지식 메모로 저장",
+            key=f"save_note_only_{draft_key}",
             use_container_width=True,
-            on_click=save_note_to_archive,
-            args=(
-                note_key,
+            type="primary",
+            help="AI 초안을 정리한 지식 메모를 아카이브에 저장해요. (가장 많이 쓰는 방식)",
+        ):
+            save_note_to_archive(note_key, result, final_url, _sel_tags)
+    with save_b_col:
+        if st.button(
+            "📌 분석결과만 저장",
+            key=f"save_analysis_only_{draft_key}",
+            use_container_width=True,
+            help="신뢰도 분석결과(점수/근거)만 분석 아카이브에 저장해요.",
+        ):
+            save_current_analysis_to_archive(
                 result,
                 final_url,
-                st.session_state.get(f"selected_tags_{final_url or 'current'}", []),
-            ),
-        )
-    with bottom_close_col:
-        st.button(
-            "닫기 / 나가기",
-            key=f"close_{draft_key}",
+                selected_tags=_sel_tags,
+                memo=st.session_state.get(f"analysis_archive_memo_{final_url or 'current'}", ""),
+            )
+    with save_c_col:
+        if st.button(
+            "🧩 둘 다 저장",
+            key=f"save_both_{draft_key}",
             use_container_width=True,
-            on_click=close_current_result,
-        )
+            help="지식 메모와 분석결과를 모두 저장해요.",
+        ):
+            save_current_analysis_to_archive(
+                result,
+                final_url,
+                selected_tags=_sel_tags,
+                memo=st.session_state.get(f"analysis_archive_memo_{final_url or 'current'}", ""),
+            )
+            save_note_to_archive(note_key, result, final_url, _sel_tags)
+
+    st.button(
+        "닫기 / 나가기",
+        key=f"close_{draft_key}",
+        use_container_width=True,
+        on_click=close_current_result,
+    )
 
     if st.session_state.get("note_saved"):
         st.success("지식 아카이브에 저장했어요.")

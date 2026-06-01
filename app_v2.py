@@ -672,8 +672,8 @@ button[data-testid="collapsedControl"],
             ("tasks",     "✅", "작업 관리"),
         ]),
         ("💡", "인사이트", [
-            ("brain",     "🤖", "AI 브레인스토밍", "soon"),
-            ("pattern",   "📈", "패턴 분석", "soon"),
+            ("brain",     "🤖", "AI 브레인스토밍"),
+            ("pattern",   "📈", "패턴 분석"),
         ]),
         ("🗄️", "기록", [
             ("saved",     "🏷️", "분석결과 아카이브"),
@@ -750,7 +750,8 @@ button[data-testid="collapsedControl"],
         "data":     "데이터 관리",
         "saved":    "분석결과 아카이브",
         "history":  "최근 검색 기록",
-        "brain":    "지식 맵",
+        "brain":    "AI 브레인스토밍",
+        "pattern":  "패턴 분석",
         "guide":    "가이드북",
     }
     menu = _PAGE_TO_MENU.get(_cur_page, "분석 시작하기")
@@ -6447,6 +6448,520 @@ if menu == "데이터 관리":
 
     st.stop()
 
+
+
+if menu == "AI 브레인스토밍":
+    # ══════════════════════════════════════════════════════════
+    # 🤖 AI 브레인스토밍 — 독립 페이지
+    # ══════════════════════════════════════════════════════════
+    st.markdown("""
+<div style="background:linear-gradient(135deg,#1e3a8a,#6366f1);border-radius:16px;
+     padding:28px 32px 22px;margin-bottom:24px;color:white;">
+    <div style="font-size:1.9rem;font-weight:900;margin-bottom:6px;">🤖 AI 브레인스토밍</div>
+    <div style="opacity:0.85;line-height:1.6;">
+        저장된 메모나 프로젝트를 기반으로 AI가 새로운 관점·아이디어·다음 행동을 제안해요.
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+    _br_notes   = st.session_state.get("archive_notes", [])
+    _br_projs   = st.session_state.get("projects", [])
+    _br_tasks   = st.session_state.get("tasks", [])
+
+    _br_tab1, _br_tab2, _br_tab3 = st.tabs(["📝 메모 기반", "📁 프로젝트 기반", "🔀 크로스 분석"])
+
+    # ─── 탭 1: 메모 기반 ───────────────────────────────────
+    with _br_tab1:
+        if not _br_notes:
+            st.info("저장된 메모가 없어요. 먼저 분석 결과를 저장해보세요.")
+        else:
+            _brc1, _brc2 = st.columns([2, 1])
+            with _brc1:
+                _note_titles_br = [n.get("title", "제목 없음") for n in _br_notes]
+                _br_note_idx = st.selectbox("📝 메모 선택", range(len(_note_titles_br)),
+                    format_func=lambda i: _note_titles_br[i], key="br_note_sel")
+                _sel_note_br = _br_notes[_br_note_idx]
+                with st.expander("선택한 메모 미리보기", expanded=False):
+                    st.markdown(f"**프로젝트:** {_sel_note_br.get('project','')}")
+                    st.markdown(f"**태그:** {', '.join([str(t) for t in _sel_note_br.get('tags',[])])}")
+                    st.markdown("---")
+                    st.markdown(_sel_note_br.get("note", "")[:2000])
+            with _brc2:
+                _br_types_memo = st.multiselect(
+                    "분석 유형 선택",
+                    ["확장 주제 제안", "추가 조사 질문", "반대 관점", "발표 문장 초안", "연결 개념 찾기", "다음 할 일", "약점 분석", "연관 프로젝트 제안"],
+                    default=["확장 주제 제안", "다음 할 일"],
+                    key="br_types_memo"
+                )
+                _br_depth = st.radio("분석 깊이", ["간단히 (3개씩)", "상세히 (5개씩)"], key="br_depth", horizontal=True)
+                _depth_n = 3 if "간단히" in _br_depth else 5
+
+            if st.button("🤖 AI 브레인스토밍 시작", key="br_run_note", type="primary", use_container_width=True):
+                if not _br_types_memo:
+                    st.warning("분석 유형을 하나 이상 선택해주세요.")
+                else:
+                    _note_content = _sel_note_br.get("note", "")[:3000]
+                    _sys = f"""당신은 지식 관리 전문가이자 비판적 사고 코치입니다.
+사용자의 메모를 읽고 요청한 분석 유형별로 구체적이고 실용적인 제안을 해주세요.
+분석 유형: {', '.join(_br_types_memo)}
+각 유형별로 {_depth_n}개의 구체적인 항목을 bullet point (- )로 제안하세요.
+각 항목은 한 문장으로 명확하게 써주세요. 한국어로 답변하세요."""
+                    _usr = f"메모 제목: {_sel_note_br.get('title','')}\n프로젝트: {_sel_note_br.get('project','')}\n태그: {', '.join([str(t) for t in _sel_note_br.get('tags',[])])}\n\n메모 내용:\n{_note_content}"
+                    with st.spinner("AI가 브레인스토밍 중... (10~20초)"):
+                        try:
+                            _br_result = call_groq_simple(_sys, _usr)
+                            st.session_state["br_note_result"] = _br_result
+                            st.session_state["br_note_result_title"] = _sel_note_br.get("title","")
+                        except Exception as _e:
+                            st.error(f"AI 오류: {_e}")
+
+            if st.session_state.get("br_note_result"):
+                st.divider()
+                _br_r1, _br_r2 = st.columns([4, 1])
+                with _br_r1:
+                    st.markdown(f"#### 💡 AI 브레인스토밍 결과 — {st.session_state.get('br_note_result_title','')}")
+                with _br_r2:
+                    if st.button("🗑️ 지우기", key="br_note_clear"):
+                        st.session_state.pop("br_note_result", None)
+                        st.rerun()
+                st.markdown(st.session_state["br_note_result"])
+                st.divider()
+                # 결과를 작업으로 추가
+                st.markdown("##### ➕ 결과에서 작업 만들기")
+                _br_task_title = st.text_input("작업 제목", key="br_add_task_title",
+                    placeholder="AI 제안 중 실행할 항목 입력")
+                _br_task_proj = st.selectbox("연결할 프로젝트",
+                    ["없음"] + [p.get("name","") for p in _br_projs], key="br_add_task_proj")
+                if _br_task_title and st.button("✅ 작업으로 추가", key="br_add_task_btn", type="primary"):
+                    import uuid as _buid
+                    st.session_state.setdefault("tasks", []).append({
+                        "id": f"task_{_buid.uuid4().hex[:8]}",
+                        "title": _br_task_title.strip(),
+                        "project": "" if _br_task_proj == "없음" else _br_task_proj,
+                        "status": "시작전",
+                        "priority": "중간",
+                        "due_date": "",
+                        "note": f"[AI 브레인스토밍] {st.session_state.get('br_note_result_title','')}",
+                        "user_id": "local_user",
+                        "deleted_at": None,
+                    })
+                    save_persisted_data()
+                    st.success(f"✅ '{_br_task_title.strip()}' 작업이 추가됐어요!")
+                    st.rerun()
+
+    # ─── 탭 2: 프로젝트 기반 ─────────────────────────────────
+    with _br_tab2:
+        if not _br_projs:
+            st.info("저장된 프로젝트가 없어요. 먼저 프로젝트를 만들어보세요.")
+        else:
+            _br_proj_names = [p.get("name","이름 없음") for p in _br_projs]
+            _brc3, _brc4 = st.columns([2, 1])
+            with _brc3:
+                _br_proj_idx = st.selectbox("📁 프로젝트 선택", range(len(_br_proj_names)),
+                    format_func=lambda i: _br_proj_names[i], key="br_proj_sel")
+                _sel_proj_br = _br_projs[_br_proj_idx]
+                _proj_notes_br = [n for n in _br_notes if n.get("project") == _sel_proj_br.get("name")]
+                _proj_tasks_br = [t for t in _br_tasks if t.get("project") == _sel_proj_br.get("name")]
+                _bc1, _bc2, _bc3 = st.columns(3)
+                with _bc1: st.metric("연결 메모", f"{len(_proj_notes_br)}개")
+                with _bc2: st.metric("연결 작업", f"{len(_proj_tasks_br)}개")
+                with _bc3: st.metric("진행률", f"{_sel_proj_br.get('progress',0)}%")
+                if _proj_notes_br:
+                    with st.expander("연결된 메모 목록", expanded=False):
+                        for _pn in _proj_notes_br[:5]:
+                            st.markdown(f"- **{_pn.get('title','')}** ({_pn.get('saved_at','')[:10]})")
+            with _brc4:
+                _br_types_proj = st.multiselect(
+                    "분석 유형 선택",
+                    ["부족한 자료 파악", "추가 조사 방향", "발표 목차 제안", "예상 질문", "추가 작업 아이디어", "리스크 분석", "완료 기준 제안"],
+                    default=["부족한 자료 파악", "추가 작업 아이디어"],
+                    key="br_types_proj"
+                )
+                _br_depth2 = st.radio("분석 깊이", ["간단히 (3개씩)", "상세히 (5개씩)"], key="br_depth2", horizontal=True)
+                _depth_n2 = 3 if "간단히" in _br_depth2 else 5
+
+            if st.button("🤖 프로젝트 AI 분석 시작", key="br_run_proj", type="primary", use_container_width=True):
+                if not _br_types_proj:
+                    st.warning("분석 유형을 하나 이상 선택해주세요.")
+                else:
+                    _proj_summary = f"프로젝트명: {_sel_proj_br.get('name')}\n설명: {_sel_proj_br.get('description','')}\n상태: {_sel_proj_br.get('status','')}\n진행률: {_sel_proj_br.get('progress',0)}%"
+                    _notes_summary = "\n".join([f"- {n.get('title','')}: {n.get('note','')[:150]}" for n in _proj_notes_br[:6]])
+                    _tasks_summary = "\n".join([f"- [{t.get('status','')}] {t.get('title','')}" for t in _proj_tasks_br[:6]])
+                    _sys2 = f"""당신은 프로젝트 관리 전문가입니다.
+프로젝트 정보와 연결된 메모·작업을 보고 요청한 유형별 분석을 해주세요.
+분석 유형: {', '.join(_br_types_proj)}
+각 유형별로 {_depth_n2}개의 구체적인 항목을 bullet point (- )로 제안하세요. 한국어로 답변하세요."""
+                    _usr2 = f"{_proj_summary}\n\n연결된 메모:\n{_notes_summary if _notes_summary else '(없음)'}\n\n작업 현황:\n{_tasks_summary if _tasks_summary else '(없음)'}"
+                    with st.spinner("AI가 프로젝트를 분석 중... (10~20초)"):
+                        try:
+                            _br_proj_result = call_groq_simple(_sys2, _usr2)
+                            st.session_state["br_proj_result"] = _br_proj_result
+                            st.session_state["br_proj_result_name"] = _sel_proj_br.get("name","")
+                        except Exception as _e:
+                            st.error(f"AI 오류: {_e}")
+
+            if st.session_state.get("br_proj_result"):
+                st.divider()
+                _br_pr1, _br_pr2 = st.columns([4, 1])
+                with _br_pr1:
+                    st.markdown(f"#### 💡 프로젝트 AI 분석 결과 — {st.session_state.get('br_proj_result_name','')}")
+                with _br_pr2:
+                    if st.button("🗑️ 지우기", key="br_proj_clear"):
+                        st.session_state.pop("br_proj_result", None)
+                        st.rerun()
+                st.markdown(st.session_state["br_proj_result"])
+                st.divider()
+                # 결과를 작업으로 추가
+                st.markdown("##### ➕ 결과에서 작업 만들기")
+                _br_task_title2 = st.text_input("작업 제목", key="br_add_proj_task_title",
+                    placeholder="AI 제안 중 실행할 항목 입력")
+                if _br_task_title2 and st.button("✅ 작업으로 추가", key="br_add_proj_task_btn", type="primary"):
+                    import uuid as _buid2
+                    st.session_state.setdefault("tasks", []).append({
+                        "id": f"task_{_buid2.uuid4().hex[:8]}",
+                        "title": _br_task_title2.strip(),
+                        "project": st.session_state.get("br_proj_result_name",""),
+                        "status": "시작전",
+                        "priority": "중간",
+                        "due_date": "",
+                        "note": f"[AI 브레인스토밍] {st.session_state.get('br_proj_result_name','')}",
+                        "user_id": "local_user",
+                        "deleted_at": None,
+                    })
+                    save_persisted_data()
+                    st.success(f"✅ '{_br_task_title2.strip()}' 작업이 추가됐어요!")
+                    st.rerun()
+
+    # ─── 탭 3: 크로스 분석 ────────────────────────────────────
+    with _br_tab3:
+        st.markdown("#### 🔀 크로스 분석 — 여러 메모를 비교해서 공통 패턴·차이점·연결고리 찾기")
+        if len(_br_notes) < 2:
+            st.info("메모가 2개 이상 있어야 해요. 더 많은 분석 결과를 저장해보세요.")
+        else:
+            _cross_titles = [n.get("title","제목 없음") for n in _br_notes]
+            _cross_sel = st.multiselect("비교할 메모 선택 (2~4개 권장)", _cross_titles,
+                default=_cross_titles[:min(2, len(_cross_titles))], key="br_cross_sel")
+            _cross_types = st.multiselect(
+                "분석 유형",
+                ["공통 핵심 개념", "주장 충돌 지점", "보완 관계", "시간순 흐름", "종합 인사이트"],
+                default=["공통 핵심 개념", "종합 인사이트"],
+                key="br_cross_types"
+            )
+            if len(_cross_sel) >= 2 and st.button("🔀 크로스 분석 시작", key="br_cross_run", type="primary", use_container_width=True):
+                _cross_notes_content = []
+                for _ct in _cross_sel:
+                    _cn = next((n for n in _br_notes if n.get("title","제목 없음")==_ct), None)
+                    if _cn:
+                        _cross_notes_content.append(f"[{_ct}]\n{_cn.get('note','')[:600]}")
+                _sys3 = f"""당신은 비교 분석 전문가입니다.
+여러 메모를 함께 분석하고 요청한 유형별 인사이트를 도출해주세요.
+분석 유형: {', '.join(_cross_types)}
+각 유형별로 3~5개의 구체적인 발견을 bullet point (- )로 써주세요. 한국어로 답변하세요."""
+                _usr3 = "분석할 메모들:\n\n" + "\n\n---\n\n".join(_cross_notes_content)
+                with st.spinner("AI가 비교 분석 중... (10~20초)"):
+                    try:
+                        _cross_result = call_groq_simple(_sys3, _usr3)
+                        st.session_state["br_cross_result"] = _cross_result
+                    except Exception as _e:
+                        st.error(f"AI 오류: {_e}")
+            if st.session_state.get("br_cross_result"):
+                st.divider()
+                _brcr1, _brcr2 = st.columns([4,1])
+                with _brcr1:
+                    st.markdown("#### 💡 크로스 분석 결과")
+                with _brcr2:
+                    if st.button("🗑️ 지우기", key="br_cross_clear"):
+                        st.session_state.pop("br_cross_result", None)
+                        st.rerun()
+                st.markdown(st.session_state["br_cross_result"])
+
+    st.stop()
+
+
+# ══════════════════════════════════════════════════════════
+# 📈 패턴 분석
+# ══════════════════════════════════════════════════════════
+if menu == "패턴 분석":
+    st.markdown("""
+<div style="background:linear-gradient(135deg,#0f766e,#0d9488);border-radius:16px;
+     padding:28px 32px 22px;margin-bottom:24px;color:white;">
+    <div style="font-size:1.9rem;font-weight:900;margin-bottom:6px;">📈 패턴 분석</div>
+    <div style="opacity:0.85;line-height:1.6;">
+        내 지식 활동의 패턴을 분석해요. 어떤 주제를 많이 저장했는지, 신뢰도 분포, 시간별 활동량을 확인해요.
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+    _pt_notes  = st.session_state.get("archive_notes", [])
+    _pt_projs  = st.session_state.get("projects", [])
+    _pt_tasks  = st.session_state.get("tasks", [])
+    _pt_items  = get_all_knowledge_items()
+
+    if not _pt_notes and not _pt_items:
+        st.info("아직 저장된 데이터가 없어요. 분석 결과를 저장하면 여기서 패턴을 볼 수 있어요.")
+        st.stop()
+
+    _pt_tab1, _pt_tab2, _pt_tab3, _pt_tab4 = st.tabs(["📊 전체 통계", "🏷️ 태그·개념 분포", "⏰ 시간 분석", "🤖 AI 인사이트"])
+
+    # ─── 탭 1: 전체 통계 ─────────────────────────────────────
+    with _pt_tab1:
+        _pm1, _pm2, _pm3, _pm4, _pm5 = st.columns(5)
+        with _pm1: st.metric("📝 저장된 메모", f"{len(_pt_notes)}개")
+        with _pm2: st.metric("📁 프로젝트", f"{len(_pt_projs)}개")
+        with _pm3: st.metric("✅ 작업", f"{len(_pt_tasks)}개")
+        _avg_score = sum(n.get("score",0) for n in _pt_notes) / max(len(_pt_notes),1)
+        with _pm4: st.metric("⭐ 평균 신뢰도", f"{_avg_score:.0f}점")
+        _fav_cnt = sum(1 for n in _pt_notes if n.get("favorite"))
+        with _pm5: st.metric("❤️ 즐겨찾기", f"{_fav_cnt}개")
+
+        st.divider()
+
+        # 콘텐츠 유형 분포
+        import plotly.graph_objects as _ptgo
+        from collections import Counter as _PtCnt
+        _type_cnt = _PtCnt(n.get("content_type","unknown") for n in _pt_notes)
+        _type_labels_map = {"news":"뉴스/기사","policy":"정책/지원","review":"후기/리뷰",
+                            "research":"논문/연구","manual":"직접 작성","unknown":"기타","other":"기타"}
+        _type_display = {_type_labels_map.get(k,k): v for k,v in _type_cnt.items()}
+
+        _pt_col1, _pt_col2 = st.columns(2)
+        with _pt_col1:
+            st.markdown("**📂 콘텐츠 유형 분포**")
+            if _type_display:
+                _pie = _ptgo.Figure(_ptgo.Pie(
+                    labels=list(_type_display.keys()),
+                    values=list(_type_display.values()),
+                    hole=0.4,
+                    marker_colors=["#3b82f6","#10b981","#f59e0b","#8b5cf6","#ef4444","#64748b"],
+                ))
+                _pie.update_layout(height=280, margin=dict(l=10,r=10,t=10,b=10),
+                    showlegend=True, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+                st.plotly_chart(_pie, use_container_width=True)
+
+        with _pt_col2:
+            st.markdown("**📁 프로젝트별 메모 수**")
+            _proj_note_cnt = _PtCnt(n.get("project","미분류") for n in _pt_notes)
+            if _proj_note_cnt:
+                _bar = _ptgo.Figure(_ptgo.Bar(
+                    x=list(_proj_note_cnt.keys()),
+                    y=list(_proj_note_cnt.values()),
+                    marker_color="#3b82f6",
+                    text=list(_proj_note_cnt.values()),
+                    textposition="outside",
+                ))
+                _bar.update_layout(height=280, margin=dict(l=10,r=10,t=10,b=30),
+                    xaxis_tickangle=-20, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#f8fafc",
+                    yaxis=dict(showgrid=True, gridcolor="#e2e8f0"))
+                st.plotly_chart(_bar, use_container_width=True)
+
+        # 신뢰도 분포 히스토그램
+        st.markdown("**🎯 신뢰도 점수 분포**")
+        _scores = [n.get("score",0) for n in _pt_notes if n.get("score",0) > 0]
+        if _scores:
+            _hist = _ptgo.Figure(_ptgo.Histogram(
+                x=_scores, nbinsx=10,
+                marker_color="#3b82f6", opacity=0.8,
+                xbins=dict(start=0, end=100, size=10),
+            ))
+            _hist.update_layout(height=220, margin=dict(l=10,r=10,t=10,b=10),
+                xaxis_title="신뢰도 점수", yaxis_title="메모 수",
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#f8fafc",
+                bargap=0.1, xaxis=dict(range=[0,100]))
+            st.plotly_chart(_hist, use_container_width=True)
+            _score_low  = sum(1 for s in _scores if s < 50)
+            _score_mid  = sum(1 for s in _scores if 50 <= s < 75)
+            _score_high = sum(1 for s in _scores if s >= 75)
+            _sc1, _sc2, _sc3 = st.columns(3)
+            with _sc1: st.metric("🔴 낮음 (<50)", f"{_score_low}개")
+            with _sc2: st.metric("🟡 보통 (50~74)", f"{_score_mid}개")
+            with _sc3: st.metric("🟢 높음 (≥75)", f"{_score_high}개")
+
+    # ─── 탭 2: 태그·개념 분포 ────────────────────────────────
+    with _pt_tab2:
+        _tag_cnt = _PtCnt()
+        for _n in _pt_notes:
+            for _t in _n.get("tags",[]):
+                _tag_cnt[str(_t).replace("#","").strip()] += 1
+
+        st.markdown("**🏷️ 상위 태그 20개**")
+        if _tag_cnt:
+            _top_tags = _tag_cnt.most_common(20)
+            _tag_bar = _ptgo.Figure(_ptgo.Bar(
+                x=[t[0] for t in _top_tags],
+                y=[t[1] for t in _top_tags],
+                marker_color=["#3b82f6" if i < 3 else "#93c5fd" for i in range(len(_top_tags))],
+                text=[t[1] for t in _top_tags],
+                textposition="outside",
+            ))
+            _tag_bar.update_layout(height=300, margin=dict(l=10,r=10,t=10,b=60),
+                xaxis_tickangle=-35, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#f8fafc",
+                yaxis=dict(showgrid=True, gridcolor="#e2e8f0"))
+            st.plotly_chart(_tag_bar, use_container_width=True)
+            # 표로도 보기
+            with st.expander("태그 전체 목록 (표)"):
+                import pandas as _pd_pt
+                st.dataframe(_pd_pt.DataFrame(
+                    [{"태그": k, "사용 횟수": v} for k, v in _tag_cnt.most_common()]),
+                    use_container_width=True, height=300)
+        else:
+            st.info("저장된 태그가 없어요.")
+
+        st.divider()
+        # 개념 사용 빈도
+        from collections import Counter as _CCnt2
+        _con_cnt = _CCnt2()
+        _hidden_pt = set(st.session_state.get("hidden_concepts",[]))
+        for _ki in _pt_items:
+            for _tg in _ki.get("tags",[]):
+                _tgc = str(_tg).replace("#","").strip()
+                if _tgc and _tgc not in _hidden_pt:
+                    _con_cnt[_tgc] += 1
+        _custom_map_pt = {}
+        for _c0 in st.session_state.get("pkm_custom_concepts",[]):
+            _c0d = _c0 if isinstance(_c0,dict) else {"name":str(_c0),"folder":""}
+            _n0 = _c0d.get("name","").strip()
+            if _n0: _custom_map_pt[_n0] = _c0d
+
+        st.markdown("**🧠 자주 등장하는 개념 TOP 15**")
+        _top_cons = [(k,v) for k,v in _con_cnt.most_common(15) if k]
+        if _top_cons:
+            _con_bar = _ptgo.Figure(_ptgo.Bar(
+                x=[c[0] for c in _top_cons],
+                y=[c[1] for c in _top_cons],
+                marker_color=["#10b981" if c[0] in _custom_map_pt else "#6ee7b7" for c in _top_cons],
+                text=[c[1] for c in _top_cons],
+                textposition="outside",
+            ))
+            _con_bar.update_layout(height=280, margin=dict(l=10,r=10,t=10,b=60),
+                xaxis_tickangle=-35, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#f8fafc",
+                yaxis=dict(showgrid=True, gridcolor="#e2e8f0"))
+            st.plotly_chart(_con_bar, use_container_width=True)
+            st.caption("🟢 짙은 초록: 직접 등록한 개념 / 🟢 연한 초록: AI 추출 개념")
+        else:
+            st.info("개념이 없어요.")
+
+    # ─── 탭 3: 시간 분석 ─────────────────────────────────────
+    with _pt_tab3:
+        st.markdown("**📅 월별 메모 저장량**")
+        _monthly = _PtCnt()
+        for _n in _pt_notes:
+            _sa = _n.get("saved_at","")
+            if _sa and len(_sa) >= 7:
+                _monthly[_sa[:7]] += 1  # "YYYY-MM"
+        if _monthly:
+            _months_sorted = sorted(_monthly.keys())
+            _month_bar = _ptgo.Figure(_ptgo.Bar(
+                x=_months_sorted,
+                y=[_monthly[m] for m in _months_sorted],
+                marker_color="#3b82f6",
+                text=[_monthly[m] for m in _months_sorted],
+                textposition="outside",
+            ))
+            _month_bar.update_layout(height=280, margin=dict(l=10,r=10,t=10,b=40),
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#f8fafc",
+                yaxis=dict(showgrid=True, gridcolor="#e2e8f0"))
+            st.plotly_chart(_month_bar, use_container_width=True)
+        else:
+            st.info("날짜 정보가 있는 메모가 없어요.")
+
+        st.divider()
+        st.markdown("**📆 최근 30일 일별 활동**")
+        from datetime import timedelta as _td
+        _today_pt = datetime.now().date()
+        _daily = {}
+        for _d in range(30):
+            _day = (_today_pt - _td(days=_d)).strftime("%m/%d")
+            _daily[_day] = 0
+        for _n in _pt_notes:
+            _sa2 = _n.get("saved_at","")
+            if _sa2:
+                try:
+                    _d2 = datetime.strptime(_sa2[:10], "%Y-%m-%d").date()
+                    _diff = (_today_pt - _d2).days
+                    if 0 <= _diff < 30:
+                        _key2 = _d2.strftime("%m/%d")
+                        if _key2 in _daily:
+                            _daily[_key2] += 1
+                except: pass
+        _days_sorted = sorted(_daily.keys(), key=lambda x: datetime.strptime(f"2026/{x}", "%Y/%m/%d"))
+        _day_bar = _ptgo.Figure(_ptgo.Bar(
+            x=_days_sorted,
+            y=[_daily[d] for d in _days_sorted],
+            marker_color="#6366f1",
+        ))
+        _day_bar.update_layout(height=200, margin=dict(l=10,r=10,t=10,b=40),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#f8fafc",
+            yaxis=dict(showgrid=True, gridcolor="#e2e8f0", dtick=1))
+        st.plotly_chart(_day_bar, use_container_width=True)
+
+        # 작업 상태 분포
+        if _pt_tasks:
+            st.divider()
+            st.markdown("**✅ 작업 상태 분포**")
+            _task_status_cnt = _PtCnt(t.get("status","시작전") for t in _pt_tasks)
+            _status_colors = {"시작전":"#94a3b8","진행중":"#3b82f6","완료":"#10b981","보류":"#f59e0b"}
+            _task_pie = _ptgo.Figure(_ptgo.Pie(
+                labels=list(_task_status_cnt.keys()),
+                values=list(_task_status_cnt.values()),
+                hole=0.5,
+                marker_colors=[_status_colors.get(k,"#64748b") for k in _task_status_cnt.keys()],
+            ))
+            _task_pie.update_layout(height=240, margin=dict(l=10,r=10,t=10,b=10),
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+            st.plotly_chart(_task_pie, use_container_width=True)
+
+    # ─── 탭 4: AI 인사이트 ───────────────────────────────────
+    with _pt_tab4:
+        st.markdown("#### 🤖 AI가 내 지식 활동을 분석해서 인사이트를 알려줘요.")
+        st.caption("저장된 메모와 태그 패턴을 종합해서 AI가 개인화된 분석을 제공해요.")
+
+        # 요약 데이터 준비
+        _top_tags_ai = [t[0] for t in _tag_cnt.most_common(10)]
+        _proj_note_cnt2 = _PtCnt(n.get("project","미분류") for n in _pt_notes)
+        _top_proj_ai = [p[0] for p in _proj_note_cnt2.most_common(3)]
+        _recent_titles = [n.get("title","") for n in sorted(_pt_notes, key=lambda x: x.get("saved_at",""), reverse=True)[:5]]
+        _ct_dist = dict(_type_cnt.most_common())
+        _score_dist_ai = f"낮음(0~49): {_score_low if _scores else 0}개, 보통(50~74): {_score_mid if _scores else 0}개, 높음(75~100): {_score_high if _scores else 0}개"
+
+        _ai_insight_types = st.multiselect(
+            "분석 항목 선택",
+            ["관심 분야 요약", "지식 활동 강점", "개선이 필요한 점", "다음에 탐구할 주제", "지식 활동 전략 제안"],
+            default=["관심 분야 요약", "지식 활동 강점", "다음에 탐구할 주제"],
+            key="pt_ai_types"
+        )
+
+        if st.button("🤖 AI 인사이트 생성", key="pt_ai_run", type="primary", use_container_width=True):
+            _sys_pt = f"""당신은 개인 지식 관리 컨설턴트입니다.
+사용자의 지식 활동 데이터를 분석하고 요청한 항목별로 구체적인 인사이트를 제공해주세요.
+분석 항목: {', '.join(_ai_insight_types)}
+각 항목별로 3~5개의 구체적인 내용을 bullet point (- )로 써주세요. 한국어로 답변하세요."""
+            _usr_pt = f"""저장된 메모: {len(_pt_notes)}개
+프로젝트: {len(_pt_projs)}개 (상위: {', '.join(_top_proj_ai)})
+평균 신뢰도: {_avg_score:.0f}점
+신뢰도 분포: {_score_dist_ai}
+자주 쓴 태그: {', '.join(_top_tags_ai[:8])}
+콘텐츠 유형: {', '.join([f"{_type_labels_map.get(k,k)}({v}개)" for k,v in _ct_dist.items()])}
+최근 저장 메모: {', '.join(_recent_titles)}
+작업 수: {len(_pt_tasks)}개"""
+            with st.spinner("AI가 분석 중... (10~20초)"):
+                try:
+                    _pt_ai_result = call_groq_simple(_sys_pt, _usr_pt)
+                    st.session_state["pt_ai_result"] = _pt_ai_result
+                except Exception as _e:
+                    st.error(f"AI 오류: {_e}")
+
+        if st.session_state.get("pt_ai_result"):
+            st.divider()
+            _ptair1, _ptair2 = st.columns([4,1])
+            with _ptair1:
+                st.markdown("#### 💡 AI 인사이트 결과")
+            with _ptair2:
+                if st.button("🗑️ 지우기", key="pt_ai_clear"):
+                    st.session_state.pop("pt_ai_result", None)
+                    st.rerun()
+            st.markdown(st.session_state["pt_ai_result"])
+
+    st.stop()
 
 
 if menu == "가이드북":

@@ -1941,26 +1941,42 @@ def render_result(result, extracted_text=None, final_url=None):
                         except Exception as e:
                             st.error(f"AI 초안 생성 중 오류 발생: {e}")
 
-        st.markdown("## ✍️ 메모 초안 편집")
-        st.caption("AI 초안을 기반으로 내 메모를 정리한 뒤, 맨 아래에서 지식 메모로 저장해요.")
-        if str(final_url or "").startswith("pasted://"):
-            st.info(
-                "붙여넣기로 분석한 글은 원문 링크가 없어서, "
-                "지식 메모 저장 시 원문이 메모 맨 아래에 자동 보관돼요."
-            )
-
-        st.text_area(
-            "AI 초안 기반으로 내 메모 정리하기",
-            height=700,
-            key=note_key,
+    with save_panel:
+        st.markdown(
+            '<div class="archive-action-card"><h2>📌 분석결과 저장</h2><p>지금 분석한 결과를 아카이브에 저장해요.</p></div>',
+            unsafe_allow_html=True,
         )
-
-    if st.session_state.get("analysis_archive_saved"):
-        st.success("분석결과 아카이브에 저장했어요.")
-        st.session_state["analysis_archive_saved"] = False
+        st.markdown('<div class="big-action-button red-action"></div>', unsafe_allow_html=True)
+        selected_tags = st.multiselect(
+            "저장할 태그 선택",
+            options=tag_options,
+            default=tag_options,
+            key=f"selected_tags_{final_url or 'current'}",
+        )
+        analysis_archive_memo_key = f"analysis_archive_memo_{final_url or 'current'}"
+        st.text_area(
+            "분석결과에 남길 짧은 메모",
+            placeholder="예: 속초 맛집 후보 / 정책 정보 재확인 필요 / 광고성 낮아 보임",
+            height=120,
+            key=analysis_archive_memo_key,
+        )
+        if st.button(
+            "🔴 분석결과 아카이브에 저장",
+            key=f"save_analysis_archive_{final_url or 'current'}",
+            use_container_width=True,
+            type="primary",
+        ):
+            save_current_analysis_to_archive(
+                result,
+                final_url,
+                selected_tags=selected_tags,
+                memo=st.session_state.get(analysis_archive_memo_key, ""),
+            )
+        if st.session_state.get("analysis_archive_saved"):
+            st.success("분석결과 아카이브에 저장했어요.")
+            st.session_state["analysis_archive_saved"] = False
 
     proj_col, sec_col = st.columns(2)
-    
     with proj_col:
         st.text_input(
             "프로젝트명",
@@ -2470,7 +2486,6 @@ def render_concept_finder(items):
 
 
 def render_knowledge_map_page():
-    key_prefix = "knowledge_map"
     st.markdown("## 🧠 지식 맵")
     st.markdown(
         """
@@ -2883,8 +2898,7 @@ def render_knowledge_map_page():
 
 
     with tab5:
-        render_concept_finder(items)
-
+        # duplicate render_concept_finder removed
 
 # -----------------------------
 # Menu Pages

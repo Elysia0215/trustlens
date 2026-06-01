@@ -250,7 +250,7 @@ section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked)
     min-height: 112px !important;
     padding: 18px 22px !important;
 }
-.note-action-card h2,
+..note-action-card h2,
 .archive-action-card h2 {
     font-size: clamp(22px, 1.65vw, 30px) !important;
     line-height: 1.22 !important;
@@ -383,32 +383,6 @@ div[data-testid="stVerticalBlock"] > div:has(.big-action-button.red-action) + di
 .knowledge-draft-blue-button + div[data-testid="stButton"] button:hover {
     background: linear-gradient(180deg,#2563eb,#1e40af) !important;
     color: #ffffff !important;
-}
-
-/* PATCH: concept finder */
-.pkm-folder-title {
-    font-weight: 900;
-    color: #172033;
-    font-size: 18px;
-    margin: 12px 0 6px 0;
-}
-.pkm-concept-card {
-    background:#ffffff;
-    border:1px solid #e5edf8;
-    border-radius:18px;
-    padding:14px 16px;
-    min-height:92px;
-    box-shadow:0 6px 16px rgba(15,23,42,0.035);
-}
-.pkm-concept-name {
-    font-weight:900;
-    color:#172033;
-    font-size:16px;
-}
-.pkm-concept-meta {
-    color:#64748b;
-    font-size:13px;
-    margin-top:6px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -1941,26 +1915,42 @@ def render_result(result, extracted_text=None, final_url=None):
                         except Exception as e:
                             st.error(f"AI 초안 생성 중 오류 발생: {e}")
 
-        st.markdown("## ✍️ 메모 초안 편집")
-        st.caption("AI 초안을 기반으로 내 메모를 정리한 뒤, 맨 아래에서 지식 메모로 저장해요.")
-        if str(final_url or "").startswith("pasted://"):
-            st.info(
-                "붙여넣기로 분석한 글은 원문 링크가 없어서, "
-                "지식 메모 저장 시 원문이 메모 맨 아래에 자동 보관돼요."
-            )
-
-        st.text_area(
-            "AI 초안 기반으로 내 메모 정리하기",
-            height=700,
-            key=note_key,
+    with save_panel:
+        st.markdown(
+            '<div class="archive-action-card"><h2>📌 분석결과 저장</h2><p>지금 분석한 결과를 아카이브에 저장해요.</p></div>',
+            unsafe_allow_html=True,
         )
-
-    if st.session_state.get("analysis_archive_saved"):
-        st.success("분석결과 아카이브에 저장했어요.")
-        st.session_state["analysis_archive_saved"] = False
+        st.markdown('<div class="big-action-button red-action"></div>', unsafe_allow_html=True)
+        selected_tags = st.multiselect(
+            "저장할 태그 선택",
+            options=tag_options,
+            default=tag_options,
+            key=f"selected_tags_{final_url or 'current'}",
+        )
+        analysis_archive_memo_key = f"analysis_archive_memo_{final_url or 'current'}"
+        st.text_area(
+            "분석결과에 남길 짧은 메모",
+            placeholder="예: 속초 맛집 후보 / 정책 정보 재확인 필요 / 광고성 낮아 보임",
+            height=120,
+            key=analysis_archive_memo_key,
+        )
+        if st.button(
+            "🔴 분석결과 아카이브에 저장",
+            key=f"save_analysis_archive_{final_url or 'current'}",
+            use_container_width=True,
+            type="primary",
+        ):
+            save_current_analysis_to_archive(
+                result,
+                final_url,
+                selected_tags=selected_tags,
+                memo=st.session_state.get(analysis_archive_memo_key, ""),
+            )
+        if st.session_state.get("analysis_archive_saved"):
+            st.success("분석결과 아카이브에 저장했어요.")
+            st.session_state["analysis_archive_saved"] = False
 
     proj_col, sec_col = st.columns(2)
-    
     with proj_col:
         st.text_input(
             "프로젝트명",
@@ -2273,204 +2263,7 @@ def render_recent_analysis_cards(limit=5):
                 )
 
 
-
-# -----------------------------
-# PATCH: Concept Finder Helpers
-# -----------------------------
-def build_concept_index(items):
-    concept_docs = {}
-
-    for item in items:
-        text = " ".join([
-            str(item.get("title", "")),
-            str(item.get("memo", "")),
-            str(item.get("full_text", "")),
-            " ".join([str(t) for t in item.get("tags", [])]),
-        ])
-
-        concepts = extract_local_concepts(
-            text,
-            item.get("tags", []),
-            limit=24,
-        )
-
-        for concept in concepts:
-            clean = str(concept).replace("#", "").strip()
-            if not clean:
-                continue
-            concept_docs.setdefault(clean, []).append(item)
-
-    for custom in st.session_state.get("pkm_custom_concepts", []):
-        if isinstance(custom, dict):
-            concept = str(custom.get("name", "")).strip()
-        else:
-            concept = str(custom).strip()
-
-        if concept:
-            concept_docs.setdefault(concept, [])
-
-    return concept_docs
-
-
-def get_concept_folder(concept):
-    folders = st.session_state.get("pkm_concept_folders", {})
-    return folders.get(concept, "자동/미분류")
-
-
-def save_custom_concept_to_finder(name_key, folder_key):
-    name = st.session_state.get(name_key, "").strip().replace("#", "")
-    folder = st.session_state.get(folder_key, "").strip() or "내 개념/미분류"
-
-    if not name:
-        st.session_state["pkm_concept_error"] = "개념 이름을 입력해주세요."
-        return
-
-    concepts = st.session_state.get("pkm_custom_concepts", [])
-    if not any(c.get("name") == name for c in concepts):
-        concepts.append({
-            "name": name,
-            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        })
-
-    folders = st.session_state.get("pkm_concept_folders", {})
-    folders[name] = folder
-
-    st.session_state.pkm_custom_concepts = concepts
-    st.session_state.pkm_concept_folders = folders
-    st.session_state["pkm_concept_saved"] = True
-    save_persisted_data()
-
-
-def render_concept_finder(items):
-    global _concept_finder_render_count
-    try:
-        _concept_finder_render_count += 1
-    except NameError:
-        _concept_finder_render_count = 1
-
-    key_prefix = f"concept_finder_{_concept_finder_render_count}"
-
-    st.markdown("### 🗂️ 핵심개념 파인더")
-    st.caption("핵심개념을 Finder처럼 폴더 → 하위폴더 → 개념 구조로 볼 수 있어요.")
-
-    concept_docs = build_concept_index(items)
-
-    add_col1, add_col2, add_col3 = st.columns([1, 1, 0.7])
-    with add_col1:
-        st.text_input(
-            "개념 추가",
-            placeholder="예: ESG, CREST, 전자금융거래법",
-            key=f"{key_prefix}_pkm_new_concept_name",
-        )
-    with add_col2:
-        st.text_input(
-            "폴더 경로",
-            placeholder="예: 마케팅/프레임워크",
-            key=f"{key_prefix}_pkm_new_concept_folder",
-        )
-    with add_col3:
-        st.write("")
-        st.write("")
-        st.button(
-            "개념 저장",
-            use_container_width=True,
-            on_click=save_custom_concept_to_finder,
-            args=(f"{key_prefix}_pkm_new_concept_name", f"{key_prefix}_pkm_new_concept_folder"),
-        )
-
-    if st.session_state.get("pkm_concept_saved"):
-        st.success("핵심개념을 저장했어요.")
-        st.session_state["pkm_concept_saved"] = False
-
-    if st.session_state.get("pkm_concept_error"):
-        st.warning(st.session_state["pkm_concept_error"])
-        st.session_state["pkm_concept_error"] = ""
-
-    st.divider()
-
-    if not concept_docs:
-        st.info("아직 표시할 핵심개념이 없어요.")
-        return
-
-    q = st.text_input("🔍 개념 검색", placeholder="개념명, 폴더명으로 검색", key=f"{key_prefix}_pkm_concept_search")
-    min_docs = st.slider("최소 연결 문서 수", 0, 10, 0, 1, key=f"{key_prefix}_pkm_concept_min_docs")
-
-    grouped = {}
-    for concept, docs in concept_docs.items():
-        if len(docs) < min_docs:
-            continue
-
-        folder_path = get_concept_folder(concept)
-        if q.strip():
-            target = f"{concept} {folder_path}".lower()
-            if q.strip().lower() not in target:
-                continue
-
-        parts = [part.strip() for part in folder_path.split("/") if part.strip()]
-        top = parts[0] if parts else "자동"
-        sub = parts[1] if len(parts) >= 2 else "미분류"
-
-        grouped.setdefault(top, {}).setdefault(sub, []).append((concept, docs))
-
-    if not grouped:
-        st.info("조건에 맞는 개념이 없어요.")
-        return
-
-    for top, sub_groups in sorted(grouped.items()):
-        with st.expander(f"📁 {top}", expanded=True):
-            for sub, concepts in sorted(sub_groups.items()):
-                st.markdown(f'<div class="pkm-folder-title">📂 {sub}</div>', unsafe_allow_html=True)
-
-                cols = st.columns(4)
-                for idx, (concept, docs) in enumerate(sorted(concepts, key=lambda x: len(x[1]), reverse=True)):
-                    with cols[idx % 4]:
-                        st.markdown(
-                            f"""
-                            <div class="pkm-concept-card">
-                                <div class="pkm-concept-name">🧠 {concept}</div>
-                                <div class="pkm-concept-meta">{get_concept_folder(concept)} · {len(docs)}개 연결</div>
-                            </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
-                        if st.button(
-                            "관련 문서 보기",
-                            key=f"{key_prefix}_concept_open_{top}_{sub}_{idx}_{abs(hash(concept))}",
-                            use_container_width=True,
-                        ):
-                            st.session_state["pkm_selected_concept"] = concept
-
-    selected = st.session_state.get("pkm_selected_concept")
-    if selected:
-        st.divider()
-        st.markdown(f"### 🔗 `{selected}` 관련 문서")
-        docs = concept_docs.get(selected, [])
-
-        if not docs:
-            st.info("아직 이 개념과 연결된 문서가 없어요.")
-        else:
-            cols = st.columns(4)
-            for idx, item in enumerate(docs[:16]):
-                with cols[idx % 4]:
-                    with st.container(border=True):
-                        st.markdown(f"**{item.get('title', '제목 없음')}**")
-                        st.caption(
-                            f"{item.get('project', '기본 프로젝트')} · "
-                            f"{item.get('section', '일반')} · "
-                            f"{item.get('kind', '')}"
-                        )
-                        st.button(
-                            "열기",
-                            key=f"{key_prefix}_concept_doc_open_{selected}_{idx}_{item.get('raw_index', idx)}",
-                            use_container_width=True,
-                            on_click=restore_item_from_knowledge,
-                            args=(item,),
-                        )
-
-
-
 def render_knowledge_map_page():
-    key_prefix = "knowledge_map"
     st.markdown("## 🧠 지식 맵")
     st.markdown(
         """
@@ -2511,7 +2304,7 @@ def render_knowledge_map_page():
     with st.expander("🛠️ 핵심 개념 직접 관리", expanded=False):
         st.caption("자동으로 안 잡히는 개념은 직접 추가할 수 있어요.")
         new_concept = st.text_input("새 핵심 개념", placeholder="예: ESG, CREST, 결제시스템", key="pkm_new_concept")
-        new_folder = st.text_input("개념 폴더", placeholder="예: 마케팅 / 기술 / 정책 / 취업", key=f"{key_prefix}_pkm_new_concept_folder")
+        new_folder = st.text_input("개념 폴더", placeholder="예: 마케팅 / 기술 / 정책 / 취업", key="pkm_new_concept_folder")
         if st.button("➕ 핵심 개념 추가", key="add_pkm_custom_concept", use_container_width=True):
             clean = new_concept.strip().replace("#", "")
             if clean:
@@ -2616,7 +2409,7 @@ def render_knowledge_map_page():
 
         st.divider()
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📚 원노트 목차", "🧩 노션 보드", "🕸️ 태그 마인드맵", "🧠 지식 페이지", "🗂️ 개념 파인더"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📚 원노트 목차", "🧩 노션 보드", "🕸️ 태그 마인드맵", "🧠 지식 페이지"])
 
     with tab1:
         st.markdown("### 📚 원노트식 목차")
@@ -2880,11 +2673,6 @@ def render_knowledge_map_page():
                 st.info("아직 같은 개념으로 연결된 다른 지식이 없어요. 메모가 쌓이면 자동으로 연결돼요.")
         else:
             st.info("이 메모에서 아직 연결할 핵심 개념을 찾지 못했어요.")
-
-
-    with tab5:
-        render_concept_finder(items)
-
 
 # -----------------------------
 # Menu Pages

@@ -2255,6 +2255,17 @@ def save_note_to_archive(note_key, result, final_url, selected_tags):
                            if t.get("title") == _note_task_name and
                            t.get("project") == _note_proj_name), {})
     _note_task_id = _note_task_obj.get("id", "")
+    # 한 줄 핵심: AI summary 첫 문장 → 향후 P5(지식 아카이브 UX)에서 카드/상세 머리말로 사용
+    _summary_val = result.get("summary", [])
+    if isinstance(_summary_val, list):
+        _one_line = next((str(s).strip() for s in _summary_val if str(s).strip()), "")
+    else:
+        _one_line = str(_summary_val).split(".")[0].strip()
+    # 자동 추출 핵심 개념 목록 (정제는 P2 개념 품질 게이트에서 강화 예정)
+    _note_concepts = [
+        str(c).strip() for c in result.get("key_concepts", result.get("concepts", []))
+        if str(c).strip()
+    ]
     st.session_state.archive_notes.append(
         {
             "id": note_id,
@@ -2274,6 +2285,12 @@ def save_note_to_archive(note_key, result, final_url, selected_tags):
             "note": note_text,
             # 원문은 붙여넣기/크롤링 모두 보관 (지식 AI가 깊게 읽을 수 있게)
             "original_text": (original_text or "")[:MAX_ORIGINAL_TEXT_CHARS],
+            # ── P5(지식 아카이브 UX) 대비 사전 필드 — 현재는 채워만 두고 UI 없음 ──
+            "one_line_summary": _one_line,          # 📌 한 줄 핵심
+            "concepts": _note_concepts,             # 🧠 핵심 개념 (P2에서 정제)
+            "related_note_ids": [],                 # 🔗 관련 메모 (추후 추천)
+            "note_type": result.get("content_type", "unknown"),  # study/review/policy/info
+            "last_reviewed_at": None,               # 복습 추적용
             "saved_at": _now_str,
             "created_at": _now_str,
             "updated_at": _now_str,

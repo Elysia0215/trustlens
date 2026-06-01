@@ -656,6 +656,9 @@ button[data-testid="collapsedControl"],
             ("history",   "🕒", "최근 검색 기록"),
             ("data",      "🔗", "데이터 관리"),
         ]),
+        ("📘", "가이드북", [
+            ("guide",     "📘", "TrustLens 가이드북"),
+        ]),
     ]
 
     _cur_page = st.query_params.get("page", "home")
@@ -724,6 +727,7 @@ button[data-testid="collapsedControl"],
         "saved":    "분석결과 아카이브",
         "history":  "최근 검색 기록",
         "brain":    "지식 맵",
+        "guide":    "가이드북",
     }
     menu = _PAGE_TO_MENU.get(_cur_page, "분석 시작하기")
     st.session_state["menu"] = menu
@@ -5475,8 +5479,8 @@ if menu == "데이터 관리":
             _dm_tag_cnt[str(_t).replace("#","").strip()] += 1
     _dm_tags = [{"name": k, "count": v} for k, v in _dm_tag_cnt.most_common()]
 
-    _dm_tab1, _dm_tab2, _dm_tab3, _dm_tab4 = st.tabs(
-        ["📋 테이블 편집", "🔗 관계 관리", "🕸️ ERD 뷰", "⚡ 빠른 작업"])
+    _dm_tab1, _dm_tab2, _dm_tab3, _dm_tab4, _dm_tab5 = st.tabs(
+        ["📋 테이블 편집", "🔗 관계 관리", "🕸️ ERD 뷰", "⚡ 빠른 작업", "🗄️ 엔터티 DB"])
 
     # ═══════════════════════════════════════════
     # TAB 1 — 테이블 편집 (st.data_editor)
@@ -5736,10 +5740,40 @@ if menu == "데이터 관리":
         _rel_type = st.radio("관계 종류", ["📁 프로젝트 → 🧠 개념", "📁 프로젝트 → ✅ 작업",
                                            "📝 메모 → 🧠 개념", "🧠 개념 → 🧠 개념"],
                              horizontal=True, key="dm_rel_type")
+
+        # 관계 타입 (공통)
+        _REL_TYPES = ["참고", "연속", "파생", "반박", "연결", "포함", "기타"]
+        _rel_kind = st.selectbox("관계 유형", _REL_TYPES, key="dm_rel_kind",
+            help="체크해서 연결 시 이 유형으로 relations 테이블에 저장돼요.")
         st.divider()
+
         _proj_names = [p.get("name","") for p in _dm_projs]
         _con_names  = [c.get("name","") for c in _dm_concepts]
         _note_titles= [n.get("title","제목 없음") for n in _dm_notes]
+
+        def _add_relation(src_type, src_name, tgt_type, tgt_name, rtype):
+            """relations 리스트에 중복 없이 추가."""
+            _rels = st.session_state.setdefault("relations", [])
+            _exists = any(
+                r.get("source_name")==src_name and r.get("target_name")==tgt_name
+                for r in _rels
+            )
+            if not _exists:
+                import uuid as _ruuid
+                _rels.append({
+                    "id": str(_ruuid.uuid4())[:8],
+                    "source_type": src_type, "source_name": src_name,
+                    "target_type": tgt_type, "target_name": tgt_name,
+                    "relation_type": rtype,
+                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                })
+
+        def _del_relation(src_name, tgt_name):
+            """relations 리스트에서 해당 항목 제거."""
+            st.session_state["relations"] = [
+                r for r in st.session_state.get("relations", [])
+                if not (r.get("source_name")==src_name and r.get("target_name")==tgt_name)
+            ]
 
         _rl_left, _rl_right = st.columns([1, 2], gap="large")
 
@@ -5775,6 +5809,12 @@ if menu == "데이터 관리":
                                 _new_linked.discard(_cn); _changed = True
                     if _changed:
                         _proj_obj["concepts"] = list(_new_linked)
+                        # 추가된 것 → relations 동기화
+                        for _cn_a in _new_linked - _linked_cons:
+                            _add_relation("project", _sel_proj_r, "concept", _cn_a, _rel_kind)
+                        # 제거된 것 → relations에서 제거
+                        for _cn_r in _linked_cons - _new_linked:
+                            _del_relation(_sel_proj_r, _cn_r)
                         save_persisted_data(); st.rerun()
 
         elif _rel_type == "📁 프로젝트 → ✅ 작업":
@@ -5806,9 +5846,11 @@ if menu == "데이터 관리":
                             if _task_obj:
                                 if _tc and not _is_linked:
                                     _task_obj["project"] = _sel_proj_t
+                                    _add_relation("project", _sel_proj_t, "task", _tt2, _rel_kind)
                                     save_persisted_data(); st.rerun()
                                 elif not _tc and _is_linked:
                                     _task_obj["project"] = ""
+                                    _del_relation(_sel_proj_t, _tt2)
                                     save_persisted_data(); st.rerun()
 
         elif _rel_type == "📝 메모 → 🧠 개념":
@@ -5840,10 +5882,12 @@ if menu == "데이터 관리":
                                 from datetime import datetime as _dtnow
                                 st.session_state["note_concept_links"].append(
                                     {"note_id":_note_id,"concept":_cn3,"linked_at":_dtnow.now().strftime("%Y-%m-%d %H:%M")})
+                                _add_relation("note", _sel_note_r, "concept", _cn3, _rel_kind)
                                 save_persisted_data(); st.rerun()
                             elif not _tc3 and _cn3 in _linked_note_cons and _note_id:
                                 st.session_state["note_concept_links"] = [
                                     l for l in _dm_links if not (l.get("note_id")==_note_id and l.get("concept")==_cn3)]
+                                _del_relation(_sel_note_r, _cn3)
                                 save_persisted_data(); st.rerun()
 
         else:  # 개념 → 개념
@@ -5879,6 +5923,10 @@ if menu == "데이터 관리":
                                 _new_linked_cc.discard(_cn4); _cc_changed = True
                     if _cc_changed:
                         _con_obj["linked_concepts"] = list(_new_linked_cc)
+                        for _cn_a2 in _new_linked_cc - _linked_to:
+                            _add_relation("concept", _sel_con_r, "concept", _cn_a2, _rel_kind)
+                        for _cn_r2 in _linked_to - _new_linked_cc:
+                            _del_relation(_sel_con_r, _cn_r2)
                         save_persisted_data(); st.rerun()
 
     # ═══════════════════════════════════════════
@@ -6294,6 +6342,84 @@ if menu == "데이터 관리":
                     for _n4 in st.session_state.get("archive_notes",[]):
                         _n4["tags"] = [t for t in _n4.get("tags",[]) if str(t).replace("#","").strip() not in _del_sel]
                     save_persisted_data(); st.success("삭제 완료!"); st.rerun()
+
+    # ═══════════════════════════════════════════
+    # TAB 5 — 엔터티 DB (entities + relations 뷰)
+    # ═══════════════════════════════════════════
+    with _dm_tab5:
+        st.markdown("#### 🗄️ 엔터티 DB")
+        st.caption("sync_legacy_data_to_entities()로 동기화된 엔터티와 관계 목록이에요. 직접 삭제·타입 변경 가능.")
+
+        _ent5a, _ent5b = st.tabs(["📋 엔터티 목록", "🔗 관계 목록"])
+
+        with _ent5a:
+            _entities_all = st.session_state.get("entities", [])
+            _ent_type_filter = st.radio("타입 필터", ["전체", "project", "task", "note", "concept"],
+                                        horizontal=True, key="dm_ent5_type")
+            _ents_show = _entities_all if _ent_type_filter == "전체" else [
+                e for e in _entities_all if e.get("type") == _ent_type_filter
+            ]
+            if not _ents_show:
+                st.info("엔터티가 없어요. 프로젝트/작업/메모/개념을 만들면 자동으로 여기에 동기화돼요.")
+            else:
+                import pandas as _pd5
+                _ent_rows = [{
+                    "ID": e.get("id",""),
+                    "타입": e.get("type",""),
+                    "이름": e.get("name",""),
+                    "설명": e.get("description","")[:50] if e.get("description") else "",
+                    "생성일": e.get("created_at",""),
+                } for e in _ents_show]
+                st.dataframe(_pd5.DataFrame(_ent_rows), use_container_width=True, height=320)
+                st.caption(f"총 {len(_ents_show)}개 엔터티")
+
+                with st.expander("🗑️ 엔터티 삭제 (선택)", expanded=False):
+                    _del_ent_names = st.multiselect("삭제할 엔터티 이름", [e.get("name","") for e in _ents_show],
+                        key="dm_ent5_del_sel")
+                    if _del_ent_names and st.button("🗑️ 삭제 실행", key="dm_ent5_del_run", type="primary"):
+                        st.session_state["entities"] = [
+                            e for e in _entities_all if e.get("name") not in _del_ent_names
+                        ]
+                        save_persisted_data(); st.success(f"{len(_del_ent_names)}개 삭제 완료!"); st.rerun()
+
+        with _ent5b:
+            _relations_all = st.session_state.get("relations", [])
+            if not _relations_all:
+                st.info("저장된 관계가 없어요. 관계 관리 탭에서 체크박스로 연결하면 여기에 기록돼요.")
+            else:
+                import pandas as _pd5b
+                _rel_rows = [{
+                    "ID": r.get("id",""),
+                    "출발 타입": r.get("source_type",""),
+                    "출발": r.get("source_name",""),
+                    "관계": r.get("relation_type",""),
+                    "도착 타입": r.get("target_type",""),
+                    "도착": r.get("target_name",""),
+                    "생성일": r.get("created_at",""),
+                } for r in _relations_all]
+                st.dataframe(_pd5b.DataFrame(_rel_rows), use_container_width=True, height=320)
+                st.caption(f"총 {len(_relations_all)}개 관계")
+
+                with st.expander("🗑️ 관계 삭제", expanded=False):
+                    _rel_labels = [f"{r.get('source_name','')} →[{r.get('relation_type','')}]→ {r.get('target_name','')}"
+                                   for r in _relations_all]
+                    _del_rels = st.multiselect("삭제할 관계", _rel_labels, key="dm_rel5_del_sel")
+                    if _del_rels and st.button("🗑️ 관계 삭제 실행", key="dm_rel5_del_run", type="primary"):
+                        _del_idxs = {_rel_labels.index(l) for l in _del_rels if l in _rel_labels}
+                        st.session_state["relations"] = [
+                            r for i, r in enumerate(_relations_all) if i not in _del_idxs
+                        ]
+                        save_persisted_data(); st.success(f"{len(_del_rels)}개 관계 삭제 완료!"); st.rerun()
+
+                # 관계 타입별 통계
+                st.divider()
+                st.markdown("**관계 타입별 분포**")
+                from collections import Counter as _RCnt
+                _rtc = _RCnt(r.get("relation_type","기타") for r in _relations_all)
+                _rc1, _rc2, _rc3 = st.columns(3)
+                for _i5, (_rtype5, _rcnt5) in enumerate(_rtc.most_common()):
+                    with [_rc1, _rc2, _rc3][_i5 % 3]:
+                        st.metric(_rtype5, f"{_rcnt5}개")
 
     st.stop()
 

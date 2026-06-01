@@ -42,11 +42,6 @@ def save_persisted_data():
         "pkm_category_overrides": st.session_state.get("pkm_category_overrides", {}),
         "pkm_custom_concepts": st.session_state.get("pkm_custom_concepts", []),
         "pkm_concept_folders": st.session_state.get("pkm_concept_folders", {}),
-        "projects": st.session_state.get("projects", []),
-        "project_sections": st.session_state.get("project_sections", []),
-        "project_steps": st.session_state.get("project_steps", []),
-        "tasks": st.session_state.get("tasks", []),
-        "note_concept_links": st.session_state.get("note_concept_links", []),
     }
     try:
         with DATA_FILE.open("w", encoding="utf-8") as f:
@@ -77,29 +72,6 @@ st.markdown("""
 
 section[data-testid="stSidebar"] { background: linear-gradient(180deg, #203f92 0%, #18357d 100%); }
 section[data-testid="stSidebar"] * { color: white !important; }
-
-/* 모바일 흰 글자 버그 방지 - 메인 콘텐츠 텍스트 색상 명시 */
-.main .block-container,
-.main .block-container p,
-.main .block-container span,
-.main .block-container div,
-.main .block-container label,
-.main .block-container h1,
-.main .block-container h2,
-.main .block-container h3,
-.main .block-container h4 {
-    color: var(--text-main);
-}
-.stApp > div:not([data-testid="stSidebar"]) * {
-    color: inherit;
-}
-@media (max-width: 768px) {
-    section[data-testid="stSidebar"] * { color: white !important; }
-    .main .block-container { color: #172033 !important; }
-    .main .block-container p,
-    .main .block-container span:not([data-testid]),
-    .main .block-container div:not([data-testid="stSidebar"]) { color: #172033; }
-}
 section[data-testid="stSidebar"] div[role="radiogroup"] label {
     background: transparent;
     border-radius: 12px;
@@ -454,8 +426,6 @@ with st.sidebar:
             "🏷️ 태그 관리",
             "🗂️ 지식 아카이브",
             "🧠 지식 맵",
-            "📁 프로젝트",
-            "✅ 작업 관리",
             "🕘 최근 검색 기록",
         ],
         label_visibility="collapsed",
@@ -484,16 +454,8 @@ def init_state():
         "custom_trust_criteria": persisted.get("custom_trust_criteria", []),
         "active_custom_criteria_titles": persisted.get("active_custom_criteria_titles", []),
         "pkm_category_overrides": persisted.get("pkm_category_overrides", {}),
-        "pkm_custom_concepts": [
-            c if isinstance(c, dict) else {"name": str(c), "folder": persisted.get("pkm_concept_folders", {}).get(str(c), "내 개념"), "created_at": ""}
-            for c in persisted.get("pkm_custom_concepts", []) if c
-        ],
+        "pkm_custom_concepts": persisted.get("pkm_custom_concepts", []),
         "pkm_concept_folders": persisted.get("pkm_concept_folders", {}),
-        "projects": persisted.get("projects", []),
-        "project_sections": persisted.get("project_sections", []),
-        "project_steps": persisted.get("project_steps", []),
-        "tasks": persisted.get("tasks", []),
-        "note_concept_links": persisted.get("note_concept_links", []),
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -949,30 +911,6 @@ def delete_custom_trust_criterion(index):
 # -----------------------------
 # AI Functions
 # -----------------------------
-def call_groq_simple(system_msg: str, user_msg: str, model: str = "llama-3.3-70b-versatile") -> str:
-    """단순 Groq API 호출 - 브레인스토밍 등 간단한 텍스트 생성에 사용."""
-    api_key = st.session_state.get("groq_api_key") or os.environ.get("GROQ_API_KEY", "")
-    if not api_key:
-        return "⚠️ API 키가 없어요. 설정에서 Groq API 키를 입력해주세요."
-    import requests as _req
-    res = _req.post(
-        "https://api.groq.com/openai/v1/chat/completions",
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={
-            "model": model,
-            "messages": [
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": user_msg},
-            ],
-            "temperature": 0.7,
-            "max_tokens": 1500,
-        },
-        timeout=30,
-    )
-    res.raise_for_status()
-    return res.json()["choices"][0]["message"]["content"].strip()
-
-
 def analyze_with_groq(text, url, selected_type):
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
@@ -1315,14 +1253,10 @@ def save_note_to_archive(note_key, result, final_url, selected_tags):
             + "\n```\n"
         )
 
-    import uuid as _uuid
-    note_id = str(_uuid.uuid4())[:8]
-    note_title = result.get("archive_title", "TrustLens 메모")
     st.session_state.archive_notes.append(
         {
-            "id": note_id,
             "url": final_url or "",
-            "title": note_title,
+            "title": result.get("archive_title", "TrustLens 메모"),
             "project": st.session_state.get("note_project_name", "기본 프로젝트"),
             "section": st.session_state.get("note_section_name", "일반"),
             "content_type": result.get("content_type", "unknown"),
@@ -1334,26 +1268,6 @@ def save_note_to_archive(note_key, result, final_url, selected_tags):
             "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
         }
     )
-    # 자동 concept 연결: 태그 + AI 핵심개념에서 추출
-    _all_concepts = [
-        c.get("name") if isinstance(c, dict) else str(c)
-        for c in st.session_state.get("pkm_custom_concepts", []) if c
-    ]
-    _auto_concepts = result.get("key_concepts", result.get("concepts", []))
-    _link_concepts = set()
-    for tag in selected_tags:
-        _link_concepts.add(str(tag).replace("#", "").strip())
-    for ac in _auto_concepts:
-        if isinstance(ac, str):
-            _link_concepts.add(ac.strip())
-    for cc in _all_concepts:
-        if cc and cc.lower() in note_text.lower():
-            _link_concepts.add(cc)
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
-    links = st.session_state.setdefault("note_concept_links", [])
-    for concept in _link_concepts:
-        if concept:
-            links.append({"note_id": note_id, "concept": concept, "linked_at": now_str})
     st.session_state.note_saved = True
     st.session_state.show_result = True
     save_persisted_data()
@@ -1978,7 +1892,7 @@ def render_result(result, extracted_text=None, final_url=None):
 
     with note_panel:
         st.markdown(
-            '<div class="note-action-card"><h2>🗒️ 지식 메모 만들기</h2><p>AI 초안을 만들고 수정해서 긴 메모로 저장해요.</p></div>',
+            '<div class="note-action-card"><h2>🤖 AI 메모 초안 생성</h2><p>AI 초안을 만들고 수정해서 긴 메모로 저장해요.</p></div>',
             unsafe_allow_html=True,
         )
         template_type = st.selectbox(
@@ -1992,7 +1906,7 @@ def render_result(result, extracted_text=None, final_url=None):
             height=110,
             key=f"draft_prompt_{final_url or 'current'}",
         )
-        st.markdown('<div class="knowledge-draft-blue-button"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="ai-draft-button-scope big-action-button blue-action"></div>', unsafe_allow_html=True)
         if st.button(
             "🔄 지식 메모 초안 다시 만들기",
             key=f"refresh_{draft_key}",
@@ -2027,15 +1941,16 @@ def render_result(result, extracted_text=None, final_url=None):
                         except Exception as e:
                             st.error(f"AI 초안 생성 중 오류 발생: {e}")
 
-    with save_panel:
-        if st.session_state.get("analysis_archive_saved"):
-            st.success("분석결과 아카이브에 저장했어요.")
-            st.session_state["analysis_archive_saved"] = False
+    if st.session_state.get("analysis_archive_saved"):
+        st.success("분석결과 아카이브에 저장했어요.")
+        st.session_state["analysis_archive_saved"] = False
 
+    with save_panel:
         st.markdown(
-            '<div class="archive-action-card"><h2>📌 분석결과 바로 저장</h2><p>지금 분석한 결과를 아카이브에 저장해요.</p></div>',
+            '<div class="archive-action-card"><h2>📌 분석결과 저장</h2><p>지금 분석한 결과를 아카이브에 저장해요.</p></div>',
             unsafe_allow_html=True,
         )
+        st.markdown('<div class="big-action-button red-action"></div>', unsafe_allow_html=True)
         selected_tags = st.multiselect(
             "저장할 태그 선택",
             options=tag_options,
@@ -2049,9 +1964,8 @@ def render_result(result, extracted_text=None, final_url=None):
             height=120,
             key=analysis_archive_memo_key,
         )
-        st.markdown('<div class="big-action-button red-action"></div>', unsafe_allow_html=True)
         if st.button(
-            "🔴 현재 분석결과 아카이브에 저장",
+            "🔴 분석결과 아카이브에 저장",
             key=f"save_analysis_archive_{final_url or 'current'}",
             use_container_width=True,
             type="primary",
@@ -2062,42 +1976,26 @@ def render_result(result, extracted_text=None, final_url=None):
                 selected_tags=selected_tags,
                 memo=st.session_state.get(analysis_archive_memo_key, ""),
             )
+        if st.session_state.get("analysis_archive_saved"):
+            st.success("분석결과 아카이브에 저장했어요.")
+            st.session_state["analysis_archive_saved"] = False
 
-    # 전체 너비 메모 편집 영역
-    st.divider()
     proj_col, sec_col = st.columns(2)
-    _projects = st.session_state.get("projects", [])
-    _proj_names = [p["name"] for p in _projects]
+    
     with proj_col:
-        if _proj_names:
-            _sel_proj = st.selectbox(
-                "📁 프로젝트 연결",
-                ["기본 프로젝트"] + _proj_names,
-                key="note_project_name",
-                help="저장할 프로젝트를 선택하세요."
-            )
-        else:
-            st.text_input("📁 프로젝트명", value="기본 프로젝트", key="note_project_name")
-            st.caption("프로젝트를 먼저 만들면 여기서 선택할 수 있어요.")
+        st.text_input(
+            "프로젝트명",
+            value="기본 프로젝트",
+            key="note_project_name",
+        )
     with sec_col:
-        _sel_proj_name = st.session_state.get("note_project_name", "기본 프로젝트")
-        _sel_proj_obj = next((p for p in _projects if p["name"] == _sel_proj_name), None)
-        _sections = [s["name"] for s in st.session_state.get("project_sections", [])
-                     if _sel_proj_obj and s.get("project_id") == _sel_proj_obj.get("id")]
-        if _sections:
-            st.selectbox(
-                "📂 섹션 연결",
-                ["일반"] + _sections,
-                key="note_section_name",
-                help="저장할 섹션을 선택하세요."
-            )
-        else:
-            st.text_input("📂 섹션명", value="일반", key="note_section_name")
-            if _proj_names:
-                st.caption("선택한 프로젝트에 섹션을 추가하면 여기서 선택할 수 있어요.")
-
-    st.markdown("### ✍️ 메모 초안 편집")
-    st.caption("AI 초안을 기반으로 내 메모를 정리한 뒤, 아래에서 지식 메모로 저장해요.")
+        st.text_input(
+            "섹션명",
+            value="일반",
+            key="note_section_name",
+        )
+    st.markdown("## ✍️ 메모 초안 편집")
+    st.caption("AI 초안을 기반으로 내 메모를 정리한 뒤, 맨 아래에서 지식 메모로 저장해요.")
     if str(final_url or "").startswith("pasted://"):
         st.info(
             "붙여넣기로 분석한 글은 원문 링크가 없어서, "
@@ -2106,10 +2004,17 @@ def render_result(result, extracted_text=None, final_url=None):
 
     st.text_area(
         "AI 초안 기반으로 내 메모 정리하기",
-        height=600,
+        height=700,
         key=note_key,
     )
 
+        st.markdown("## ✍️ 메모 초안 편집")
+        st.caption("AI 초안을 기반으로 내 메모를 정리한 뒤, 맨 아래에서 지식 메모로 저장해요.")
+
+        if str(final_url or "").startswith("pasted://"):
+            st.info("붙여넣기로 분석한 글은 원문 링크가 없어서, 지식 메모 저장 시 원문이 메모 맨 아래에 자동 보관돼요.")
+            st.text_area("AI 초안 기반으로 내 메모 정리하기", height=700, key=note_key)
+            
     bottom_save_col, bottom_close_col = st.columns(2)
     with bottom_save_col:
         st.button(
@@ -2455,10 +2360,7 @@ def save_custom_concept_to_finder(name_key, folder_key):
         st.session_state["pkm_concept_error"] = "개념 이름을 입력해주세요."
         return
 
-    concepts = [
-        c if isinstance(c, dict) else {"name": str(c), "folder": "내 개념", "created_at": ""}
-        for c in st.session_state.get("pkm_custom_concepts", []) if c
-    ]
+    concepts = st.session_state.get("pkm_custom_concepts", [])
     if not any(c.get("name") == name for c in concepts):
         concepts.append({
             "name": name,
@@ -2561,7 +2463,7 @@ def render_concept_finder(items):
                             f"""
                             <div class="pkm-concept-card">
                                 <div class="pkm-concept-name">🧠 {concept}</div>
-                                <div class="pkm-concept-meta">{get_concept_folder(concept)} · {len(docs)}개 연결 · {sum(1 for l in st.session_state.get("note_concept_links",[]) if l.get("concept")==concept)}개 메모</div>
+                                <div class="pkm-concept-meta">{get_concept_folder(concept)} · {len(docs)}개 연결</div>
                             </div>
                             """,
                             unsafe_allow_html=True,
@@ -2641,62 +2543,27 @@ def render_knowledge_map_page():
 
     from collections import Counter
 
-    with st.expander("🛠️ 핵심 개념 직접 추가", expanded=False):
+    with st.expander("🛠️ 핵심 개념 직접 관리", expanded=False):
         st.caption("자동으로 안 잡히는 개념은 직접 추가할 수 있어요.")
-        _existing_folders = sorted(set(
-            (c.get("folder") or st.session_state.get("pkm_concept_folders", {}).get(c.get("name",""), ""))
-            for c in st.session_state.get("pkm_custom_concepts", []) if isinstance(c, dict)
-        ) - {""})
-
-        ca1, ca2 = st.columns(2)
-        with ca1:
-            new_concept = st.text_input("개념명 *", placeholder="예: ESG, CREST, 결제시스템", key="pkm_new_concept")
-            new_folder_sel = st.selectbox("상위 폴더", ["직접 입력"] + _existing_folders,
-                key="pkm_new_folder_sel")
-            if new_folder_sel == "직접 입력":
-                new_folder = st.text_input("상위 폴더명 입력", placeholder="예: 마케팅, 취업, 기술",
-                    key="pkm_new_folder_input")
-            else:
-                new_folder = new_folder_sel
-        with ca2:
-            new_subfolder = st.text_input("하위 폴더 (선택)", placeholder="예: 프레임워크, 자격증, 스킬",
-                key="pkm_new_subfolder")
-            new_desc = st.text_input("설명 (선택)", placeholder="예: 시장환경 분석 프레임워크",
-                key="pkm_new_desc")
-            new_aliases = st.text_input("동의어 (선택, 쉼표 구분)", placeholder="예: CSR, 지속가능경영",
-                key="pkm_new_aliases")
-
-        if st.button("➕ 개념 저장", key="add_pkm_custom_concept", type="primary", use_container_width=True):
+        new_concept = st.text_input("새 핵심 개념", placeholder="예: ESG, CREST, 결제시스템", key="pkm_new_concept")
+        new_folder = st.text_input("개념 폴더", placeholder="예: 마케팅 / 기술 / 정책 / 취업", key=f"{key_prefix}_pkm_new_concept_folder")
+        if st.button("➕ 핵심 개념 추가", key="add_pkm_custom_concept", use_container_width=True):
             clean = new_concept.strip().replace("#", "")
-            folder_val = (new_folder or "내 개념").strip()
             if clean:
-                concepts = [
-                    cc if isinstance(cc, dict) else {"name": str(cc), "folder": "내 개념", "created_at": ""}
-                    for cc in st.session_state.get("pkm_custom_concepts", []) if cc
-                ]
-                if not any(cc.get("name") == clean for cc in concepts):
-                    concepts.append({
-                        "name": clean,
-                        "folder": folder_val,
-                        "subfolder": new_subfolder.strip(),
-                        "description": new_desc.strip(),
-                        "aliases": [a.strip() for a in new_aliases.split(",") if a.strip()],
-                        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    })
-                    st.session_state.pkm_custom_concepts = concepts
-                    folders = st.session_state.get("pkm_concept_folders", {})
-                    folders[clean] = folder_val
-                    st.session_state.pkm_concept_folders = folders
-                    save_persisted_data()
-                    st.success(f"'{clean}' 개념을 '{folder_val}' 폴더에 추가했어요!")
-                    st.rerun()
-                else:
-                    st.warning(f"'{clean}' 개념이 이미 있어요.")
-            else:
-                st.warning("개념명을 입력해주세요.")
+                concepts = st.session_state.get("pkm_custom_concepts", [])
+                if clean not in concepts:
+                    concepts.append(clean)
+                st.session_state.pkm_custom_concepts = concepts
+
+                folders = st.session_state.get("pkm_concept_folders", {})
+                folders[clean] = new_folder.strip() or "기본"
+                st.session_state.pkm_concept_folders = folders
+                save_persisted_data()
+                st.success("핵심 개념을 추가했어요.")
+                st.rerun()
 
     st.markdown("### 🧠 핵심 개념 허브")
-    st.caption("폴더별로 묶인 개념이에요. 폴더를 눌러 펼치고, 개념을 클릭하면 연결 문서를 볼 수 있어요.")
+    st.caption("내 문서에서 자주 등장하는 태그와 개념이에요. 누르면 관련 문서를 모아볼 수 있어요.")
 
     concept_counter = Counter()
     concept_source_items = get_all_knowledge_items()
@@ -2706,6 +2573,7 @@ def render_knowledge_map_page():
             clean = str(tag).replace("#", "").strip()
             if clean:
                 concept_counter[clean] += 1
+
         for concept in extract_local_concepts(
             str(item.get("full_text", "")) + " " + str(item.get("memo", "")),
             item.get("tags", []),
@@ -2714,111 +2582,35 @@ def render_knowledge_map_page():
             if concept:
                 concept_counter[concept] += 1
 
-    # 커스텀 개념 폴더 매핑
-    concept_folder_map = {}
-    for c in st.session_state.get("pkm_custom_concepts", []):
-        if isinstance(c, dict) and c.get("name"):
-            folder_val = c.get("folder") or st.session_state.get("pkm_concept_folders", {}).get(c["name"], "내 개념")
-            concept_folder_map[c["name"]] = folder_val
-            concept_counter[c["name"]] = max(concept_counter.get(c["name"], 0), 1) + 3
+    for custom_concept in st.session_state.get("pkm_custom_concepts", []):
+        if custom_concept:
+            concept_counter[custom_concept] += 3
 
-    top_concepts = concept_counter.most_common(40)
+    top_concepts = concept_counter.most_common(20)
 
     if top_concepts:
-        # 폴더별 그룹핑
-        folders_grouped = {}
-        for concept, count in top_concepts:
-            folder = concept_folder_map.get(concept) or st.session_state.get("pkm_concept_folders", {}).get(concept, "자동")
-            folders_grouped.setdefault(folder, []).append((concept, count))
-
-        hub_search = st.text_input("🔍 개념 검색", placeholder="개념명으로 검색", key="hub_concept_search")
-        selected_concept_v2 = st.session_state.get("selected_concept_v2")
-
-        all_folder_names = sorted(set(folders_grouped.keys()) - {"자동"})
-        folder_move_options = ["자동"] + all_folder_names
-
-        for folder_name, folder_concepts in sorted(folders_grouped.items()):
-            if hub_search.strip():
-                folder_concepts = [(con, n) for con, n in folder_concepts if hub_search.strip().lower() in con.lower()]
-            if not folder_concepts:
-                continue
-
-            is_custom = folder_name != "자동"
-            folder_icon = "📂" if is_custom else "🗂️"
-            with st.expander(f"{folder_icon} {folder_name}  ·  {len(folder_concepts)}개 개념", expanded=is_custom):
-                for row_idx, (concept, count) in enumerate(folder_concepts):
-                    is_selected = (selected_concept_v2 == concept)
-                    move_key = f"hub_moving_{abs(hash(folder_name+concept))%99999}"
-                    is_moving = st.session_state.get(move_key, False)
-
-                    if is_moving:
-                        m1, m2, m3, m4 = st.columns([2, 2, 1, 1])
-                        with m1:
-                            st.markdown(f"🧠 **{concept}**")
-                        with m2:
-                            _new_folder = st.selectbox("", folder_move_options + ["➕ 새 폴더"],
-                                index=folder_move_options.index(folder_name) if folder_name in folder_move_options else 0,
-                                key=f"hub_sel_{abs(hash(folder_name+concept))%99999}",
-                                label_visibility="collapsed")
-                            if _new_folder == "➕ 새 폴더":
-                                _new_folder = st.text_input("", placeholder="새 폴더명",
-                                    key=f"hub_newf_{abs(hash(folder_name+concept))%99999}",
-                                    label_visibility="collapsed")
-                        with m3:
-                            if st.button("✓", key=f"hub_fsave_{abs(hash(folder_name+concept))%99999}", use_container_width=True):
-                                if _new_folder and _new_folder != "➕ 새 폴더":
-                                    folders = st.session_state.get("pkm_concept_folders", {})
-                                    folders[concept] = _new_folder
-                                    updated_cc = []
-                                    found_cc = False
-                                    for cc in st.session_state.get("pkm_custom_concepts", []):
-                                        nm = cc.get("name") if isinstance(cc, dict) else str(cc)
-                                        if nm == concept:
-                                            cc = dict(cc) if isinstance(cc, dict) else {"name": nm, "created_at": ""}
-                                            cc["folder"] = _new_folder
-                                            found_cc = True
-                                        updated_cc.append(cc)
-                                    if not found_cc:
-                                        updated_cc.append({"name": concept, "folder": _new_folder, "created_at": ""})
-                                    st.session_state.pkm_custom_concepts = updated_cc
-                                    st.session_state.pkm_concept_folders = folders
-                                    st.session_state[move_key] = False
-                                    save_persisted_data()
-                                    st.rerun()
-                        with m4:
-                            if st.button("✕", key=f"hub_fcancel_{abs(hash(folder_name+concept))%99999}", use_container_width=True):
-                                st.session_state[move_key] = False
-                                st.rerun()
-                    else:
-                        col_name, col_count, col_move, col_btn = st.columns([3, 1, 1, 1])
-                        with col_name:
-                            st.markdown(
-                                f'<div style="padding:6px 0; font-weight:{"700" if is_selected else "400"}; color:{"#2f73ff" if is_selected else "#172033"}">{"▶ " if is_selected else "🧠 "}{concept}</div>',
-                                unsafe_allow_html=True,
-                            )
-                        with col_count:
-                            _memo_link_cnt = sum(1 for l in st.session_state.get("note_concept_links", []) if l.get("concept") == concept)
-                            _count_str = f"{count}개" + (f" · {_memo_link_cnt}메모" if _memo_link_cnt else "")
-                            st.markdown(
-                                f'<div style="padding:6px 0; color:#888; font-size:0.9em">{_count_str}</div>',
-                                unsafe_allow_html=True,
-                            )
-                        with col_move:
-                            if st.button("📂", key=f"hub_move_{abs(hash(folder_name+concept))%99999}", use_container_width=True, help="폴더 이동"):
-                                st.session_state[move_key] = True
-                                st.rerun()
-                        with col_btn:
-                            btn_label = "닫기" if is_selected else "보기"
-                            if st.button(btn_label, key=f"hub_open_{folder_name[:8]}_{row_idx}_{concept[:15]}", use_container_width=True):
-                                st.session_state["selected_concept_v2"] = None if is_selected else concept
-                                st.rerun()
+        cols = st.columns(4)
+        for idx, (concept, count) in enumerate(top_concepts):
+            with cols[idx % 4]:
+                folder = st.session_state.get("pkm_concept_folders", {}).get(concept, "자동")
+                st.markdown(
+                    f"""
+                    <div class="pkm-sidebar-card">
+                        <div class="pkm-sidebar-title">🧠 {concept}</div>
+                        <div class="pkm-sidebar-meta">{folder} · {count}개 연결</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                if st.button("관련 문서 보기", key=f"concept_hub_open_{idx}_{concept[:20]}", use_container_width=True):
+                    st.session_state["selected_concept_v2"] = concept
+                    st.rerun()
     else:
-        st.info("아직 추출된 핵심 개념이 없어요. 문서를 분석하거나 직접 추가해보세요.")
+        st.caption("아직 추출된 핵심 개념이 없어요.")
 
     selected_concept_v2 = st.session_state.get("selected_concept_v2")
     if selected_concept_v2:
-        st.divider()
-        st.markdown(f"### 🔗 **{selected_concept_v2}** 관련 문서")
+        st.markdown(f"### 🔗 '{selected_concept_v2}' 관련 문서")
         related_items_v2 = []
         selected_norm = str(selected_concept_v2).replace("#", "").strip().lower()
 
@@ -2830,6 +2622,7 @@ def render_knowledge_map_page():
                 str(item.get("full_text", "")),
                 " ".join(tags),
             ]).lower()
+
             if selected_norm in tags or selected_norm in combined_text:
                 related_items_v2.append(item)
 
@@ -2844,7 +2637,7 @@ def render_knowledge_map_page():
                         st.caption(f"{item.get('project', '기본 프로젝트')} / {item.get('section', '일반')}")
                         st.button(
                             "열기",
-                            key=f"concept_doc_open_{related_idx}_{abs(hash(str(item.get('title', '')) + str(item.get('date', ''))))}",
+                            key=f"concept_related_open_fixed_{related_idx}_{abs(hash(str(item.get('title', '')) + str(item.get('date', ''))))}",
                             use_container_width=True,
                             on_click=restore_item_from_knowledge,
                             args=(item,),
@@ -2852,9 +2645,13 @@ def render_knowledge_map_page():
         else:
             st.warning("연결된 문서를 못 찾았어요.")
 
+        if st.button("선택 해제", key="clear_selected_concept_v2"):
+            st.session_state["selected_concept_v2"] = None
+            st.rerun()
+
         st.divider()
 
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📚 원노트 목차", "🧩 노션 보드", "🕸️ 태그 마인드맵", "🧠 지식 페이지", "🗂️ 개념 파인더", "🤖 AI 브레인스토밍"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📚 원노트 목차", "🧩 노션 보드", "🕸️ 태그 마인드맵", "🧠 지식 페이지", "🗂️ 개념 파인더"])
 
     with tab1:
         st.markdown("### 📚 원노트식 목차")
@@ -2928,12 +2725,7 @@ def render_knowledge_map_page():
             unsafe_allow_html=True,
         )
 
-        _board_project_names = ["전체"] + sorted({
-            item.get("project", "기본 프로젝트") for item in items if item.get("project")
-        })
-        f0, f1, f2, f3, f4 = st.columns(5)
-        with f0:
-            board_project = st.selectbox("프로젝트", _board_project_names, key="board_project_filter")
+        f1, f2, f3, f4 = st.columns(4)
         with f1:
             board_large = st.selectbox("대분류", ["전체"] + sorted({infer_large_category(item) for item in items}), key="board_large_filter")
         with f2:
@@ -2944,27 +2736,12 @@ def render_knowledge_map_page():
             min_score = st.slider("최소 점수", 0, 100, 0, 5, key="board_min_score")
 
         board_items = items
-        if board_project != "전체":
-            board_items = [item for item in board_items if item.get("project", "기본 프로젝트") == board_project]
         if board_large != "전체":
             board_items = [item for item in board_items if infer_large_category(item) == board_large]
         if board_tag != "전체":
             board_items = [item for item in board_items if board_tag in [str(t).replace("#", "").strip() for t in item.get("tags", [])]]
         if board_date != "전체":
-            from datetime import datetime as _dt
-            def _days_since(d):
-                try:
-                    return (_dt.now() - _dt.strptime(str(d or "")[:10], "%Y-%m-%d")).days
-                except Exception:
-                    return 9999
-            if board_date == "오늘/어제":
-                board_items = [item for item in board_items if _days_since(item.get("date", "")) <= 1]
-            elif board_date == "최근 7일":
-                board_items = [item for item in board_items if _days_since(item.get("date", "")) <= 7]
-            elif board_date == "최근 30일":
-                board_items = [item for item in board_items if _days_since(item.get("date", "")) <= 30]
-            elif board_date == "오래된 기록":
-                board_items = [item for item in board_items if _days_since(item.get("date", "")) > 30]
+            board_items = [item for item in board_items if date_color_group(item.get("date", "")) == board_date]
         board_items = [item for item in board_items if int(item.get("score", 0) or 0) >= min_score]
 
         col_names = ["뉴스/이슈", "정책/지원사업", "후기/리뷰", "공부/취업", "기타"]
@@ -3143,391 +2920,6 @@ def render_knowledge_map_page():
     with tab5:
         render_concept_finder(items)
 
-    with tab6:
-        st.markdown("### 🤖 AI 브레인스토밍")
-        st.caption("저장된 메모나 프로젝트를 기반으로 AI가 새로운 관점과 아이디어를 제안해요.")
-
-        _brain_mode = st.radio("브레인스토밍 기준", ["메모 기반", "프로젝트 기반"], horizontal=True, key="brain_mode")
-
-        if _brain_mode == "메모 기반":
-            _notes = st.session_state.get("archive_notes", [])
-            if not _notes:
-                st.info("저장된 메모가 없어요. 먼저 분석 결과를 저장해보세요.")
-            else:
-                _note_titles = [n.get("title", "제목 없음") for n in _notes]
-                _sel_idx = st.selectbox("메모 선택", range(len(_note_titles)), format_func=lambda i: _note_titles[i], key="brain_note_sel")
-                _sel_note = _notes[_sel_idx]
-                with st.expander("선택한 메모 미리보기", expanded=False):
-                    st.markdown(_sel_note.get("note", "")[:1500])
-                _brain_prompt_types = st.multiselect(
-                    "원하는 분석 유형",
-                    ["확장 주제 제안", "추가 조사 질문", "반대 관점", "발표 문장 초안", "연결 개념 찾기", "다음 할 일"],
-                    default=["확장 주제 제안", "다음 할 일"],
-                    key="brain_prompt_types"
-                )
-                if st.button("🤖 AI 브레인스토밍 시작", key="brain_run_note", type="primary", use_container_width=True):
-                    if not _brain_prompt_types:
-                        st.warning("분석 유형을 하나 이상 선택해주세요.")
-                    else:
-                        _note_content = _sel_note.get("note", "")[:3000]
-                        _system_msg = f"""당신은 지식 관리 전문가입니다. 사용자의 메모를 읽고 요청한 분석 유형별로 구체적인 제안을 해주세요.
-분석 유형: {', '.join(_brain_prompt_types)}
-각 유형별로 3-5개의 구체적인 항목을 bullet point로 제안하세요. 한국어로 답변하세요."""
-                        _user_msg = "메모 제목: " + _sel_note.get("title", "") + "\n\n메모 내용:\n" + _note_content
-                        with st.spinner("AI가 브레인스토밍 중..."):
-                            try:
-                                _brain_result = call_groq_simple(_system_msg, _user_msg)
-                                st.session_state["brain_result"] = _brain_result
-                            except Exception as e:
-                                st.error(f"AI 오류: {e}")
-
-                if st.session_state.get("brain_result"):
-                    st.divider()
-                    st.markdown("#### 💡 AI 브레인스토밍 결과")
-                    st.markdown(st.session_state["brain_result"])
-                    if st.button("🗑️ 결과 지우기", key="brain_clear"):
-                        st.session_state["brain_result"] = ""
-                        st.rerun()
-
-        else:  # 프로젝트 기반
-            _projs = st.session_state.get("projects", [])
-            if not _projs:
-                st.info("저장된 프로젝트가 없어요. 먼저 프로젝트를 만들어보세요.")
-            else:
-                _proj_names = [p.get("name", "이름 없음") for p in _projs]
-                _sel_proj_idx = st.selectbox("프로젝트 선택", range(len(_proj_names)), format_func=lambda i: _proj_names[i], key="brain_proj_sel")
-                _sel_proj = _projs[_sel_proj_idx]
-
-                # 이 프로젝트에 연결된 메모 수집
-                _proj_notes = [n for n in st.session_state.get("archive_notes", []) if n.get("project") == _sel_proj.get("name")]
-                st.caption(f"이 프로젝트에 연결된 메모: {len(_proj_notes)}개")
-
-                _brain_proj_types = st.multiselect(
-                    "원하는 분석 유형",
-                    ["부족한 자료 파악", "추가 조사 방향", "발표 목차 제안", "예상 질문", "추가 작업 아이디어"],
-                    default=["부족한 자료 파악", "추가 작업 아이디어"],
-                    key="brain_proj_types"
-                )
-
-                if st.button("🤖 프로젝트 AI 분석 시작", key="brain_run_proj", type="primary", use_container_width=True):
-                    _proj_summary = "프로젝트명: " + str(_sel_proj.get("name","")) + "\n설명: " + str(_sel_proj.get("description","")) + "\n상태: " + str(_sel_proj.get("status",""))
-                    _notes_summary = "\n".join([f"- {n.get('title','')}: {n.get('note','')[:200]}" for n in _proj_notes[:5]])
-                    _system_msg2 = f"""당신은 프로젝트 관리 전문가입니다. 프로젝트 정보와 연결된 메모를 보고 요청한 유형별 분석을 해주세요.
-분석 유형: {', '.join(_brain_proj_types)}
-각 유형별로 3-5개의 구체적인 항목을 bullet point로 제안하세요. 한국어로 답변하세요."""
-                    _user_msg2 = _proj_summary + "\n\n연결된 메모:\n" + (_notes_summary if _notes_summary else "(연결된 메모 없음)")
-                    with st.spinner("AI가 프로젝트를 분석 중..."):
-                        try:
-                            _brain_proj_result = call_groq_simple(_system_msg2, _user_msg2)
-                            st.session_state["brain_proj_result"] = _brain_proj_result
-                        except Exception as e:
-                            st.error(f"AI 오류: {e}")
-
-                if st.session_state.get("brain_proj_result"):
-                    st.divider()
-                    st.markdown("#### 💡 프로젝트 AI 분석 결과")
-                    st.markdown(st.session_state["brain_proj_result"])
-                    if st.button("🗑️ 결과 지우기", key="brain_proj_clear"):
-                        st.session_state["brain_proj_result"] = ""
-                        st.rerun()
-
-
-
-# ─────────────────────────────────────────
-# 📁 프로젝트 페이지
-# ─────────────────────────────────────────
-def render_project_page():
-    import uuid
-
-    st.markdown("## 📁 프로젝트")
-    st.caption("프로젝트별로 메모와 작업을 묶어서 관리해요.")
-
-    projects = st.session_state.get("projects", [])
-
-    # ── 상단: 새 프로젝트 추가 ──────────────────────────────
-    with st.expander("➕ 새 프로젝트 만들기", expanded=False):
-        c1, c2 = st.columns(2)
-        with c1:
-            p_name = st.text_input("프로젝트명 *", key="new_proj_name", placeholder="예: 팀플 1, TrustLens, SQLD")
-            p_category = st.selectbox("대분류", ["학교/팀플", "개인개발", "자격증", "취업준비", "리서치", "기타"], key="new_proj_cat")
-            p_status = st.selectbox("상태", ["예정", "진행 중", "완료", "보류"], key="new_proj_status")
-        with c2:
-            p_priority = st.selectbox("우선순위", ["높음", "보통", "낮음"], key="new_proj_priority")
-            p_start = st.date_input("시작일", key="new_proj_start", value=None)
-            p_due = st.date_input("마감일", key="new_proj_due", value=None)
-        p_desc = st.text_input("설명", key="new_proj_desc", placeholder="간단한 설명")
-
-        if st.button("✅ 프로젝트 저장", key="save_new_project", type="primary", use_container_width=True):
-            if p_name.strip():
-                new_proj = {
-                    "id": f"project_{uuid.uuid4().hex[:8]}",
-                    "name": p_name.strip(),
-                    "description": p_desc.strip(),
-                    "category": p_category,
-                    "status": p_status,
-                    "priority": p_priority,
-                    "owner": "채연",
-                    "start_date": str(p_start) if p_start else "",
-                    "due_date": str(p_due) if p_due else "",
-                    "progress": 0,
-                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                }
-                projects.append(new_proj)
-                st.session_state.projects = projects
-                save_persisted_data()
-                st.success(f"'{p_name}' 프로젝트를 만들었어요!")
-                st.rerun()
-            else:
-                st.warning("프로젝트명을 입력해주세요.")
-
-    st.divider()
-
-    if not projects:
-        st.info("아직 프로젝트가 없어요. 위에서 첫 프로젝트를 만들어보세요.")
-        return
-
-    # ── 뷰 선택 ──────────────────────────────────────────────
-    view = st.radio("보기 방식", ["📋 테이블", "🗂️ 카드", "📊 보드"], horizontal=True, key="project_view_mode")
-
-    STATUS_COLOR = {"진행 중": "🟢", "예정": "🔵", "완료": "⚫", "보류": "🟡"}
-    PRIORITY_COLOR = {"높음": "🔴", "보통": "🟠", "낮음": "⚪"}
-
-    if view == "📋 테이블":
-        st.markdown("""
-        <style>
-        .proj-table { width:100%; border-collapse:collapse; font-size:0.93em; }
-        .proj-table th { background:#eef4ff; color:#1f3f91; padding:8px 12px; text-align:left; border-bottom:2px solid #c7d9f5; }
-        .proj-table td { padding:8px 12px; border-bottom:1px solid #e7edf7; vertical-align:middle; }
-        .proj-table tr:hover td { background:#f5f8ff; }
-        </style>""", unsafe_allow_html=True)
-
-        rows = ""
-        for p in projects:
-            sc = STATUS_COLOR.get(p.get("status",""), "⚪")
-            pc = PRIORITY_COLOR.get(p.get("priority",""), "⚪")
-            prog = p.get("progress", 0)
-            rows += f"""<tr>
-                <td><b>{p.get('name','')}</b><br><span style='color:#888;font-size:0.85em'>{p.get('description','')}</span></td>
-                <td>{p.get('category','')}</td>
-                <td>{sc} {p.get('status','')}</td>
-                <td>{p.get('due_date','—')}</td>
-                <td>{pc} {p.get('priority','')}</td>
-                <td>
-                    <div style='background:#e7edf7;border-radius:8px;height:8px;width:100%'>
-                        <div style='background:#2f73ff;border-radius:8px;height:8px;width:{prog}%'></div>
-                    </div>
-                    <span style='font-size:0.8em;color:#888'>{prog}%</span>
-                </td>
-            </tr>"""
-        st.markdown(f"""<table class='proj-table'>
-            <thead><tr><th>프로젝트</th><th>대분류</th><th>상태</th><th>마감일</th><th>우선순위</th><th>진행률</th></tr></thead>
-            <tbody>{rows}</tbody></table>""", unsafe_allow_html=True)
-
-    elif view == "🗂️ 카드":
-        cols = st.columns(3)
-        for idx, p in enumerate(projects):
-            with cols[idx % 3]:
-                sc = STATUS_COLOR.get(p.get("status",""), "⚪")
-                prog = p.get("progress", 0)
-                with st.container(border=True):
-                    st.markdown(f"**{p.get('name','')}**")
-                    st.caption(f"{p.get('category','')} · {sc} {p.get('status','')}")
-                    st.progress(prog / 100, text=f"{prog}%")
-                    if p.get("due_date"):
-                        st.caption(f"📅 {p['due_date']}")
-                    # 진행률 수정
-                    new_prog = st.slider("진행률", 0, 100, prog, 5,
-                        key=f"proj_prog_{p['id']}", label_visibility="collapsed")
-                    if new_prog != prog:
-                        p["progress"] = new_prog
-                        p["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                        save_persisted_data()
-
-    elif view == "📊 보드":
-        statuses = ["예정", "진행 중", "완료", "보류"]
-        cols = st.columns(4)
-        for col, status in zip(cols, statuses):
-            with col:
-                sc = STATUS_COLOR.get(status, "⚪")
-                group = [p for p in projects if p.get("status") == status]
-                st.markdown(f"#### {sc} {status} ({len(group)})")
-                for p in group:
-                    with st.container(border=True):
-                        st.markdown(f"**{p.get('name','')}**")
-                        st.caption(f"{p.get('category','')} · {PRIORITY_COLOR.get(p.get('priority',''),'')} {p.get('priority','')}")
-                        if p.get("due_date"):
-                            st.caption(f"📅 {p['due_date']}")
-
-    # ── 섹션 관리 ───────────────────────────────────────────
-    st.divider()
-    st.markdown("### 📂 섹션 관리")
-    if projects:
-        sel_proj = st.selectbox("프로젝트 선택", [p["name"] for p in projects], key="section_proj_select")
-        sel_proj_obj = next((p for p in projects if p["name"] == sel_proj), None)
-        if sel_proj_obj:
-            sections = [s for s in st.session_state.get("project_sections", []) if s.get("project_id") == sel_proj_obj["id"]]
-            if sections:
-                for sec in sections:
-                    steps = [st for st in st.session_state.get("project_steps", []) if st.get("section_id") == sec["id"]]
-                    step_names = " · ".join([s["name"] for s in steps]) if steps else "단계 없음"
-                    st.markdown(f"📂 **{sec['name']}** — {step_names}")
-            else:
-                st.caption("아직 섹션이 없어요.")
-
-            with st.expander("➕ 섹션 추가"):
-                sec_name = st.text_input("섹션명", key="new_section_name", placeholder="예: 자료조사, 발표대본")
-                if st.button("섹션 저장", key="save_new_section"):
-                    if sec_name.strip():
-                        new_sec = {
-                            "id": f"section_{uuid.uuid4().hex[:8]}",
-                            "project_id": sel_proj_obj["id"],
-                            "name": sec_name.strip(),
-                            "order": len(sections) + 1,
-                            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        }
-                        secs = st.session_state.get("project_sections", [])
-                        secs.append(new_sec)
-                        st.session_state.project_sections = secs
-                        save_persisted_data()
-                        st.success(f"'{sec_name}' 섹션을 추가했어요!")
-                        st.rerun()
-
-
-# ─────────────────────────────────────────
-# ✅ 작업 관리 페이지
-# ─────────────────────────────────────────
-def render_task_page():
-    import uuid
-
-    st.markdown("## ✅ 작업 관리")
-    st.caption("프로젝트별 할 일을 보드뷰/목록으로 관리해요.")
-
-    tasks = st.session_state.get("tasks", [])
-    projects = st.session_state.get("projects", [])
-    proj_names = ["전체"] + [p["name"] for p in projects]
-
-    # ── 새 작업 추가 ──────────────────────────────────────────
-    with st.expander("➕ 새 작업 만들기", expanded=False):
-        t1, t2 = st.columns(2)
-        with t1:
-            t_title = st.text_input("작업명 *", key="new_task_title", placeholder="예: CREST 자료조사 정리")
-            t_proj = st.selectbox("프로젝트", [p["name"] for p in projects] if projects else ["없음"], key="new_task_proj")
-            t_status = st.selectbox("상태", ["시작 전", "진행 중", "완료", "보류"], key="new_task_status")
-        with t2:
-            t_priority = st.selectbox("우선순위", ["높음", "보통", "낮음"], key="new_task_priority")
-            t_due = st.date_input("마감일", key="new_task_due", value=None)
-            t_summary = st.text_input("메모", key="new_task_summary", placeholder="간단한 설명")
-
-        if st.button("✅ 작업 저장", key="save_new_task", type="primary", use_container_width=True):
-            if t_title.strip():
-                proj_obj = next((p for p in projects if p["name"] == t_proj), {})
-                new_task = {
-                    "id": f"task_{uuid.uuid4().hex[:8]}",
-                    "title": t_title.strip(),
-                    "project_id": proj_obj.get("id", ""),
-                    "project": t_proj,
-                    "status": t_status,
-                    "priority": t_priority,
-                    "due_date": str(t_due) if t_due else "",
-                    "summary": t_summary.strip(),
-                    "linked_note_ids": [],
-                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                }
-                tasks.append(new_task)
-                st.session_state.tasks = tasks
-                save_persisted_data()
-                st.success(f"'{t_title}' 작업을 추가했어요!")
-                st.rerun()
-            else:
-                st.warning("작업명을 입력해주세요.")
-
-    st.divider()
-
-    if not tasks:
-        st.info("아직 작업이 없어요. 위에서 첫 작업을 추가해보세요.")
-        return
-
-    # ── 필터 + 뷰 선택 ──────────────────────────────────────
-    f1, f2, f3 = st.columns([2, 1, 1])
-    with f1:
-        filter_proj = st.selectbox("프로젝트 필터", proj_names, key="task_filter_proj")
-    with f2:
-        filter_status = st.selectbox("상태 필터", ["전체", "시작 전", "진행 중", "완료", "보류"], key="task_filter_status")
-    with f3:
-        task_view = st.radio("뷰", ["📋 목록", "🗂️ 보드"], horizontal=True, key="task_view_mode")
-
-    filtered = tasks
-    if filter_proj != "전체":
-        filtered = [t for t in filtered if t.get("project") == filter_proj]
-    if filter_status != "전체":
-        filtered = [t for t in filtered if t.get("status") == filter_status]
-
-    PRIORITY_EMOJI = {"높음": "🔴", "보통": "🟠", "낮음": "⚪"}
-    STATUS_EMOJI = {"시작 전": "⬜", "진행 중": "🔄", "완료": "✅", "보류": "⏸️"}
-
-    if task_view == "📋 목록":
-        for task in filtered:
-            se = STATUS_EMOJI.get(task.get("status",""), "⬜")
-            pe = PRIORITY_EMOJI.get(task.get("priority",""), "⚪")
-            with st.container(border=True):
-                c1, c2, c3 = st.columns([4, 1, 1])
-                with c1:
-                    st.markdown(f"{se} **{task.get('title','')}**")
-                    st.caption(f"📁 {task.get('project','없음')} · {pe} {task.get('priority','')} · 📅 {task.get('due_date','—')}")
-                    if task.get("summary"):
-                        st.caption(task["summary"])
-                with c2:
-                    new_status = st.selectbox("", ["시작 전","진행 중","완료","보류"],
-                        index=["시작 전","진행 중","완료","보류"].index(task.get("status","시작 전")),
-                        key=f"task_status_{task['id']}", label_visibility="collapsed")
-                    if new_status != task.get("status"):
-                        task["status"] = new_status
-                        task["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                        save_persisted_data()
-                        st.rerun()
-                with c3:
-                    if st.button("🗑️", key=f"del_task_{task['id']}", help="삭제"):
-                        st.session_state.tasks = [t for t in tasks if t["id"] != task["id"]]
-                        save_persisted_data()
-                        st.rerun()
-
-    elif task_view == "🗂️ 보드":
-        statuses = ["시작 전", "진행 중", "완료", "보류"]
-        cols = st.columns(4)
-        for col, status in zip(cols, statuses):
-            with col:
-                se = STATUS_EMOJI.get(status, "")
-                group = [t for t in filtered if t.get("status") == status]
-                st.markdown(f"#### {se} {status}")
-                st.caption(f"{len(group)}개")
-                for task in group:
-                    pe = PRIORITY_EMOJI.get(task.get("priority",""), "")
-                    with st.container(border=True):
-                        st.markdown(f"**{task.get('title','')}**")
-                        st.caption(f"📁 {task.get('project','—')}")
-                        st.caption(f"{pe} {task.get('priority','')} · 📅 {task.get('due_date','—')}")
-                        if st.button("완료 처리", key=f"board_done_{task['id']}", use_container_width=True):
-                            task["status"] = "완료"
-                            task["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                            save_persisted_data()
-                            st.rerun()
-
-    # ── 캘린더뷰 (마감일 기준) ──────────────────────────────
-    st.divider()
-    st.markdown("### 📅 마감일 기준 일정")
-    dated = sorted([t for t in filtered if t.get("due_date")], key=lambda x: x["due_date"])
-    if dated:
-        from itertools import groupby
-        for due_date, group_tasks in groupby(dated, key=lambda x: x["due_date"]):
-            with st.expander(f"📅 {due_date}", expanded=True):
-                for task in group_tasks:
-                    se = STATUS_EMOJI.get(task.get("status",""), "")
-                    st.markdown(f"{se} **{task.get('title','')}** — 📁 {task.get('project','—')}")
-    else:
-        st.caption("마감일이 설정된 작업이 없어요.")
-
 
 # -----------------------------
 # Menu Pages
@@ -3670,10 +3062,7 @@ if menu == "🏷️ 분석결과 아카이브":
             if q in str(item.get("title", "")).lower()
             or q in str(item.get("url", "")).lower()
             or q in str(item.get("memo", "")).lower()
-            or q in str(item.get("project", "")).lower()
-            or q in str(item.get("section", "")).lower()
             or q in " ".join([str(t) for t in item.get("tags", [])]).lower()
-            or q in " ".join(item.get("summary", []) if isinstance(item.get("summary", []), list) else [str(item.get("summary", ""))]).lower()
         ]
 
     if only_favorite_analysis:
@@ -3824,9 +3213,6 @@ if menu == "🗂️ 지식 아카이브":
             if q in str(note.get("title", "")).lower()
             or q in str(note.get("url", "")).lower()
             or q in str(note.get("note", "")).lower()
-            or q in str(note.get("project", "")).lower()
-            or q in str(note.get("section", "")).lower()
-            or q in str(note.get("original_text", "")).lower()
             or q in " ".join([str(t) for t in note.get("tags", [])]).lower()
         ]
 
@@ -3889,14 +3275,6 @@ if menu == "🗂️ 지식 아카이브":
                     st.session_state[f"archive_updated_{original_index}"] = False
     else:
         st.info("아직 저장된 메모가 없어요. 분석 결과 하단에서 메모를 저장해보세요.")
-    st.stop()
-
-if menu == "📁 프로젝트":
-    render_project_page()
-    st.stop()
-
-if menu == "✅ 작업 관리":
-    render_task_page()
     st.stop()
 
 if menu == "🧠 지식 맵":

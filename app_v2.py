@@ -22,7 +22,7 @@ MAX_EXTRACT_TEXT_CHARS = 20000        # extract_text() / 붙여넣기 본문 최
 MAX_ORIGINAL_TEXT_CHARS = 20000       # archive_notes.original_text 저장 한도
 MAX_NOTE_INLINE_ORIGINAL_CHARS = 12000  # 메모 본문에 직접 붙이는 "원문 보관" 섹션 한도
 MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이(비용 제한)
-EXTRACTION_VERSION = "v3-study"       # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (study 유형 강제 유지 반영)
+EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 def load_persisted_data():
     if not DATA_FILE.exists():
@@ -393,7 +393,7 @@ st.markdown("""
     color: #0f172a !important;
 }
 .block-container {
-    padding-top: 1.5rem !important;
+    padding-top: 3rem !important;
     padding-bottom: 3rem !important;
     max-width: 1200px !important;
 }
@@ -1431,6 +1431,41 @@ def convert_naver_mobile_url(url: str) -> str:
     return url
 
 
+# 본문이 아닌 잡영역(사이드바/댓글/최근글/푸터 등)을 통째로 제거하기 위한 셀렉터
+_JUNK_SELECTORS = [
+    "script", "style", "nav", "footer", "header", "aside", "form", "noscript",
+    # Tistory / 블로그 공통 잡영역
+    ".another_category", ".container_postbtn", ".area_sympathy", ".tt_box_subscribe",
+    ".comment", ".comments", ".reply", ".replyArea", "#comment", "#comments",
+    ".recent", ".recentPost", ".recent_post", ".popular", ".related",
+    ".related_post", ".relatedArticle", ".sidebar", "#sidebar", ".aside",
+    ".widget", ".tt_category", ".category", ".tags", ".tagTrail", ".tag_label",
+    ".paging", ".pagination", ".blogview_comment", ".revenue_unit_wrap",
+    ".coverInfo", ".sponsor", ".ad", ".ad_wrap", ".adsbygoogle",
+]
+
+# 본문 추출 품질이 낮을 때 경고에 쓰는 잡텍스트 키워드
+_JUNK_KEYWORDS = [
+    "Recent Posts", "Recent Comments", "Related Articles", "Related Posts",
+    "Comments", "댓글쓰기", "댓글을", "공감", "구독하기", "최근 글", "최근글",
+    "최근 댓글", "인기 글", "카테고리", "태그", "TISTORY", "Powered by",
+    "Blog is powered", "Copyright", "공지사항", "이전 글", "다음 글",
+    "본문 바로가기", "로그아웃", "RSS",
+]
+
+
+def assess_extract_quality(text: str):
+    """추출 본문에서 잡텍스트(블로그 사이드바/댓글 등) 비율을 추정. (junk_ratio, junk_hits)"""
+    lines = [l.strip() for l in (text or "").splitlines() if l.strip()]
+    if not lines:
+        return 1.0, 0
+    junk_hits = 0
+    for line in lines:
+        if any(kw in line for kw in _JUNK_KEYWORDS):
+            junk_hits += 1
+    return junk_hits / max(len(lines), 1), junk_hits
+
+
 def extract_text(url):
     try:
         target_url = convert_naver_mobile_url(url)
@@ -1446,26 +1481,44 @@ def extract_text(url):
         soup = BeautifulSoup(res.text, "html.parser")
         title = soup.title.get_text(strip=True) if soup.title else ""
 
-        candidates = []
-        for selector in [
-            "div.se-main-container",
-            "div#postViewArea",
+        # ① 잡영역(사이드바/댓글/최근글/푸터/광고)을 먼저 통째로 제거 → 어떤 셀렉터를 쓰든 깨끗
+        for selector in _JUNK_SELECTORS:
+            for tag in soup.select(selector):
+                tag.decompose()
+
+        # ② 본문 전용 셀렉터를 "우선순위 순서대로" 시도하고, 충분히 길면 그걸로 확정 (body로 새지 않음)
+        #    Tistory: .entry-content / .tt_article_useless_p_margin / .article_view / .contents_style
+        priority_selectors = [
+            "div.se-main-container",          # 네이버 스마트에디터
+            "div#postViewArea",               # 네이버 구버전
             "div.post_ct",
             "div.post-view",
+            "div.entry-content",              # Tistory/워드프레스
+            "div.tt_article_useless_p_margin",# Tistory 본문
+            "div.article_view",               # Tistory
+            "div.contents_style",             # Tistory
+            "div.article_content",
+            "div#content .article",
             "article",
-            "main",
-            "body",
-        ]:
+        ]
+        text = ""
+        for selector in priority_selectors:
             selected = soup.select_one(selector)
             if selected:
-                candidates.append(selected.get_text("\n", strip=True))
+                cand = clean_text(selected.get_text("\n", strip=True))
+                # 본문으로 인정할 최소 길이 (사이드바 조각 방지)
+                if len(cand) >= 400:
+                    text = cand
+                    break
 
-        if candidates:
-            text = max(candidates, key=len)
-        else:
-            for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
-                tag.decompose()
-            text = soup.get_text(separator="\n", strip=True)
+        # ③ 본문 전용 셀렉터로 못 찾으면 main → body 순서로 fallback (잡영역은 이미 제거됨)
+        if not text:
+            for selector in ["main", "body"]:
+                selected = soup.select_one(selector)
+                if selected:
+                    cand = clean_text(selected.get_text("\n", strip=True))
+                    if len(cand) > len(text):
+                        text = cand
 
         text = clean_text(text)
         if title:
@@ -1839,6 +1892,9 @@ def analyze_with_groq(text, url, selected_type):
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         content_type = infer_content_type_from_text(text, selected_type)
+        # 사용자 명시 선택(공부자료) > 자동 추론 — 키 없는 fallback 경로에서도 study 유지
+        if selected_type == "study":
+            content_type = "study"
         breakdown = normalize_review_breakdown({}, text) if content_type == "review" else {
             "official_source": 5,
             "recency": 10,
@@ -2065,7 +2121,13 @@ def make_local_content_note_draft(original_text, result, final_url=None, templat
     title = result.get("archive_title") or (title_candidates[0] if title_candidates else "붙여넣은 글 정리")
 
     useful_lines = []
-    skip_words = ["NAVER", "본문 바로가기", "로그아웃", "서비스", "댓글", "함께 볼만한 뉴스", "랭킹", "Copyright"]
+    skip_words = [
+        "NAVER", "본문 바로가기", "로그아웃", "서비스", "댓글", "함께 볼만한 뉴스",
+        "랭킹", "Copyright", "Recent Posts", "Recent Comments", "Related Articles",
+        "Related Posts", "Comments", "댓글쓰기", "구독하기", "최근 글", "최근글",
+        "최근 댓글", "인기 글", "카테고리", "Powered by", "Blog is powered",
+        "TISTORY", "공지사항", "이전 글", "다음 글", "RSS",
+    ]
     for line in lines:
         if any(word in line for word in skip_words):
             continue
@@ -2083,6 +2145,43 @@ def make_local_content_note_draft(original_text, result, final_url=None, templat
     detail_text = "\n".join([f"- {item}" for item in detail_points]) if detail_points else "- 추가 세부 내용은 원문 확인이 필요해요."
 
     request_text = user_prompt.strip() if user_prompt else "없음"
+
+    # ── study(공부자료) 전용 fallback 구조 — API 키가 없거나 401이어도 학습노트 뼈대는 보장 ──
+    _is_study_fallback = (content_type == "study") or (template_type == "공부용 설명")
+    if _is_study_fallback:
+        study_core = key_points[:8]
+        core_text = "\n".join([f"- {item}" for item in study_core]) if study_core else "- 본문에서 핵심 문장을 충분히 추출하지 못했어요. 원문을 확인해주세요."
+        concepts = result.get("key_concepts") or result.get("concepts") or []
+        concept_text = ", ".join([str(c).strip() for c in concepts if str(c).strip()]) if concepts else "(추출된 개념 없음 — 원문 확인 필요)"
+        return f"""# {title} — 학습 노트
+
+> ⚠️ AI 연결 없이 로컬 규칙으로 만든 학습노트 **뼈대**입니다. API가 연결되면 본문 이해 기반으로 자동 완성됩니다.
+
+## 📌 한 줄 핵심
+- (본문 핵심을 한 줄로 정리하세요)
+
+## 🤔 왜 필요한가
+- 이 개념/내용이 어떤 문제를 풀기 위해 등장했는지 적어보세요.
+
+## ⚙️ 단계별 동작 원리
+{core_text}
+
+## 🧠 핵심 개념
+- {concept_text}
+
+## 🚧 한계 / 주의점
+- 어떤 상황에서 안 통하거나 헷갈리는지 적어보세요.
+
+## 💡 기억법
+- 나만의 비유나 암기 포인트를 적어보세요.
+
+## 📝 시험 대비 요약
+- 시험/복습 때 꼭 떠올려야 할 1~3가지를 적어보세요.
+
+---
+- 출처: {display_source_label(final_url)} · 콘텐츠 유형: {content_label}
+- 추가 요청: {request_text}
+"""
 
     return f"""# {title}
 
@@ -2115,13 +2214,23 @@ def make_local_content_note_draft(original_text, result, final_url=None, templat
 
 def generate_note_draft_with_groq(original_text, result, final_url, template_type, user_prompt):
     api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        return make_local_content_note_draft(original_text, result, final_url, template_type, user_prompt)
-
     _ct = result.get("content_type", "unknown")
     _is_study = (_ct == "study") or (template_type == "공부용 설명")
+    if not api_key:
+        # 🛠️ 디버그: 키 없음 → fallback 경로(이게 study 구조로 나오는지 추적)
+        st.session_state["_study_draft_debug"] = {
+            "api_key_present": False,
+            "path": "local_fallback",
+            "study_prompt_used": bool(_is_study),
+            "template_type": template_type,
+            "source_context_len": len(original_text or ""),
+        }
+        return make_local_content_note_draft(original_text, result, final_url, template_type, user_prompt)
+
     # 🛠️ 디버그: 어떤 초안 분기를 탔는지 기록 (render_result Study Debug expander에서 표시)
     st.session_state["_study_draft_debug"] = {
+        "api_key_present": True,
+        "path": "groq_api",
         "study_prompt_used": bool(_is_study),
         "template_type": template_type,
         "source_context_len": len((original_text or "")[:9000]) if _is_study else len(original_text or ""),
@@ -12044,6 +12153,15 @@ if analyze_btn:
             with st.spinner("본문 추출 중..."):
                 text, err, final_url = extract_text(url_input.strip())
             analysis_source = url_input.strip()
+            # 우선순위 3: 본문 추출 품질 경고 (블로그 사이드바/댓글이 섞였을 때)
+            if text:
+                _junk_ratio, _junk_hits = assess_extract_quality(text)
+                st.session_state["_extract_quality"] = {"junk_ratio": _junk_ratio, "junk_hits": _junk_hits, "len": len(text)}
+                if _junk_ratio >= 0.35 or (_junk_hits >= 5 and len(text) < 1500):
+                    st.warning(
+                        "⚠️ 본문 추출 품질이 낮습니다. 블로그 사이드바·댓글·최근글이 포함된 것 같아요.\n\n"
+                        "👉 더 정확한 분석을 원하면 **본문만 복사해서 '글 붙여넣기로 조회하기'**로 다시 시도해보세요."
+                    )
         else:
             text = clean_text(pasted_text.strip())[:MAX_EXTRACT_TEXT_CHARS]
             err = ""

@@ -1871,6 +1871,12 @@ def analyze_with_groq(text, url, selected_type):
             },
             "archive_title": "Mock 테스트 분석",
             "trust_score": calculate_score_by_type(breakdown, content_type),
+            "_debug": {
+                "selected_type": selected_type,
+                "ai_content_type": "(mock)",
+                "final_content_type": content_type,
+                "source_text_len": len(text or ""),
+            },
         }
 
     prompt = f"""
@@ -1991,6 +1997,13 @@ URL:
     result["trust_score"] = calculate_score_by_type(result.get("score_breakdown", {}), content_type)
     if not result.get("archive_title"):
         result["archive_title"] = "TrustLens 분석 메모"
+    # 🛠️ 디버그: study 분기 추적용 (render_result 하단 expander에서 표시)
+    result["_debug"] = {
+        "selected_type": selected_type,
+        "ai_content_type": ai_content_type,
+        "final_content_type": content_type,
+        "source_text_len": len(text or ""),
+    }
     return result
 
 
@@ -2105,6 +2118,12 @@ def generate_note_draft_with_groq(original_text, result, final_url, template_typ
 
     _ct = result.get("content_type", "unknown")
     _is_study = (_ct == "study") or (template_type == "공부용 설명")
+    # 🛠️ 디버그: 어떤 초안 분기를 탔는지 기록 (render_result Study Debug expander에서 표시)
+    st.session_state["_study_draft_debug"] = {
+        "study_prompt_used": bool(_is_study),
+        "template_type": template_type,
+        "source_context_len": len((original_text or "")[:9000]) if _is_study else len(original_text or ""),
+    }
 
     # ── 공부자료(study) 전용: 이해 중심 학습 노트 프롬프트 ──
     if _is_study:
@@ -2929,6 +2948,30 @@ def render_result(result, extracted_text=None, final_url=None):
             st.success(f"🧠 사용자들이 이 분석을 평균 {avg_rating}/5 로 평가했어요.")
         else:
             st.caption("🧠 아직 사용자 평가 데이터가 없어요.")
+
+    _dbg = result.get("_debug", {})
+    _draft_dbg = st.session_state.get("_study_draft_debug", {})
+    with st.expander("🛠️ Study Debug (개발용)", expanded=False):
+        st.code(
+            "selected_type      = {}\n"
+            "ai_content_type    = {}\n"
+            "final_content_type = {}\n"
+            "study_prompt_used  = {}\n"
+            "draft_template     = {}\n"
+            "source_context_len = {}\n"
+            "analysis_text_len  = {}".format(
+                _dbg.get("selected_type", "-"),
+                _dbg.get("ai_content_type", "-"),
+                _dbg.get("final_content_type", "-"),
+                _draft_dbg.get("study_prompt_used", "(초안 미생성)"),
+                _draft_dbg.get("template_type", "-"),
+                _draft_dbg.get("source_context_len", "-"),
+                _dbg.get("source_text_len", "-"),
+            ),
+            language="text",
+        )
+        if _dbg.get("selected_type") == "study" and _dbg.get("final_content_type") != "study":
+            st.error("⚠️ 공부자료를 골랐는데 final_content_type이 study가 아니에요 — 분기 점검 필요")
 
     if extracted_text:
         with st.expander("🧪 추출된 본문 확인 / 디버그"):

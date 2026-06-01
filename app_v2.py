@@ -701,6 +701,48 @@ section[data-testid="stSidebar"] .stMarkdown {
 /* 구분선 */
 .tl-nav-divider { height: 1px; background: rgba(255,255,255,0.07); margin: 3px 10px; }
 
+/* ── details/summary 기반 nav 그룹 (새로고침 없는 토글) ── */
+.tl-nav-group {
+    margin-bottom: 2px;
+}
+.tl-nav-group summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    cursor: pointer;
+    border-radius: 8px;
+    list-style: none;
+    user-select: none;
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.7) !important;
+    letter-spacing: 0.3px;
+    transition: background 0.15s;
+}
+.tl-nav-group summary::-webkit-details-marker { display: none; }
+.tl-nav-group summary::marker { display: none; }
+.tl-nav-group summary:hover {
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.95) !important;
+}
+.tl-nav-group[open] summary {
+    color: rgba(255,255,255,0.95) !important;
+}
+.tl-grp-arrow {
+    margin-left: auto;
+    font-size: 11px;
+    opacity: 0.6;
+    transition: transform 0.2s;
+    display: inline-block;
+}
+.tl-nav-group[open] .tl-grp-arrow {
+    transform: rotate(90deg);
+}
+.tl-nav-group-items {
+    padding: 2px 0 4px 0;
+}
+
 /* hr / caption */
 section[data-testid="stSidebar"] hr { display: none !important; }
 section[data-testid="stSidebar"] .stCaption p {
@@ -763,43 +805,41 @@ button[data-testid="collapsedControl"],
 </div>
 <div style="height:8px"></div>""", unsafe_allow_html=True)
 
-    # ─── 네비게이션 ───
-    # 기본값: 현재 페이지가 속한 그룹만 열림. 사용자가 열거나 닫으면 JSON에 저장해 유지.
+    # ─── 네비게이션 (details/summary 기반 — 새로고침 없음) ───
+    _nav_html_parts = []
     for _grp_icon, _grp_name, _grp_items in _NAV_STRUCTURE:
-        _grp_state_key = f"nav_grp_open_{_grp_name}"
-        if _grp_state_key not in st.session_state:
-            _grp_page_keys = [i[0] for i in _grp_items]
-            st.session_state[_grp_state_key] = (_cur_page in _grp_page_keys)
+        # 현재 페이지가 이 그룹에 속하면 기본 열림
+        _grp_page_keys = [i[0] for i in _grp_items]
+        _open_attr = "open" if _cur_page in _grp_page_keys else ""
 
-        _is_open = st.session_state[_grp_state_key]
-        _arrow = "▾" if _is_open else "▸"
+        _items_html = ""
+        for _item in _grp_items:
+            _page_key = _item[0]
+            _icon = _item[1]
+            _label = _item[2]
+            _soon = len(_item) > 3
+            _is_active = _cur_page == _page_key
+            _active_cls = "active" if _is_active else ""
+            _soon_badge = '<span class="ni-soon">곧 출시</span>' if _soon else ""
+            _items_html += (
+                f'<a href="?page={_page_key}" class="tl-nav-item {_active_cls}">'
+                f'<span class="ni-icon">{_icon}</span>'
+                f'<span class="ni-label">{_label}</span>{_soon_badge}</a>'
+            )
 
-        if st.button(
-            f"{_grp_icon}  {_grp_name}  {_arrow}",
-            key=f"nav_grp_btn_{_grp_name}",
-            use_container_width=True,
-            help=f"{_grp_name} 메뉴 {'닫기' if _is_open else '열기'}",
-        ):
-            st.session_state[_grp_state_key] = not _is_open
-            save_persisted_data()
-            st.rerun()
+        _nav_html_parts.append(
+            f'<details class="tl-nav-group" {_open_attr}>'
+            f'<summary>'
+            f'<span style="font-size:15px">{_grp_icon}</span>'
+            f'<span>{_grp_name}</span>'
+            f'<span class="tl-grp-arrow">▶</span>'
+            f'</summary>'
+            f'<div class="tl-nav-group-items">{_items_html}</div>'
+            f'</details>'
+            f'<div class="tl-nav-divider"></div>'
+        )
 
-        if _is_open:
-            for _item in _grp_items:
-                _page_key = _item[0]
-                _icon = _item[1]
-                _label = _item[2]
-                _soon = len(_item) > 3
-                _is_active = _cur_page == _page_key
-                _active_cls = "active" if _is_active else ""
-                _soon_badge = '<span class="ni-soon">곧 출시</span>' if _soon else ""
-                _nav_html = (
-                    f'<a href="?page={_page_key}" class="tl-nav-item {_active_cls}">'
-                    f'<span class="ni-icon">{_icon}</span>'
-                    f'<span class="ni-label">{_label}</span>{_soon_badge}</a>'
-                )
-                st.markdown(_nav_html, unsafe_allow_html=True)
-        st.markdown('<div class="tl-nav-divider"></div>', unsafe_allow_html=True)
+    st.markdown("\n".join(_nav_html_parts), unsafe_allow_html=True)
 
     # ─── query param → menu 동기화 ───
     _PAGE_TO_MENU = {

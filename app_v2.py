@@ -130,39 +130,71 @@ st.markdown("""
     .main .block-container { color: #0f172a !important; }
 }
 
-/* ── 사이드바 — 텍스트 강제 흰색 (메인 영역 dark override 역방향 차단) ── */
+/* ══ 사이드바 전체 흰색 강제 — 다크 override 완전 차단 ══ */
 section[data-testid="stSidebar"] { background: #1a2f6e !important; }
+
+/* 모든 자식 요소 흰색 */
+section[data-testid="stSidebar"],
 section[data-testid="stSidebar"] *,
 section[data-testid="stSidebar"] p,
 section[data-testid="stSidebar"] span,
 section[data-testid="stSidebar"] div,
 section[data-testid="stSidebar"] label,
-section[data-testid="stSidebar"] .stMarkdown,
-section[data-testid="stSidebar"] .stMarkdown p,
-section[data-testid="stSidebar"] .stMarkdown span,
-section[data-testid="stSidebar"] .stMarkdown li,
-section[data-testid="stSidebar"] .stMarkdown a,
-section[data-testid="stSidebar"] button,
-section[data-testid="stSidebar"] button p,
-section[data-testid="stSidebar"] button span {
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3,
+section[data-testid="stSidebar"] li,
+section[data-testid="stSidebar"] a {
+    color: rgba(255,255,255,0.88) !important;
+}
+
+/* Streamlit 버튼 내부 텍스트 — p 태그 구조 */
+section[data-testid="stSidebar"] .stButton button,
+section[data-testid="stSidebar"] .stButton button p,
+section[data-testid="stSidebar"] .stButton button span,
+section[data-testid="stSidebar"] .stButton button div,
+section[data-testid="stSidebar"] [data-testid="stButton"] button,
+section[data-testid="stSidebar"] [data-testid="stButton"] button *,
+section[data-testid="stSidebar"] button[kind="secondary"],
+section[data-testid="stSidebar"] button[kind="secondary"] *,
+section[data-testid="stSidebar"] button[kind="tertiary"],
+section[data-testid="stSidebar"] button[kind="tertiary"] * {
+    color: rgba(255,255,255,0.9) !important;
+    background: transparent !important;
+}
+
+/* 그룹 버튼 (nav_grp_btn_*) 텍스트 명시적 흰색 */
+section[data-testid="stSidebar"] button > div > p,
+section[data-testid="stSidebar"] button > p {
     color: rgba(255,255,255,0.9) !important;
 }
-/* 네비게이션 아이템 명시적 흰색 */
+
+/* stMarkdown 내부 */
+section[data-testid="stSidebar"] .stMarkdown,
+section[data-testid="stSidebar"] .stMarkdown * {
+    color: rgba(255,255,255,0.88) !important;
+}
+
+/* 네비게이션 아이템 */
 section[data-testid="stSidebar"] .tl-nav-item,
-section[data-testid="stSidebar"] .tl-nav-item span,
+section[data-testid="stSidebar"] .tl-nav-item *,
 section[data-testid="stSidebar"] .ni-label,
 section[data-testid="stSidebar"] .ni-icon {
     color: rgba(255,255,255,0.88) !important;
 }
 section[data-testid="stSidebar"] .tl-nav-item.active,
-section[data-testid="stSidebar"] .tl-nav-item.active span {
+section[data-testid="stSidebar"] .tl-nav-item.active * {
     color: #bfdbfe !important;
 }
-section[data-testid="stSidebar"] .tl-brand-name {
-    color: #ffffff !important;
-}
-section[data-testid="stSidebar"] .tl-brand-sub {
-    color: rgba(255,255,255,0.5) !important;
+
+/* 브랜드 */
+section[data-testid="stSidebar"] .tl-brand-name { color: #ffffff !important; }
+section[data-testid="stSidebar"] .tl-brand-sub  { color: rgba(255,255,255,0.5) !important; }
+
+/* caption / divider */
+section[data-testid="stSidebar"] .stCaption,
+section[data-testid="stSidebar"] .stCaption * {
+    color: rgba(255,255,255,0.4) !important;
 }
 
 /* ── 카드 컴포넌트 ── */

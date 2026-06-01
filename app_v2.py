@@ -2701,6 +2701,15 @@ def close_current_result():
 
 def restore_analysis_from_history(cache_key):
     cached = st.session_state.analysis_cache.get(cache_key)
+    # 정확히 일치하는 캐시가 없으면(예: EXTRACTION_VERSION 변경으로 키가 달라짐)
+    # 같은 URL(첫 조각)로 시작하는 최신 캐시로 폴백
+    if not cached:
+        _url_prefix = cache_key.split("::")[0]
+        for _k, _v in st.session_state.analysis_cache.items():
+            if _k.split("::")[0] == _url_prefix:
+                cached = _v
+                cache_key = _k
+                break
     if cached:
         st.session_state.last_result = cached
         parts = cache_key.split("::")
@@ -2709,6 +2718,16 @@ def restore_analysis_from_history(cache_key):
         st.session_state.show_result = True
         st.session_state.result_closed = False
         st.session_state["history_restored"] = True
+        # 결과 패널은 'home'과 '분석 결과(result)' 탭에서 렌더링된다.
+        # 그 외 페이지(최근 기록/아카이브 등)에서 눌렀을 때만 home으로 이동시키고,
+        # 결과를 그릴 수 있는 탭에 있으면 현재 탭 안에서 그대로 펼친다.
+        if st.query_params.get("page", "home") not in ("home", "result"):
+            st.query_params["page"] = "home"
+    else:
+        # 캐시가 사라진 항목 — 조용히 토스트만 뜨고 안 열리던 문제 → 명확히 안내
+        st.session_state["history_restore_failed"] = True
+        if st.query_params.get("page", "home") not in ("home", "result"):
+            st.query_params["page"] = "home"
 
 
 def delete_archive_note(index):
@@ -3167,19 +3186,34 @@ def render_result(result, extracted_text=None, final_url=None):
     if draft_key not in st.session_state:
         original_text_for_draft = st.session_state.get("last_text", "")
         if original_text_for_draft:
-            st.session_state[draft_key] = generate_note_draft_with_groq(
-                original_text_for_draft,
-                result,
-                final_url,
-                _default_template,
-                "",
-            ) if _is_study_content else make_local_content_note_draft(
-                original_text_for_draft,
-                result,
-                final_url,
-                _default_template,
-                "",
-            )
+            if _is_study_content:
+                # 공부자료는 AI 학습노트 초안을 시도하되, 429/네트워크 등으로
+                # 실패해도 패널 전체가 죽지 않도록 로컬 학습노트 뼈대로 폴백한다.
+                try:
+                    st.session_state[draft_key] = generate_note_draft_with_groq(
+                        original_text_for_draft,
+                        result,
+                        final_url,
+                        _default_template,
+                        "",
+                    )
+                except Exception as _draft_err:
+                    st.session_state["draft_fallback_reason"] = str(_draft_err)
+                    st.session_state[draft_key] = make_local_content_note_draft(
+                        original_text_for_draft,
+                        result,
+                        final_url,
+                        _default_template,
+                        "",
+                    )
+            else:
+                st.session_state[draft_key] = make_local_content_note_draft(
+                    original_text_for_draft,
+                    result,
+                    final_url,
+                    _default_template,
+                    "",
+                )
         else:
             st.session_state[draft_key] = make_basic_note_draft(
                 result,
@@ -3188,6 +3222,14 @@ def render_result(result, extracted_text=None, final_url=None):
             )
     if note_key not in st.session_state:
         st.session_state[note_key] = st.session_state[draft_key]
+
+    if st.session_state.get("draft_fallback_reason"):
+        st.info(
+            "⚠️ AI 학습노트 초안 생성에 실패해서 로컬 규칙으로 만든 뼈대를 보여드려요. "
+            f"(사유: {st.session_state['draft_fallback_reason']}) "
+            "초안은 직접 수정해서 그대로 저장할 수 있어요."
+        )
+        del st.session_state["draft_fallback_reason"]
 
     note_panel, save_panel = st.columns(2, gap="large")
 
@@ -3359,7 +3401,10 @@ def render_result(result, extracted_text=None, final_url=None):
             type="primary",
             help="AI 초안을 정리한 지식 메모를 아카이브에 저장해요. (가장 많이 쓰는 방식)",
         ):
-            save_note_to_archive(note_key, result, final_url, _sel_tags)
+            try:
+                save_note_to_archive(note_key, result, final_url, _sel_tags)
+            except Exception as _e:
+                st.error(f"지식 메모 저장 실패: {_e}")
     with save_b_col:
         if st.button(
             "📌 분석결과만 저장",
@@ -3380,13 +3425,27 @@ def render_result(result, extracted_text=None, final_url=None):
             use_container_width=True,
             help="지식 메모와 분석결과를 모두 저장해요.",
         ):
+            # 주의: save_current_analysis_to_archive()는 끝에서 st.rerun()을 호출하므로
+            # 반드시 지식 메모 저장을 '먼저' 실행해야 한다. 순서가 바뀌면 rerun 때문에
+            # 메모 저장이 통째로 건너뛰어진다(둘 다 저장 토스트/저장 누락 버그의 원인).
+            _both_note_ok = False
+            try:
+                save_note_to_archive(note_key, result, final_url, _sel_tags)
+                _both_note_ok = True
+            except Exception as _e:
+                st.error(f"지식 메모 저장 실패: {_e}")
+            # rerun 후에도 살아남도록 통합 저장 결과 플래그 세팅
+            st.session_state["both_saved_info"] = {
+                "note_ok": _both_note_ok,
+                "notes_total": len(st.session_state.get("archive_notes", [])),
+                "analyses_total": len(st.session_state.get("saved_analyses", [])) + 1,
+            }
             save_current_analysis_to_archive(
                 result,
                 final_url,
                 selected_tags=_sel_tags,
                 memo=st.session_state.get(f"analysis_archive_memo_{final_url or 'current'}", ""),
             )
-            save_note_to_archive(note_key, result, final_url, _sel_tags)
 
     st.button(
         "닫기 / 나가기",
@@ -3395,9 +3454,33 @@ def render_result(result, extracted_text=None, final_url=None):
         on_click=close_current_result,
     )
 
-    if st.session_state.get("note_saved"):
-        st.success("지식 아카이브에 저장했어요.")
+    if st.session_state.get("both_saved_info"):
+        _bi = st.session_state.get("both_saved_info") or {}
+        if _bi.get("note_ok"):
+            st.success(
+                f"✅ 지식 메모와 분석결과를 모두 저장했어요. "
+                f"(지식 메모 총 {_bi.get('notes_total','?')}개 · 분석결과 총 {_bi.get('analyses_total','?')}개)"
+            )
+            try:
+                st.toast("지식 메모 + 분석결과 저장 완료", icon="🧩")
+            except Exception:
+                pass
+        else:
+            st.warning(
+                f"분석결과는 저장했지만 지식 메모 저장에 실패했어요. "
+                f"(분석결과 총 {_bi.get('analyses_total','?')}개)"
+            )
+        st.session_state["both_saved_info"] = None
         st.session_state.note_saved = False
+        st.session_state["note_saved_info"] = None
+    elif st.session_state.get("note_saved"):
+        _si = st.session_state.get("note_saved_info") or {}
+        if _si:
+            st.success(f"✅ 신규 저장 완료 — 「{_si.get('title','')}」 (지식 아카이브 총 {_si.get('total','?')}개)")
+        else:
+            st.success("지식 아카이브에 저장했어요.")
+        st.session_state.note_saved = False
+        st.session_state["note_saved_info"] = None
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -3640,6 +3723,7 @@ def restore_item_from_knowledge(item):
         st.session_state.show_result = True
         st.session_state.result_closed = False
         st.session_state["knowledge_item_restored"] = True
+        st.query_params["page"] = "home"
     else:
         st.session_state["knowledge_selected_note"] = item
 
@@ -6804,6 +6888,16 @@ if menu == "새 엔터티":
 
 if menu == "분석 결과":
     st.markdown("## 📊 분석 결과")
+    if st.session_state.get("history_restore_failed"):
+        st.warning("이 기록의 분석 캐시가 만료됐어요. 같은 URL을 다시 분석하면 최신 결과로 열려요.")
+        st.session_state["history_restore_failed"] = False
+    if st.session_state.get("history_restored"):
+        st.success("✅ 분석 결과를 불러왔어요. 아래에서 확인할 수 있어요.")
+        try:
+            st.toast("분석 결과를 불러왔어요.", icon="📂")
+        except Exception:
+            pass
+        st.session_state["history_restored"] = False
     render_recent_analysis_cards(limit=5)
     st.divider()
     if st.session_state.last_result:
@@ -11201,6 +11295,10 @@ if menu == "최근 검색 기록":
         st.success("저장된 분석 결과를 다시 불러왔어요. 왼쪽 메뉴의 📊 분석 결과에서 확인할 수 있어요.")
         st.session_state["history_restored"] = False
 
+    if st.session_state.get("history_restore_failed"):
+        st.warning("이 기록의 캐시가 만료됐어요(분석 로직 버전 변경 등). 같은 URL을 다시 분석하면 최신 결과로 볼 수 있어요.")
+        st.session_state["history_restore_failed"] = False
+
     if st.session_state.get("feedback_deleted"):
         st.success("피드백 기록을 삭제했어요.")
         st.session_state["feedback_deleted"] = False
@@ -11282,6 +11380,12 @@ if menu == "최근 검색 기록":
 # -----------------------------
 if menu != "분석 시작하기":
     st.stop()
+
+if st.session_state.get("history_restore_failed"):
+    st.warning(
+        "이 기록의 분석 캐시가 만료됐어요. 같은 URL을 다시 분석하면 최신 결과로 열려요."
+    )
+    st.session_state["history_restore_failed"] = False
 
 _dash_today = datetime.now().strftime("%Y-%m-%d")
 _dash_projects = st.session_state.get("projects", [])

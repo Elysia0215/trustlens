@@ -17,6 +17,13 @@ st.set_page_config(page_title="TrustLens", page_icon="🔍", layout="wide")
 
 DATA_FILE = Path("trustlens_data.json")
 
+# ── 원문 추출/보관 길이 상수 (지식 AI deep-read 품질 좌우) ──
+MAX_EXTRACT_TEXT_CHARS = 20000        # extract_text() / 붙여넣기 본문 최대 길이
+MAX_ORIGINAL_TEXT_CHARS = 20000       # archive_notes.original_text 저장 한도
+MAX_NOTE_INLINE_ORIGINAL_CHARS = 12000  # 메모 본문에 직접 붙이는 "원문 보관" 섹션 한도
+MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이(비용 제한)
+EXTRACTION_VERSION = "v2-20k"         # 추출 로직 버전 — 캐시 키에 포함해 구버전(6000자) 캐시 무효화
+
 def load_persisted_data():
     if not DATA_FILE.exists():
         return {}
@@ -1407,7 +1414,7 @@ def extract_text(url):
         text = clean_text(text)
         if title:
             text = f"[페이지 제목]\n{title}\n\n[본문]\n{text}"
-        return text[:6000], "", target_url
+        return text[:MAX_EXTRACT_TEXT_CHARS], "", target_url
     except requests.exceptions.Timeout:
         return "", "페이지 로딩 시간이 초과됐어요.", url
     except Exception as e:
@@ -2108,7 +2115,7 @@ def save_note_to_archive(note_key, result, final_url, selected_tags):
             + "## 원문 보관\n"
             + "> 글 붙여넣기로 분석한 자료라 원문 링크가 없어, 저장 시점의 원문을 함께 보관합니다.\n\n"
             + "```text\n"
-            + original_text[:6000]
+            + original_text[:MAX_NOTE_INLINE_ORIGINAL_CHARS]
             + "\n```\n"
         )
 
@@ -2145,7 +2152,7 @@ def save_note_to_archive(note_key, result, final_url, selected_tags):
             "tags": selected_tags,
             "note": note_text,
             # 원문은 붙여넣기/크롤링 모두 보관 (지식 AI가 깊게 읽을 수 있게)
-            "original_text": (original_text or "")[:12000],
+            "original_text": (original_text or "")[:MAX_ORIGINAL_TEXT_CHARS],
             "saved_at": _now_str,
             "created_at": _now_str,
             "updated_at": _now_str,
@@ -9056,8 +9063,9 @@ if menu == "지식 AI":
             ])
             _orig = str(n.get("original_text", "")).strip()
             _note = str(n.get("note", "")).strip()
-            _body = _orig if len(_orig) > len(_note) else _note  # 더 풍부한 쪽을 본문으로
-            if _note and _note not in _body:
+            # original_text가 의미있게 있으면 우선 사용, 없으면 note 사용
+            _body = _orig if len(_orig) >= 100 else _note
+            if _note and _note not in _body:  # 내 메모는 항상 앞에 덧붙임
                 _body = (_note + "\n\n" + _body).strip()
             docs.append({
                 "kind": "메모", "title": n.get("title", "제목 없음"),
@@ -9121,29 +9129,73 @@ if menu == "지식 AI":
         if not _pka_docs:
             st.warning("저장된 지식이 없어요. 먼저 메모나 분석을 저장해주세요.")
         else:
-            _ranked = sorted(_pka_docs, key=lambda d: _pka_score(_pka_q, d["text"]), reverse=True)
-            _top = [d for d in _ranked if _pka_score(_pka_q, d["text"]) > 0][:8]
-            if not _top:
+            # ── 질문 유형 감지: '깊게 설명' 모드 ──
+            _deep_kw = ["쉽게 설명", "쉽게설명", "자세히 설명", "자세히설명", "내가 준",
+                        "내가준", "이 글 기반", "이글 기반", "이 글로", "초등학생",
+                        "정리해줘", "정리 해줘", "공부용", "공부 용", "풀어서", "이해하게",
+                        "원문 기반", "원문기반"]
+            _q_low = _pka_q.lower()
+            _deep_mode = any(k in _q_low for k in _deep_kw)
+
+            _scored = [(d, _pka_score(_pka_q, d["text"])) for d in _pka_docs]
+            _scored = [x for x in _scored if x[1] > 0]
+            _scored.sort(key=lambda x: x[1], reverse=True)
+
+            if not _scored:
                 st.info("관련된 지식을 찾지 못했어요. 다른 키워드로 물어보세요.")
             else:
+                # ── 모드별 문서/길이 결정 ──
+                if _deep_mode:
+                    # 가장 강한 문서를 길게 + 보조 1~2개
+                    _top_scored = _scored[:3]
+                    _strong_len = 5000   # 최강 매칭 문서
+                    _aux_len = 1200      # 보조 문서
+                else:
+                    _top_scored = _scored[:8]
+                    _strong_len = 1500
+                    _aux_len = 800
+
+                _top = [d for d, s in _top_scored]
                 _ctx_parts = []
-                for i, d in enumerate(_top, 1):
-                    _snip = d["text"][:700]
+                _ctx_lengths = []
+                for i, (d, s) in enumerate(_top_scored, 1):
+                    _limit = _strong_len if i == 1 else _aux_len
+                    _snip = (d.get("body") or d.get("text") or "")[:_limit]
+                    _ctx_lengths.append((d["title"], len(_snip), s))
                     _ctx_parts.append(f"[{i}] ({d['kind']}) {d['title']}\n{_snip}")
                 _context = "\n\n".join(_ctx_parts)
-                _sys = (
-                    "너는 사용자의 개인 지식 비서야. 아래 제공된 '내 지식'만을 근거로 한국어로 답해. "
-                    "지식에 없는 내용은 지어내지 말고 '저장된 지식에는 없어요'라고 말해. "
-                    "답변은 핵심 요약 → 근거 정리 순서로, 마크다운 불릿으로 깔끔하게. "
-                    "각 핵심 주장 끝에는 근거 번호 [1],[2]를 표기해."
-                )
+
+                if _deep_mode:
+                    _sys = (
+                        "너는 사용자의 개인 지식 비서이자 친절한 설명 선생님이야. "
+                        "아래 제공된 '내 지식'(사용자가 저장한 원문)을 깊게 읽고, 사용자가 이해하기 쉽게 한국어로 다시 설명해. "
+                        "원문에 충분한 내용이 있으면 절대 '추가 정보가 필요하다'고 말하지 마. 원문을 끝까지 활용해서 최대한 풍부하게 설명해. "
+                        "정말 원문에 전혀 없는 내용일 때만 '저장된 지식에는 없어요'라고 말해.\n\n"
+                        "다음 형식(마크다운)으로 답해:\n"
+                        "**한 줄 핵심**\n(핵심을 한 문장으로)\n\n"
+                        "**쉬운 비유**\n(일상적 비유로)\n\n"
+                        "**단계별 설명**\n1. ...\n2. ...\n(원문 흐름대로 단계별로)\n\n"
+                        "**원문에서 나온 핵심 개념**\n- 개념: 짧은 설명\n\n"
+                        "**주의점 / 한계**\n- ...\n\n"
+                        "각 핵심 주장 끝에는 근거 번호 [1],[2]를 자연스럽게 표기해."
+                    )
+                else:
+                    _sys = (
+                        "너는 사용자의 개인 지식 비서야. 아래 제공된 '내 지식'만을 근거로 한국어로 답해. "
+                        "원문에 정보가 있으면 충분히 활용하고, 함부로 '추가 정보가 필요하다'고 하지 마. "
+                        "정말 지식에 없는 내용만 '저장된 지식에는 없어요'라고 말해. "
+                        "답변은 핵심 요약 → 근거 정리 순서로, 마크다운 불릿으로 깔끔하게. "
+                        "각 핵심 주장 끝에는 근거 번호 [1],[2]를 표기해."
+                    )
                 _usr = f"질문: {_pka_q}\n\n=== 내 지식 ===\n{_context}"
-                with st.spinner("내 지식을 읽고 정리하는 중..."):
+                with st.spinner("내 지식을 깊게 읽고 정리하는 중..." if _deep_mode else "내 지식을 읽고 정리하는 중..."):
                     try:
                         _ans = call_groq_simple(_sys, _usr)
                     except Exception as e:
                         _ans = f"AI 호출 중 오류가 났어요: {e}"
                 st.markdown("### 💬 답변")
+                if _deep_mode:
+                    st.caption("🔍 깊게 설명 모드 — 가장 관련 높은 원문을 길게 읽어 설명했어요.")
                 st.markdown(_ans)
                 st.markdown("### 🔖 참고한 지식")
                 for i, d in enumerate(_top, 1):
@@ -9155,6 +9207,15 @@ if menu == "지식 AI":
                         f'<b>[{i}]</b> <span style="color:{_badge};font-weight:700;">{d["kind"]}</span> '
                         f'· {d["title"]} <span style="color:#94a3b8;font-size:12px;">{d["date"]}</span></div>',
                         unsafe_allow_html=True)
+                with st.expander("🛠️ 디버그 — AI가 실제로 읽은 내용", expanded=False):
+                    st.write(f"**모드:** {'깊게 설명' if _deep_mode else '일반 검색'}")
+                    st.write(f"**선택된 문서 수:** {len(_top)}개")
+                    st.write("**문서별 context 길이 / 매칭 점수:**")
+                    for _t, _ln, _sc in _ctx_lengths:
+                        st.write(f"- {_t} — {_ln}자 (점수 {_sc})")
+                    st.write(f"**전체 context 길이:** {len(_context)}자")
+                    st.text_area("실제 prompt context (앞 1500자)", _context[:1500],
+                                 height=200, key="pka_debug_ctx")
 
 if menu == "AI 브레인스토밍":
     # ══════════════════════════════════════════════════════════
@@ -11148,8 +11209,20 @@ st.divider()
 # -----------------------------
 # Main Input Page (➕ 새 메모 — 정보 수집/분석)
 # -----------------------------
-st.markdown("## ➕ 새 메모 — 정보 수집하기")
-st.caption("URL·뉴스·붙여넣기로 정보를 가져와 신뢰도를 분석하고 메모로 저장해요.")
+st.markdown("## ➕ 새 메모·정보 수집")
+st.caption("URL이나 글을 가져와 원문을 보관하고, AI가 요약·신뢰도·개념 후보를 만든 뒤 지식 메모로 연결해요.")
+st.markdown(
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 14px;font-size:0.82rem;">'
+    '<span style="background:#dbeafe;color:#1d4ed8;padding:4px 12px;border-radius:999px;font-weight:700;">1 정보 가져오기</span>'
+    '<span style="color:#94a3b8;align-self:center;">→</span>'
+    '<span style="background:#f1f5f9;color:#475569;padding:4px 12px;border-radius:999px;">2 원문 확인</span>'
+    '<span style="color:#94a3b8;align-self:center;">→</span>'
+    '<span style="background:#f1f5f9;color:#475569;padding:4px 12px;border-radius:999px;">3 AI 정리</span>'
+    '<span style="color:#94a3b8;align-self:center;">→</span>'
+    '<span style="background:#f1f5f9;color:#475569;padding:4px 12px;border-radius:999px;">4 지식 메모 저장</span>'
+    '</div>',
+    unsafe_allow_html=True,
+)
 left_col, right_col = st.columns([1.35, 1])
 
 with left_col:
@@ -11161,7 +11234,7 @@ with left_col:
 
     selected_type_label = st.radio(
         "콘텐츠 유형",
-        ["자동 판단", "맛집/제품/장소 후기", "정책/지원사업/공공정보", "일반 정보글"],
+        ["자동 판단", "맛집/제품/장소 후기", "정책/지원사업/공공정보", "일반 정보글", "공부자료"],
         horizontal=False,
     )
     selected_type_map = {
@@ -11169,6 +11242,7 @@ with left_col:
         "맛집/제품/장소 후기": "review",
         "정책/지원사업/공공정보": "policy",
         "일반 정보글": "info",
+        "공부자료": "study",
     }
     selected_type = selected_type_map[selected_type_label]
 
@@ -11321,7 +11395,7 @@ if analyze_btn:
                 text, err, final_url = extract_text(url_input.strip())
             analysis_source = url_input.strip()
         else:
-            text = clean_text(pasted_text.strip())[:6000]
+            text = clean_text(pasted_text.strip())[:MAX_EXTRACT_TEXT_CHARS]
             err = ""
             final_url = f"pasted://{datetime.now().strftime('%Y%m%d%H%M%S')}"
             analysis_source = "사용자 붙여넣기 글"
@@ -11333,7 +11407,7 @@ if analyze_btn:
             if text:
                 st.text(text[:1000])
         else:
-            cache_key = f"{final_url}::{selected_type}::{input_mode}"
+            cache_key = f"{final_url}::{selected_type}::{input_mode}::{EXTRACTION_VERSION}"
             if cache_key in st.session_state.analysis_cache:
                 result = st.session_state.analysis_cache[cache_key]
                 st.session_state.last_result = result
@@ -11345,7 +11419,7 @@ if analyze_btn:
             else:
                 with st.spinner("AI가 분석 중..."):
                     try:
-                        result = analyze_with_groq(text, analysis_source, selected_type)
+                        result = analyze_with_groq(text[:MAX_ANALYZE_CHARS], analysis_source, selected_type)
                         st.session_state.analysis_cache[cache_key] = result
                         st.session_state.last_result = result
                         st.session_state.last_final_url = final_url
@@ -11381,6 +11455,23 @@ if st.session_state.get("analysis_status_message"):
     analysis_status_slot.info(st.session_state.get("analysis_status_message"))
 
 if st.session_state.show_result and st.session_state.last_result:
+    # ── STEP 2. 원문 확인 ──────────────────────────────
+    _step2_text = st.session_state.get("last_text", "") or ""
+    _step2_url = st.session_state.get("last_final_url", "") or ""
+    _step2_title = st.session_state.last_result.get("archive_title", "제목 없음")
+    _step2_pasted = str(_step2_url).startswith("pasted://")
+    _step2_len = len(_step2_text)
+    _step2_ok = _step2_len >= 100
+    st.markdown("### 2️⃣ 원문 확인")
+    _m1, _m2, _m3 = st.columns(3)
+    _m1.metric("추출 상태", "✅ 성공" if _step2_ok else "⚠️ 부족")
+    _m2.metric("원문 길이", f"{_step2_len:,}자")
+    _m3.metric("출처", "붙여넣기" if _step2_pasted else "URL")
+    st.caption(f"📄 제목: {_step2_title}" + ("" if _step2_pasted else f" · 🔗 {_step2_url}"))
+    st.success("💾 원문 전체가 메모 저장 시 `original_text`에 보관돼, 지식 AI가 깊게 읽을 수 있어요.")
+    with st.expander("원문 전체 보기 / 복사", expanded=False):
+        st.text_area("원문", _step2_text, height=260, key="step2_original_view")
+    st.markdown("### 3️⃣ AI 정리 · 신뢰도 판단")
     render_result(
         st.session_state.last_result,
         extracted_text=st.session_state.last_text if show_debug else None,

@@ -11590,6 +11590,20 @@ def get_brain_theme_config(theme_key):
     return _BRAIN_THEMES.get(theme_key, _BRAIN_THEMES["default"])
 
 
+# 5요소의 '기준 이름'(메모·개념·프로젝트·관계·작업) — default 테마 elements 순서와 동일.
+# 테마로 이름이 바뀌어도(잎사귀/행성 등) 신규 사용자가 의미를 알 수 있게 괄호로 병기한다.
+_BASE_ELEMENT_NAMES = [_n for _e, _n in _BRAIN_THEMES["default"]["elements"]]
+
+
+def element_label_with_base(theme_cfg, idx, themed_name):
+    """테마 이름 옆에 기준 이름을 괄호로 붙인다. 기본 테마면 그대로 둔다.
+    예) forest → '잎사귀 (메모)', default → '메모'."""
+    _base = _BASE_ELEMENT_NAMES[idx] if idx < len(_BASE_ELEMENT_NAMES) else ""
+    if _base and themed_name != _base:
+        return f"{themed_name} ({_base})"
+    return themed_name
+
+
 def get_home_theme_labels(theme_key):
     """홈 대시보드 메트릭/리스트 제목·아이콘을 테마별로 반환. 없으면 기본."""
     _maps = {
@@ -11626,7 +11640,21 @@ def get_home_theme_labels(theme_key):
             "proj_icon":"🔬","task_icon":"🏆","memo_icon":"📄","research_icon":"🧪","concept_icon":"🧪",
         },
     }
-    return _maps.get(theme_key, _maps["default"])
+    _result = _maps.get(theme_key, _maps["default"])
+    # 기본 테마가 아니면 최근 활동/요약 제목에도 기준명을 괄호로 병기한다.
+    # (메인 대시보드 메트릭과 동일하게 '행성 (메모)' 형태로 통일 → 신규 사용자가 세계관 용어를 잊지 않게)
+    if theme_key != "default":
+        _base_terms = {
+            "active_projects": "프로젝트", "today_tasks": "작업", "open_tasks": "작업",
+            "total_memos": "메모", "recent_projects": "프로젝트", "recent_tasks": "작업",
+            "recent_memos": "메모", "recent_research": "연구노트", "recent_concepts": "개념",
+        }
+        _result = dict(_result)
+        for _k, _base in _base_terms.items():
+            _val = _result.get(_k, "")
+            if _val and f"({_base})" not in _val:
+                _result[_k] = f"{_val} ({_base})"
+    return _result
 
 
 def get_brain_element_stats(counts):
@@ -11665,7 +11693,8 @@ def render_brain_element_gauges(theme_cfg, counts):
     for _i, (_emo, _lbl) in enumerate(theme_cfg["elements"]):
         _s = _stats[_i]
         with _g_cols[_i]:
-            _label = f"{_emo} {_lbl} {_s['cur']}/{_s['next']}" + ("✨" if _s["maxed"] else "")
+            _lbl_b = element_label_with_base(theme_cfg, _i, _lbl)
+            _label = f"{_emo} {_lbl_b} {_s['cur']}/{_s['next']}" + ("✨" if _s["maxed"] else "")
             st.progress(_s["pct"] / 100, text=_label)
 
 
@@ -11686,10 +11715,11 @@ def render_brain_world_status(theme_cfg, counts):
     _chips = []
     for _i, (_emo, _lbl) in enumerate(theme_cfg["elements"]):
         _bg, _fg = _status_color.get(_stats[_i]["status"], ("#f1f5f9", "#64748b"))
+        _lbl_b = element_label_with_base(theme_cfg, _i, _lbl)
         _chips.append(
             f'<span style="display:inline-block;margin:3px 8px 3px 0;padding:5px 13px;'
             f'border-radius:14px;font-size:13px;font-weight:700;color:{_fg};background:{_bg};">'
-            f'{_emo} {_lbl} · {_stats[_i]["status"]}</span>'
+            f'{_emo} {_lbl_b} · {_stats[_i]["status"]}</span>'
         )
     st.markdown(f"<div>{''.join(_chips)}</div>", unsafe_allow_html=True)
 
@@ -11832,7 +11862,7 @@ _bcols = st.columns(5)
 for _bi, (_emo, _lbl) in enumerate(_THM["elements"]):
     _bcols[_bi].markdown(
         f"<div style='text-align:center;'>{_emo}<br><b>{_brain_counts[_bi]}</b><br>"
-        f"<span style='color:#64748b;font-size:12px;'>{_lbl}</span></div>",
+        f"<span style='color:#64748b;font-size:12px;'>{element_label_with_base(_THM, _bi, _lbl)}</span></div>",
         unsafe_allow_html=True)
 
 # ── 🌱 요소별 성장 게이지 + 현재 세계 상태 (작업은 완료 기준) ──

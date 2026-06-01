@@ -2097,15 +2097,76 @@ def generate_note_draft_with_groq(original_text, result, final_url, template_typ
     if not api_key:
         return make_local_content_note_draft(original_text, result, final_url, template_type, user_prompt)
 
-    template_instruction = {
-        "보고서 형식": "제목, 핵심 요약, 세부 내용, 판단 근거, 활용 메모가 있는 보고서 형식으로 정리해라.",
-        "일기 형식": "개인이 나중에 다시 읽는 일기처럼 자연스럽고 주관적 메모가 가능한 형식으로 정리해라.",
-        "블로그 초안 형식": "블로그에 옮기기 쉬운 흐름으로 제목, 도입, 본문, 정리, 한줄평을 포함해 정리해라.",
-        "체크리스트 형식": "핵심 정보를 체크리스트와 항목별 메모 중심으로 정리해라.",
-        "자유 형식": "사용자 요청에 맞춰 자유롭게 정리해라.",
-    }.get(template_type, "보고서 형식으로 정리해라.")
+    _ct = result.get("content_type", "unknown")
+    _is_study = (_ct == "study") or (template_type == "공부용 설명")
 
-    prompt = f"""
+    # ── 공부자료(study) 전용: 이해 중심 학습 노트 프롬프트 ──
+    if _is_study:
+        prompt = f"""
+너는 어려운 글을 학생이 이해할 수 있게 풀어주는 학습 노트 작성 전문가다.
+아래 원문 전체를 깊게 읽고, 제목만 보고 쓰는 얕은 요약이 아니라
+원문의 실제 내용을 바탕으로 '이해를 돕는 학습 노트'를 만들어라.
+신뢰도/광고/작성자 판단은 하지 마라. 오직 '이해'와 '복습'이 목적이다.
+
+[URL]
+{final_url or ""}
+
+[사용자 추가 요청]
+{user_prompt or "없음"}
+
+[원문 전체]
+{original_text[:9000]}
+
+[작성 규칙]
+- 한국어, Markdown으로 작성.
+- 초등학생도 이해할 쉬운 설명 + 전공자 복습용 정리의 중간 수준.
+- 원문에 실제로 나온 개념/단계/용어/예시를 빠짐없이 반영. 없는 내용은 지어내지 마라.
+- 아래 구조를 반드시 모두 채워라:
+
+# (원문 핵심 주제 제목)
+
+## 한 줄 핵심
+(가장 중요한 한 문장)
+
+## 왜 필요한가 / 왜 중요한가
+(배경과 동기를 쉽게)
+
+## 단계별 동작 원리
+1. ...
+2. ...
+(원문 흐름대로 순서있게)
+
+## 핵심 개념 정리
+### 개념1
+(쉬운 설명)
+### 개념2
+...
+
+## 중요한 포인트
+- (헷갈리기 쉬운 점, 오해 방지)
+
+## 한계점 / 주의할 점
+- ...
+
+## 기억법
+(짧은 연상/비유로 외우기 쉽게)
+
+## 시험·복습용 요약
+- (핵심만 압축)
+
+## 추천 태그
+#태그1 #태그2
+"""
+    else:
+        template_instruction = {
+            "보고서 형식": "제목, 핵심 요약, 세부 내용, 판단 근거, 활용 메모가 있는 보고서 형식으로 정리해라.",
+            "일기 형식": "개인이 나중에 다시 읽는 일기처럼 자연스럽고 주관적 메모가 가능한 형식으로 정리해라.",
+            "블로그 초안 형식": "블로그에 옮기기 쉬운 흐름으로 제목, 도입, 본문, 정리, 한줄평을 포함해 정리해라.",
+            "체크리스트 형식": "핵심 정보를 체크리스트와 항목별 메모 중심으로 정리해라.",
+            "자유 형식": "사용자 요청에 맞춰 자유롭게 정리해라.",
+        }.get(template_type, "보고서 형식으로 정리해라.")
+
+        prompt = f"""
 너는 TrustLens의 지식 아카이브 메모 작성 보조 AI다.
 아래 원문 전체를 보고, 사용자가 나중에 다시 열람하기 좋은 메모 초안을 만들어라.
 단순 요약이 아니라 원문의 중요한 내용을 최대한 빠짐없이 구조화해서 정리해라.
@@ -2130,7 +2191,7 @@ def generate_note_draft_with_groq(original_text, result, final_url, template_typ
 {user_prompt or "없음"}
 
 [원문 전체]
-{original_text[:4500]}
+{original_text[:6000]}
 
 [작성 규칙]
 - 한국어로 작성해라.
@@ -2582,6 +2643,94 @@ def render_score_dashboard(breakdown: dict, content_type: str):
 # -----------------------------
 # Result Renderer
 # -----------------------------
+def render_feedback_section(result, final_url, score):
+    """사용자 피드백 + AI vs 사용자 비교 (신뢰도 보조 영역)."""
+    st.markdown('<div class="feedback-shell">', unsafe_allow_html=True)
+    st.markdown("### ⭐ 사용자 피드백으로 TrustLens 개선하기")
+    st.caption("AI 분석에 사용자의 집단 검증을 더해요. AI 점수와 사람의 신뢰 판단 차이가 이후 보정 데이터가 됩니다.")
+
+    feedback_base = final_url or "current"
+    rating_key = f"feedback_rating_{feedback_base}"
+    useful_key = f"feedback_useful_{feedback_base}"
+    wrong_key = f"feedback_wrong_{feedback_base}"
+    missing_key = f"feedback_missing_{feedback_base}"
+    memo_key = f"feedback_memo_{feedback_base}"
+
+    quick_col1, quick_col2, quick_col3 = st.columns([0.8, 1.1, 1.1])
+    with quick_col1:
+        st.slider("만족도", min_value=1, max_value=5, value=4, key=rating_key)
+        st.radio(
+            "AI 분석에 대한 내 판단",
+            ["신뢰함", "신뢰 안함", "판단 보류"],
+            horizontal=False,
+            key=f"trust_vote_{final_url or 'current'}",
+        )
+    with quick_col2:
+        st.multiselect(
+            "도움 된 부분",
+            ["신뢰도 점수", "광고 위험도", "작성자 유형", "핵심 요약", "AI 메모 초안", "태그 추천", "차트 시각화"],
+            default=["핵심 요약", "차트 시각화"],
+            key=useful_key,
+        )
+        st.multiselect(
+            "평가 이유",
+            FEEDBACK_REASON_OPTIONS,
+            default=[],
+            key=f"feedback_reasons_{final_url or 'current'}",
+        )
+    with quick_col3:
+        st.text_area("추가 필요/아쉬운 점", placeholder="예: 사진 개수 반영, 점수 기준 설명 강화 등", height=140, key=missing_key)
+
+    with st.expander("✍️ 자세한 피드백 남기기"):
+        st.text_area("틀렸거나 어색한 부분", placeholder="예: 맛집 후기인데 공식 출처 기준이 보이면 어색함 / 점수가 너무 낮음", height=90, key=wrong_key)
+        st.text_area("자유 피드백", placeholder="TrustLens가 다음 분석에서 더 잘 판단했으면 하는 기준을 적어주세요.", height=90, key=memo_key)
+
+    if st.button("📩 피드백 저장하기", key=f"save_feedback_{feedback_base}", use_container_width=True, type="primary"):
+        save_user_feedback(result, final_url, rating_key, useful_key, wrong_key, missing_key, memo_key)
+
+    if st.session_state.get("feedback_saved"):
+        st.success("피드백을 저장했어요. 최근 검색 기록 메뉴에서 피드백 기록도 확인할 수 있어요.")
+        st.session_state["feedback_saved"] = False
+
+    if st.session_state.feedback_history:
+        recent_feedback = st.session_state.feedback_history[0]
+        st.markdown(
+            f'''
+            <div class="learning-box">
+            🧠 <b>누적 피드백 기반 개선 신호</b><br>
+            최근 만족도: {recent_feedback.get("rating", "-")} / 5<br>
+            도움 된 부분: {", ".join(recent_feedback.get("useful_points", [])) or "없음"}<br>
+            보완 요청: {recent_feedback.get("missing_points", "없음") or "없음"}<br><br>
+            <span class="feedback-chip">사용자 피드백</span>
+            <span class="feedback-chip">점수 기준 보정</span>
+            <span class="feedback-chip">AI 초안 개선</span>
+            <span class="feedback-chip">태그 학습 데이터</span>
+            </div>
+            ''',
+            unsafe_allow_html=True,
+        )
+
+    feedback_summary = summarize_user_feedback_for_url(final_url or "")
+    st.markdown("### 🤝 AI vs 사용자 의견 비교")
+    if feedback_summary["total"] == 0:
+        st.info("아직 이 URL에 대한 사용자 평가가 없어요. 첫 평가를 남기면 비교 데이터가 시작돼요.")
+    else:
+        a, b, c = st.columns(3)
+        with a:
+            st.markdown(f'<div class="compare-box"><div class="metric-label">사용자 신뢰함</div><div class="compare-number">{feedback_summary["trust_pct"]}%</div><div class="metric-sub">{feedback_summary["trust"]}명 / 총 {feedback_summary["total"]}명</div></div>', unsafe_allow_html=True)
+        with b:
+            st.markdown(f'<div class="compare-box"><div class="metric-label">사용자 신뢰 안함</div><div class="compare-number">{feedback_summary["distrust_pct"]}%</div><div class="metric-sub">{feedback_summary["distrust"]}명 / 총 {feedback_summary["total"]}명</div></div>', unsafe_allow_html=True)
+        with c:
+            gap = abs(score - feedback_summary["trust_pct"])
+            st.markdown(f'<div class="compare-box"><div class="metric-label">AI-사용자 차이</div><div class="compare-number">{gap}p</div><div class="metric-sub">AI {score}점 vs 사용자 신뢰 {feedback_summary["trust_pct"]}%</div></div>', unsafe_allow_html=True)
+
+        if feedback_summary["reason_counts"]:
+            reason_html = "".join([f'<span class="reason-chip">{reason} {count}</span>' for reason, count in sorted(feedback_summary["reason_counts"].items(), key=lambda x: x[1], reverse=True)])
+            st.markdown(f"**사용자 평가 이유 Top 신호**<br>{reason_html}", unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
 def render_result(result, extracted_text=None, final_url=None):
     score = result.get("trust_score", 0)
     breakdown = result.get("score_breakdown", {})
@@ -2715,93 +2864,11 @@ def render_result(result, extracted_text=None, final_url=None):
                 "아직 사용자 평가 데이터가 없어요."
             )
     st.divider()
-    render_score_dashboard(breakdown, content_type)
+    with st.expander("📊 신뢰도 점수 상세 차트 보기", expanded=False):
+        render_score_dashboard(breakdown, content_type)
 
-    st.divider()
-    st.markdown('<div class="feedback-shell">', unsafe_allow_html=True)
-    st.markdown("### ⭐ 사용자 피드백으로 TrustLens 개선하기")
-    st.caption("AI 분석에 사용자의 집단 검증을 더해요. AI 점수와 사람의 신뢰 판단 차이가 이후 보정 데이터가 됩니다.")
-
-    feedback_base = final_url or "current"
-    rating_key = f"feedback_rating_{feedback_base}"
-    useful_key = f"feedback_useful_{feedback_base}"
-    wrong_key = f"feedback_wrong_{feedback_base}"
-    missing_key = f"feedback_missing_{feedback_base}"
-    memo_key = f"feedback_memo_{feedback_base}"
-
-    quick_col1, quick_col2, quick_col3 = st.columns([0.8, 1.1, 1.1])
-    with quick_col1:
-        st.slider("만족도", min_value=1, max_value=5, value=4, key=rating_key)
-        st.radio(
-            "AI 분석에 대한 내 판단",
-            ["신뢰함", "신뢰 안함", "판단 보류"],
-            horizontal=False,
-            key=f"trust_vote_{final_url or 'current'}",
-        )
-    with quick_col2:
-        st.multiselect(
-            "도움 된 부분",
-            ["신뢰도 점수", "광고 위험도", "작성자 유형", "핵심 요약", "AI 메모 초안", "태그 추천", "차트 시각화"],
-            default=["핵심 요약", "차트 시각화"],
-            key=useful_key,
-        )
-        st.multiselect(
-            "평가 이유",
-            FEEDBACK_REASON_OPTIONS,
-            default=[],
-            key=f"feedback_reasons_{final_url or 'current'}",
-        )
-    with quick_col3:
-        st.text_area("추가 필요/아쉬운 점", placeholder="예: 사진 개수 반영, 점수 기준 설명 강화 등", height=140, key=missing_key)
-
-    with st.expander("✍️ 자세한 피드백 남기기"):
-        st.text_area("틀렸거나 어색한 부분", placeholder="예: 맛집 후기인데 공식 출처 기준이 보이면 어색함 / 점수가 너무 낮음", height=90, key=wrong_key)
-        st.text_area("자유 피드백", placeholder="TrustLens가 다음 분석에서 더 잘 판단했으면 하는 기준을 적어주세요.", height=90, key=memo_key)
-
-    if st.button("📩 피드백 저장하기", key=f"save_feedback_{feedback_base}", use_container_width=True, type="primary"):
-        save_user_feedback(result, final_url, rating_key, useful_key, wrong_key, missing_key, memo_key)
-
-    if st.session_state.get("feedback_saved"):
-        st.success("피드백을 저장했어요. 최근 검색 기록 메뉴에서 피드백 기록도 확인할 수 있어요.")
-        st.session_state["feedback_saved"] = False
-
-    if st.session_state.feedback_history:
-        recent_feedback = st.session_state.feedback_history[0]
-        st.markdown(
-            f'''
-            <div class="learning-box">
-            🧠 <b>누적 피드백 기반 개선 신호</b><br>
-            최근 만족도: {recent_feedback.get("rating", "-")} / 5<br>
-            도움 된 부분: {", ".join(recent_feedback.get("useful_points", [])) or "없음"}<br>
-            보완 요청: {recent_feedback.get("missing_points", "없음") or "없음"}<br><br>
-            <span class="feedback-chip">사용자 피드백</span>
-            <span class="feedback-chip">점수 기준 보정</span>
-            <span class="feedback-chip">AI 초안 개선</span>
-            <span class="feedback-chip">태그 학습 데이터</span>
-            </div>
-            ''',
-            unsafe_allow_html=True,
-        )
-
-    feedback_summary = summarize_user_feedback_for_url(final_url or "")
-    st.markdown("### 🤝 AI vs 사용자 의견 비교")
-    if feedback_summary["total"] == 0:
-        st.info("아직 이 URL에 대한 사용자 평가가 없어요. 첫 평가를 남기면 비교 데이터가 시작돼요.")
-    else:
-        a, b, c = st.columns(3)
-        with a:
-            st.markdown(f'<div class="compare-box"><div class="metric-label">사용자 신뢰함</div><div class="compare-number">{feedback_summary["trust_pct"]}%</div><div class="metric-sub">{feedback_summary["trust"]}명 / 총 {feedback_summary["total"]}명</div></div>', unsafe_allow_html=True)
-        with b:
-            st.markdown(f'<div class="compare-box"><div class="metric-label">사용자 신뢰 안함</div><div class="compare-number">{feedback_summary["distrust_pct"]}%</div><div class="metric-sub">{feedback_summary["distrust"]}명 / 총 {feedback_summary["total"]}명</div></div>', unsafe_allow_html=True)
-        with c:
-            gap = abs(score - feedback_summary["trust_pct"])
-            st.markdown(f'<div class="compare-box"><div class="metric-label">AI-사용자 차이</div><div class="compare-number">{gap}p</div><div class="metric-sub">AI {score}점 vs 사용자 신뢰 {feedback_summary["trust_pct"]}%</div></div>', unsafe_allow_html=True)
-
-        if feedback_summary["reason_counts"]:
-            reason_html = "".join([f'<span class="reason-chip">{reason} {count}</span>' for reason, count in sorted(feedback_summary["reason_counts"].items(), key=lambda x: x[1], reverse=True)])
-            st.markdown(f"**사용자 평가 이유 Top 신호**<br>{reason_html}", unsafe_allow_html=True)
-
-    st.markdown('</div>', unsafe_allow_html=True)
+    with st.expander("⭐ 사용자 피드백 남기기 / AI vs 사용자 비교", expanded=False):
+        render_feedback_section(result, final_url, score)
 
     st.divider()
     st.markdown("### 🔎 판단 근거")
@@ -2837,14 +2904,23 @@ def render_result(result, extracted_text=None, final_url=None):
     draft_key = f"note_draft_{final_url or 'current'}"
     note_key = f"edited_{draft_key}"
 
+    _is_study_content = result.get("content_type") == "study"
+    _default_template = "공부용 설명" if _is_study_content else "보고서 형식"
+
     if draft_key not in st.session_state:
         original_text_for_draft = st.session_state.get("last_text", "")
         if original_text_for_draft:
-            st.session_state[draft_key] = make_local_content_note_draft(
+            st.session_state[draft_key] = generate_note_draft_with_groq(
                 original_text_for_draft,
                 result,
                 final_url,
-                "보고서 형식",
+                _default_template,
+                "",
+            ) if _is_study_content else make_local_content_note_draft(
+                original_text_for_draft,
+                result,
+                final_url,
+                _default_template,
                 "",
             )
         else:
@@ -2863,9 +2939,11 @@ def render_result(result, extracted_text=None, final_url=None):
             '<div class="note-action-card"><h2>🗒️ 지식 메모 만들기</h2><p>AI 초안을 만들고 수정해서 긴 메모로 저장해요.</p></div>',
             unsafe_allow_html=True,
         )
+        _template_options = ["공부용 설명", "보고서 형식", "일기 형식", "블로그 초안 형식", "체크리스트 형식", "자유 형식"]
         template_type = st.selectbox(
             "AI 초안 템플릿 선택",
-            ["보고서 형식", "일기 형식", "블로그 초안 형식", "체크리스트 형식", "자유 형식"],
+            _template_options,
+            index=_template_options.index(_default_template),
             key=f"template_{final_url or 'current'}",
         )
         user_draft_prompt = st.text_area(

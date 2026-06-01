@@ -1405,6 +1405,46 @@ st.markdown(
 # -----------------------------
 # Basic Helpers
 # -----------------------------
+def normalize_date_str(value) -> str:
+    """다양한 날짜 입력(2026.06.16 / 2026/6/16 / 2026년 6월 16일 / date객체)을 'YYYY-MM-DD'로 통일.
+    파싱 불가하면 빈 문자열 반환 (캘린더/타임라인에서 안전하게 무시)."""
+    if value is None:
+        return ""
+    # date/datetime 객체
+    if hasattr(value, "strftime"):
+        try:
+            return value.strftime("%Y-%m-%d")
+        except Exception:
+            return ""
+    s = str(value).strip()
+    if not s:
+        return ""
+    # 한글/구분자 정리: '2026년 6월 16일' → '2026 6 16'
+    s2 = re.sub(r"[년월]", "-", s)
+    s2 = re.sub(r"일", "", s2)
+    s2 = s2.replace(".", "-").replace("/", "-").replace(" ", "")
+    s2 = re.sub(r"-+", "-", s2).strip("-")
+    m = re.match(r"^(\d{4})-(\d{1,2})-(\d{1,2})$", s2)
+    if m:
+        y, mo, d = m.groups()
+        try:
+            return f"{int(y):04d}-{int(mo):02d}-{int(d):02d}"
+        except Exception:
+            return ""
+    return ""
+
+
+def parse_date_for_input(value):
+    """저장된 날짜 문자열을 st.date_input 초기값(date 객체)으로 변환. 실패 시 None."""
+    norm = normalize_date_str(value)
+    if not norm:
+        return None
+    try:
+        return datetime.strptime(norm, "%Y-%m-%d").date()
+    except Exception:
+        return None
+
+
 def clean_text(text: str) -> str:
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     cleaned = []
@@ -2449,7 +2489,18 @@ def save_note_to_archive(note_key, result, final_url, selected_tags):
             links.append({"note_id": note_id, "concept": concept, "linked_at": now_str})
     st.session_state.note_saved = True
     st.session_state.show_result = True
+    # 저장 결과를 명확히 (사용자가 신규 저장/총 개수를 바로 확인 가능)
+    _total_now = len(st.session_state.archive_notes)
+    st.session_state["note_saved_info"] = {
+        "title": note_title,
+        "total": _total_now,
+    }
     save_persisted_data()
+    # rerun에도 사라지지 않게 즉시 토스트 + 영구 확인 메시지
+    try:
+        st.toast(f"✅ 지식 메모 저장 완료 (총 {_total_now}개)", icon="🗂️")
+    except Exception:
+        pass
 
 
 # -----------------------------
@@ -5930,7 +5981,7 @@ def render_project_page():
                             _pe_pri = st.selectbox("우선순위", _pri_opts2,
                                 index=_pri_opts2.index(_cur_pri2) if _cur_pri2 in _pri_opts2 else 1,
                                 key=f"pe_pri_{_pid}")
-                            _pe_due = st.text_input("마감일", value=p.get("due_date",""), key=f"pe_due_{_pid}", placeholder="YYYY-MM-DD")
+                            _pe_due = st.date_input("마감일", value=parse_date_for_input(p.get("due_date","")), key=f"pe_due_{_pid}")
                         _pe_prog = st.slider("진행률", 0, 100, prog, 5, key=f"pe_prog_{_pid}")
                         _psv, _pcl, _pdel = st.columns(3)
                         with _psv:
@@ -5940,7 +5991,7 @@ def render_project_page():
                                 p["category"] = _pe_cat
                                 p["status"] = _pe_stat
                                 p["priority"] = _pe_pri
-                                p["due_date"] = _pe_due.strip()
+                                p["due_date"] = normalize_date_str(_pe_due)
                                 p["progress"] = _pe_prog
                                 p["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
                                 st.session_state[_pedit_key] = False
@@ -6139,7 +6190,7 @@ def render_project_page():
                     with _dt1_c2:
                         _dt1_pri = st.selectbox("우선순위", ["높음","보통","낮음"], index=1, key=f"dt1_qpr_{proj_id}")
                     with _dt1_c3:
-                        _dt1_due = st.text_input("마감일", key=f"dt1_qdue_{proj_id}", placeholder="YYYY-MM-DD")
+                        _dt1_due = st.date_input("마감일", value=None, key=f"dt1_qdue_{proj_id}")
                     _dt1_sv, _dt1_cl = st.columns(2)
                     with _dt1_sv:
                         if st.button("저장", key=f"dt1_qsave_{proj_id}", type="primary", use_container_width=True):
@@ -6152,7 +6203,7 @@ def render_project_page():
                                     "project_id": proj_id,
                                     "status": _dt1_status,
                                     "priority": _dt1_pri,
-                                    "due_date": _dt1_due.strip(),
+                                    "due_date": normalize_date_str(_dt1_due),
                                     "summary": "",
                                     "linked_note_ids": [],
                                     "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -6425,7 +6476,7 @@ def render_task_page():
                         _cur_p = task.get("priority","보통")
                         _pi = _pri_opts.index(_cur_p) if _cur_p in _pri_opts else 1
                         _e_pri = st.selectbox("우선순위", _pri_opts, index=_pi, key=f"task_epr_{_tid}")
-                    _e_due = st.text_input("마감일 (YYYY-MM-DD)", value=task.get("due_date",""), key=f"task_ed_{_tid}")
+                    _e_due = st.date_input("마감일", value=parse_date_for_input(task.get("due_date","")), key=f"task_ed_{_tid}")
                     _e_sum = st.text_area("메모", value=task.get("summary",""), key=f"task_em_{_tid}", height=60)
                     _sv_col, _cl_col = st.columns(2)
                     with _sv_col:
@@ -6434,7 +6485,7 @@ def render_task_page():
                             task["project"] = _e_proj
                             task["status"] = _e_status
                             task["priority"] = _e_pri
-                            task["due_date"] = _e_due.strip()
+                            task["due_date"] = normalize_date_str(_e_due)
                             task["summary"] = _e_sum.strip()
                             task["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
                             st.session_state[_edit_key] = False

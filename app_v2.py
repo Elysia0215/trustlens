@@ -1101,6 +1101,7 @@ button[data-testid="collapsedControl"],
     # 하단 독립 고정 메뉴 (관리 기능이 아닌 온보딩/도움말)
     _NAV_BOTTOM = [
         ("guide",     "📘", "가이드북"),
+        ("changelog", "🆕", "패치 노트"),
     ]
 
     _cur_page = st.query_params.get("page", "home")
@@ -1185,6 +1186,7 @@ button[data-testid="collapsedControl"],
         "pattern":  "패턴 분석",
         "entity":   "엔터티 상세",
         "guide":    "가이드북",
+        "changelog": "패치 노트",
     }
     menu = _PAGE_TO_MENU.get(_cur_page, "분석 시작하기")
     st.session_state["menu"] = menu
@@ -10173,6 +10175,7 @@ TrustLens는 **AI 기반 개인 지식·프로젝트 운영체제(AI Knowledge O
 | 📊 분석 | 분석 결과 / 신뢰도 근거 / 분석결과 아카이브 | **입구** — 신뢰도 분석 |
 | ⚙️ 관리 | 엔터티 상세 / 데이터 관리 / 최근 검색 기록 | 데이터·관계 정비 |
 | 📘 (하단 고정) | 가이드북 | 지금 이 페이지 |
+| 🆕 (하단 고정) | 패치 노트 | 버전별 업데이트·수정 내역 + 포트폴리오 |
 
 > 💡 **분석은 입구, 지식관리가 본체예요.** 정보를 한 번 검사하고 끝내는 게 아니라, 메모로 쌓고 연결해서 계속 다시 꺼내 쓰는 게 핵심이에요.
 """)
@@ -10626,6 +10629,254 @@ TrustLens에서 **프로젝트**는 연구/공부/업무 단위예요.
         for _stitle, _sdesc in _scenarios:
             with st.expander(_stitle):
                 st.markdown(_sdesc)
+
+    st.stop()
+
+
+if menu == "패치 노트":
+    # ══════════════════════════════════════════════════════════
+    # 🆕 버전 패치 노트 + 💼 포트폴리오
+    # ══════════════════════════════════════════════════════════
+    st.markdown("""
+<div style="
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #2563eb 100%);
+    border-radius: 16px; padding: 28px 32px 24px; margin-bottom: 24px; color: white;">
+    <div style="font-size:2rem; font-weight:900; letter-spacing:-1px; margin-bottom:6px;">
+        🆕 패치 노트 & 포트폴리오
+    </div>
+    <div style="font-size:1rem; opacity:0.88; line-height:1.6;">
+        버전별 업데이트·기능·수정 내역을 한 곳에서 추적해요.<br>
+        포트폴리오 탭은 이 프로젝트를 <strong>PM·기획 관점</strong>으로 정리한 요약본이에요.
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+    _CHANGELOG = [
+        {
+            "version": "v3.2",
+            "date": "2026-06-01",
+            "title": "분석 결과화면 재설계 + 공부자료(study) 학습노트",
+            "badge": "P1 완료",
+            "summary": "‘신뢰도 분석기’에서 ‘지식 수집 → 정리 → 저장’ 플로우 중심으로 결과화면을 재설계. 공부자료 전용 학습노트 초안을 추가하고, 유형 분기 버그를 근본 수정.",
+            "features": [
+                "STEP3 결과화면을 4탭으로 재구성 (핵심 요약 / 신뢰도 판단 / 개념·태그 후보 / 다음 행동)",
+                "신뢰도 차트·사용자 피드백을 접힘(expander) 처리해 ‘정리 중심’으로 전환",
+                "STEP4 저장 옵션 3분기: 지식 메모로 저장 / 분석결과만 저장 / 둘 다 저장",
+                "공부자료(study) 전용 AI 학습노트 초안 (한 줄 핵심·왜 필요한가·단계별 동작·핵심 개념·한계·기억법·시험 대비)",
+                "🛠️ Study Debug expander 추가 — 유형 분기·초안 사용 여부를 즉시 확인",
+            ],
+            "fixes": [
+                "공부자료를 골라도 AI 분류기가 info/unknown으로 덮어써 study 분기가 죽던 버그 수정 (selected_type==study 강제 유지)",
+                "CONTENT_TYPE_LABELS·SCORE_KEYS_BY_TYPE에 study 추가 (메트릭/점수 정상화)",
+                "분석 캐시 버전 v3-study로 올려 잘못 캐시된 study 분석 무효화",
+            ],
+            "infra": [
+                "메모 저장 구조에 P5(지식 아카이브 UX) 대비 필드 선반영: one_line_summary / concepts / related_note_ids / note_type / last_reviewed_at",
+            ],
+        },
+        {
+            "version": "v3.1",
+            "date": "2026-05-31",
+            "title": "원문 추출 강화 + 수집 단계 UX",
+            "badge": "P0 안정화",
+            "summary": "지식 AI 답변 품질의 근본 병목이던 ‘원문 추출 한도’를 6,000자→20,000자로 확장. 수집 흐름을 단계(Stepper)로 시각화.",
+            "features": [
+                "4단계 수집 Stepper (정보 가져오기 → 원문 확인 → AI 정리 → 지식 메모 저장), 진행에 따라 색/진행률 변화 + 상단 고정",
+                "STEP2 원문 확인 패널 — 추출 상태·길이·출처 표시",
+            ],
+            "fixes": [
+                "extract_text가 6,000자에서 잘려 들어오던 병목 제거 (상수화 + EXTRACTION_VERSION 캐시 무효화)",
+                "STEP2 원문 textarea가 비어 보이던 버그 수정 (text_area value/key 충돌 → key 제거)",
+            ],
+            "infra": [
+                "추출/원문 보관 한도 상수화 (MAX_EXTRACT_TEXT_CHARS 등), 캐시 키에 버전 포함",
+            ],
+        },
+        {
+            "version": "v3.0",
+            "date": "2026-05-30",
+            "title": "지식 AI(RAG) + 개념 파인더 + 지식맵",
+            "badge": "Knowledge OS",
+            "summary": "저장한 메모·개념·프로젝트를 근거로 답하는 지식 AI(RAG)와, 개념을 폴더 구조로 탐색하는 파인더를 도입.",
+            "features": [
+                "지식 AI — 내 지식 전체에서 관련 항목 상위 N개를 근거로 한국어 요약 답변, 출처 배지 표시",
+                "개념 파인더 — 폴더/하위폴더 계층 + 연결 문서·메모 수 표시",
+                "지식 맵 — 목차/보드/마인드맵/지식페이지/개념 파인더 5개 서브탭",
+            ],
+            "fixes": [
+                "concept 마이그레이션 시 string.get() AttributeError 수정",
+                "모바일 흰 글자 가독성 버그 수정",
+            ],
+            "infra": [
+                "note_concept_links 테이블 도입 (메모-개념 연결)",
+            ],
+        },
+        {
+            "version": "v2.x",
+            "date": "2026-05-29",
+            "title": "프로젝트·작업·태그 관리",
+            "badge": "Workspace",
+            "summary": "수집한 지식을 프로젝트/섹션/단계로 구조화하고, 작업(Task)과 태그로 운영하는 워크스페이스를 구축.",
+            "features": [
+                "프로젝트/섹션/단계 구조 + 작업(Task) 관리(보드/캘린더)",
+                "태그 관리 및 통합 검색(제목·태그·본문·프로젝트·섹션)",
+                "지식 아카이브 — 즐겨찾기·편집·필터",
+            ],
+            "fixes": [
+                "최근 7일 필터를 누적 범위로 수정",
+                "CSS double-dot 버그 수정",
+            ],
+            "infra": [
+                "projects / project_sections / project_steps / tasks DB 추가",
+            ],
+        },
+        {
+            "version": "v1.x",
+            "date": "2026-05-29",
+            "title": "신뢰도 분석 MVP",
+            "badge": "최초 MVP",
+            "summary": "URL/텍스트의 신뢰도를 분석하고 사용자 피드백을 받는 최초 버전.",
+            "features": [
+                "URL·붙여넣기 신뢰도 분석 (점수·광고 위험도·작성자 유형·콘텐츠 유형)",
+                "사용자 피드백 + AI vs 사람 비교",
+                "분석결과 아카이브 저장",
+            ],
+            "fixes": [],
+            "infra": [
+                "Groq API(llama-3.3-70b) 연동 + 로컬 JSON 영속화",
+            ],
+        },
+    ]
+
+    _tab_changelog, _tab_portfolio = st.tabs(["🆕 버전 패치 노트", "💼 포트폴리오"])
+
+    # ─── 패치 노트 탭 ───────────────────────────────────────
+    with _tab_changelog:
+        st.caption(f"현재 버전: **{_CHANGELOG[0]['version']}** · 총 {len(_CHANGELOG)}개 메이저 버전")
+        for _i, _v in enumerate(_CHANGELOG):
+            _is_latest = _i == 0
+            _border = "#2563eb" if _is_latest else "#cbd5e1"
+            st.markdown(
+                f"""<div style="border-left:4px solid {_border}; background:#f8fafc;
+     border-radius:8px; padding:14px 18px; margin:10px 0 4px;">
+    <span style="font-size:1.25rem; font-weight:800; color:#0f172a;">{_v['version']}</span>
+    <span style="background:#1e3a8a; color:#fff; font-size:0.72rem; font-weight:700;
+        padding:2px 8px; border-radius:10px; margin-left:8px;">{_v['badge']}</span>
+    {"<span style='background:#16a34a;color:#fff;font-size:0.72rem;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:6px;'>최신</span>" if _is_latest else ""}
+    <span style="color:#64748b; font-size:0.85rem; margin-left:8px;">{_v['date']}</span>
+    <div style="font-weight:700; color:#1e293b; margin-top:6px;">{_v['title']}</div>
+    <div style="color:#475569; font-size:0.9rem; margin-top:4px; line-height:1.6;">{_v['summary']}</div>
+</div>""",
+                unsafe_allow_html=True,
+            )
+            with st.expander("상세 내역 보기", expanded=_is_latest):
+                if _v["features"]:
+                    st.markdown("**✨ 추가/개선 기능**")
+                    for _f in _v["features"]:
+                        st.markdown(f"- {_f}")
+                if _v["fixes"]:
+                    st.markdown("**🐞 버그 수정**")
+                    for _f in _v["fixes"]:
+                        st.markdown(f"- {_f}")
+                if _v["infra"]:
+                    st.markdown("**🧱 데이터/인프라**")
+                    for _f in _v["infra"]:
+                        st.markdown(f"- {_f}")
+
+        st.divider()
+        st.markdown("### 🗺️ 다음 로드맵 (예정)")
+        _roadmap = [
+            ("P2", "개념 품질 게이트", "AI 추출 개념을 🟢추천/🟡검토필요/🔴제외로 평가 → 사용자 승인 → DB 저장. 쓰레기 개념(여기/최근/제목) 차단", "진행 예정"),
+            ("P3", "별칭(alias) 시스템", "역전파 알고리즘→역전파처럼 같은 개념의 다른 표기를 비파괴적으로 연결", "대기"),
+            ("P4", "지식 아카이브 UX 개편", "‘저장소 → 두 번째 뇌’. 카드화·노트 상세(한 줄 핵심/핵심 개념/연결된 지식)·관련 메모 추천", "대기"),
+            ("P5", "AI 의미 병합", "문자열 유사도 대신 의미 기반으로 중복 개념 병합", "대기"),
+            ("P6", "판단 패턴 분석", "판단 히스토리에서 나의 사고 구조를 발견하는 장기 비전", "장기"),
+        ]
+        for _p, _t, _d, _s in _roadmap:
+            st.markdown(
+                f"""<div style="display:flex; gap:12px; align-items:flex-start; background:#fff;
+     border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; margin-bottom:8px;">
+    <span style="background:#eff6ff; color:#1d4ed8; font-weight:800; padding:3px 10px;
+        border-radius:8px; min-width:42px; text-align:center;">{_p}</span>
+    <div><div style="font-weight:700; color:#1e293b;">{_t}
+        <span style="color:#94a3b8; font-size:0.78rem; font-weight:600;"> · {_s}</span></div>
+        <div style="color:#64748b; font-size:0.86rem; margin-top:2px;">{_d}</div></div>
+</div>""",
+                unsafe_allow_html=True,
+            )
+
+    # ─── 포트폴리오 탭 ──────────────────────────────────────
+    with _tab_portfolio:
+        st.markdown("""
+> 💼 **읽는 분께** — 아래는 채용 담당자·PM 관점에서 이 프로젝트의 문제정의·의사결정·성과를 빠르게 파악할 수 있도록 정리한 요약본이에요.
+""")
+        st.markdown("### 🛡️ TrustLens — AI 개인 지식 운영체제 (Knowledge OS)")
+        st.markdown("""
+> *"AI가 대신 생각하지 않는다. 더 나은 판단을 돕는다."*
+
+정보를 **수집 → 신뢰도 분석 → 지식 메모로 정리 → 개념·프로젝트로 연결 → 검색·AI로 재활용**하는 개인 지식 사이클을 한 앱에서 제공하는 서비스. 노션·옵시디언·ChatGPT·퍼플렉시티의 핵심 경험을 ‘판단을 돕는 도구’ 관점으로 재구성했습니다.
+""")
+        _pf1, _pf2 = st.columns(2)
+        with _pf1:
+            st.markdown("""
+**🎯 문제 정의**
+- 정보 과잉 시대, 사람들은 ‘무엇을 믿을지’와 ‘모은 걸 어떻게 다시 쓸지’ 둘 다 어려움
+- 기존 도구는 *저장*은 잘하지만 *판단*과 *재활용*이 약함
+
+**👤 역할 (1인 기획·개발)**
+- 제품 기획(PM): 비전 정의·MVP 로드맵·우선순위 의사결정
+- 개발: Streamlit 단일 앱 구현 (약 11,600줄)
+- AI 엔지니어링: 프롬프트 설계·RAG·유형별 분기
+""")
+        with _pf2:
+            st.markdown("""
+**🧰 기술 스택**
+- Python · Streamlit
+- Groq API (llama-3.3-70b-versatile)
+- 로컬 JSON 영속화 (→ 향후 DB)
+- GitHub + Streamlit Cloud 자동 배포
+
+**📈 핵심 지표(설계 관점)**
+- 원문 활용도 6K→20K자 (3.3배) → 답변 품질 직접 개선
+- 결과화면 정보구조 4탭화로 ‘정리 중심’ 전환
+""")
+        st.divider()
+        st.markdown("### 💡 의사결정 하이라이트 (PM 사고 과정)")
+        _decisions = [
+            ("‘분석기’가 아니라 ‘지식 OS’로 피벗",
+             "단발성 신뢰도 검사로는 재방문 동기가 약하다고 판단. ‘수집→정리→재활용’ 사이클을 핵심 가치로 재정의하고, 신뢰도 분석은 *입구*로 강등."),
+            ("결과화면을 신뢰도 중심 → AI 정리 중심으로 재배치",
+             "사용자가 실제로 원하는 건 점수가 아니라 ‘정리된 지식’. 차트·피드백은 접고, 핵심 요약/다음 행동을 전면 배치 (4탭 구조)."),
+            ("공부자료 유형을 별도 트랙으로 분리",
+             "신뢰도 프롬프트로 학습 자료를 처리하니 ‘제목 수준 요약’만 나옴. 이해 중심 학습노트 프롬프트를 분리해 사용 맥락별 품질을 확보."),
+            ("개념 품질을 다음 핵심 과제로 선정",
+             "그래프·별칭·병합을 아무리 잘 만들어도 입력 개념이 오염되면 무의미. ‘개념 품질 게이트’를 P2로 끌어올림 (쓰레기 입력 차단이 우선)."),
+            ("미래 기능을 위한 데이터 구조 선투자",
+             "UI는 미루되 메모 저장 스키마에 one_line_summary·concepts 등 필드를 미리 심어, 후속 UX 개편 시 마이그레이션 비용을 제거."),
+        ]
+        for _dt, _dd in _decisions:
+            with st.expander(f"🔹 {_dt}"):
+                st.markdown(_dd)
+
+        st.divider()
+        st.markdown("### 🐞 트러블슈팅 사례 (문제 해결력)")
+        st.markdown("""
+**사례: 공부자료를 선택해도 학습노트가 안 나오는 문제**
+
+1. **현상** — 역전파 글을 ‘공부자료’로 분석해도 초안이 "신경망과 역전파 알고리즘에 대한 설명입니다" 수준
+2. **가설** — study 전용 프롬프트는 추가됐는데 실제로 그 분기를 안 타는 것으로 추정
+3. **원인 규명** — `analyze_with_groq`에서 AI 분류기 결과가 사용자 선택을 덮어씀. 그런데 AI 프롬프트의 유형 선택지에 **study 자체가 없어** AI는 절대 study를 못 돌려줌 → 항상 info/unknown으로 강등
+4. **해결** — `selected_type=="study"`면 content_type을 study로 강제 유지 (사용자 명시 선택 > AI 추론). 라벨/점수 키 추가 + 캐시 버전 올려 오염 캐시 무효화
+5. **재발 방지** — 🛠️ Study Debug expander로 selected/ai/final 유형과 분기 사용 여부를 항상 노출 → ‘추측’이 아니라 ‘확인’ 가능한 구조로 전환
+""")
+        st.divider()
+        st.markdown("### 🌱 배운 점 & 다음")
+        st.markdown("""
+- **사용자 의도 > 모델 추론**: 명시적 선택은 AI가 덮어쓰지 않게 설계해야 함
+- **관측 가능성(Observability)**: 디버그 패널 하나가 반복 추측 비용을 크게 줄임
+- **데이터 선투자**: 스키마를 먼저 준비하면 기능 확장이 리팩터링이 아니라 ‘채우기’가 됨
+- **다음**: 개념 품질 게이트(P2)로 입력 품질을 끌어올리고, 지식 아카이브를 ‘두 번째 뇌’ 경험으로 발전
+""")
 
     st.stop()
 

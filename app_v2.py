@@ -2961,7 +2961,9 @@ def render_result(result, extracted_text=None, final_url=None):
             "study_prompt_used  = {}\n"
             "draft_template     = {}\n"
             "source_context_len = {}\n"
-            "analysis_text_len  = {}".format(
+            "analysis_text_len  = {}\n"
+            "analysis_source    = {}\n"
+            "draft_key          = {}".format(
                 _dbg.get("selected_type", "-"),
                 _dbg.get("ai_content_type", "-"),
                 _dbg.get("final_content_type", "-"),
@@ -2969,6 +2971,8 @@ def render_result(result, extracted_text=None, final_url=None):
                 _draft_dbg.get("template_type", "-"),
                 _draft_dbg.get("source_context_len", "-"),
                 _dbg.get("source_text_len", "-"),
+                st.session_state.get("_last_cache_key", "-"),
+                f"note_draft_{final_url or 'current'}_{result.get('content_type', 'unknown')}",
             ),
             language="text",
         )
@@ -2991,7 +2995,10 @@ def render_result(result, extracted_text=None, final_url=None):
         if clean_tag and clean_tag not in tag_options:
             tag_options.append(clean_tag)
 
-    draft_key = f"note_draft_{final_url or 'current'}"
+    # 캐시 키에 content_type 포함 — 같은 URL을 일반정보글/공부자료 등 다른 유형으로
+    # 재분석할 때 이전 유형의 초안이 그대로 재사용되던 버그 방지
+    _ct_for_key = result.get("content_type", "unknown")
+    draft_key = f"note_draft_{final_url or 'current'}_{_ct_for_key}"
     note_key = f"edited_{draft_key}"
 
     _is_study_content = result.get("content_type") == "study"
@@ -3034,7 +3041,7 @@ def render_result(result, extracted_text=None, final_url=None):
             "AI 초안 템플릿 선택",
             _template_options,
             index=_template_options.index(_default_template),
-            key=f"template_{final_url or 'current'}",
+            key=f"template_{final_url or 'current'}_{_ct_for_key}",
         )
         user_draft_prompt = st.text_area(
             "초안에 반영할 추가 요청",
@@ -3053,7 +3060,7 @@ def render_result(result, extracted_text=None, final_url=None):
             if not original_text:
                 st.warning("원문이 저장되어 있지 않아요.")
             else:
-                draft_cache_key = f"{final_url or 'current'}::{template_type}::{user_draft_prompt.strip()}"
+                draft_cache_key = f"{final_url or 'current'}::{_ct_for_key}::{template_type}::{user_draft_prompt.strip()}"
                 if draft_cache_key in st.session_state.draft_cache:
                     new_draft = st.session_state.draft_cache[draft_cache_key]
                     st.session_state[draft_key] = new_draft
@@ -12008,6 +12015,7 @@ if analyze_btn:
                 st.text(text[:1000])
         else:
             cache_key = f"{final_url}::{selected_type}::{input_mode}::{EXTRACTION_VERSION}"
+            st.session_state["_last_cache_key"] = cache_key
             if cache_key in st.session_state.analysis_cache:
                 result = st.session_state.analysis_cache[cache_key]
                 st.session_state.last_result = result
@@ -12015,7 +12023,7 @@ if analyze_btn:
                 st.session_state.last_text = text
                 st.session_state.show_result = True
                 st.session_state.result_closed = False
-                st.session_state["analysis_status_message"] = "같은 조건의 분석 결과가 있어서 저장된 결과를 다시 불러왔어요."
+                st.session_state["analysis_status_message"] = "같은 조건(URL+유형+버전)의 분석 결과가 있어 캐시에서 불러왔어요."
             else:
                 with st.spinner("AI가 분석 중..."):
                     try:

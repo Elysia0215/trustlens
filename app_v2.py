@@ -2887,14 +2887,21 @@ def render_result(result, extracted_text=None, final_url=None):
             )
             st.markdown(concept_html, unsafe_allow_html=True)
         else:
-            st.caption("아직 추출된 핵심 개념 후보가 없어요. (개념 품질 평가는 추후 강화 예정)")
+            st.caption("아직 추출된 핵심 개념 후보가 없어요.")
+
+        st.info(
+            "🚧 지금은 AI가 추천한 태그·개념을 **그대로** 보여줘요. "
+            "다음 단계(MVP3)에서 **후보 품질 평가 → 추천/검토필요/제외 → 사용자 승인** 구조로 개선될 예정이에요."
+        )
 
     # ── 탭 4: 다음 행동 ──
     with step3_tabs[3]:
         st.markdown("### ▶️ 다음 행동")
-        st.markdown("- 🗒️ 아래에서 **지식 메모**로 정리해 저장하기")
-        st.markdown("- 📁 메모를 **프로젝트/섹션**에 연결하기")
-        st.markdown("- ✅ 후속 **작업(Task)** 만들기")
+        st.markdown("**지금 할 수 있어요**")
+        st.markdown("- 🗒️ 아래 **‘지식 메모 만들기’** 영역에서 AI 초안을 정리해 저장하기")
+        st.markdown("- 📌 신뢰도 **분석결과만** 따로 아카이브에 저장하기 (STEP4 저장 옵션)")
+        st.markdown("- 📁 저장할 때 **프로젝트 / 섹션 / 단계**에 연결하기")
+        st.info("🚧 **추후 예정** — 이 분석에서 바로 **작업(Task) 생성**, **연구노트 연결**로 이어지는 기능이 추가될 예정이에요.")
         if ratings:
             st.success(f"🧠 사용자들이 이 분석을 평균 {avg_rating}/5 로 평가했어요.")
         else:

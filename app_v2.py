@@ -3262,9 +3262,14 @@ def render_feedback_section(result, final_url, score):
     with quick_col3:
         st.text_area("추가 필요/아쉬운 점", placeholder="예: 사진 개수 반영, 점수 기준 설명 강화 등", height=140, key=missing_key)
 
-    with st.expander("✍️ 자세한 피드백 남기기"):
+    # 상위에서 expander 안에 렌더되므로 중첩 expander 금지 → 체크박스 토글로 대체
+    if st.checkbox("✍️ 자세한 피드백 남기기", key=f"detail_fb_{feedback_base}"):
         st.text_area("틀렸거나 어색한 부분", placeholder="예: 맛집 후기인데 공식 출처 기준이 보이면 어색함 / 점수가 너무 낮음", height=90, key=wrong_key)
         st.text_area("자유 피드백", placeholder="TrustLens가 다음 분석에서 더 잘 판단했으면 하는 기준을 적어주세요.", height=90, key=memo_key)
+    else:
+        # 키가 항상 존재하도록 기본값 보장 (저장 시 KeyError 방지)
+        st.session_state.setdefault(wrong_key, "")
+        st.session_state.setdefault(memo_key, "")
 
     if st.button("📩 피드백 저장하기", key=f"save_feedback_{feedback_base}", use_container_width=True, type="primary"):
         save_user_feedback(result, final_url, rating_key, useful_key, wrong_key, missing_key, memo_key)

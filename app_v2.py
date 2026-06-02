@@ -9286,6 +9286,37 @@ if menu == "지식 라이브러리":
         st.success("저장된 메모를 삭제했어요.")
         st.session_state["archive_deleted"] = False
 
+    # ── 📊 라이브러리 대시보드 — '내 모든 기록이 모이는 도서관' 느낌 ──
+    _lib_n_notes = len(_all_notes)
+    _lib_n_proj = len([p for p in st.session_state.get("projects", [])
+                       if isinstance(p, dict) and _clean_text_value(p.get("name")).strip()])
+    _lib_n_con = len({
+        _clean_text_value(l.get("concept")).strip()
+        for l in st.session_state.get("note_concept_links", [])
+        if _clean_text_value(l.get("concept")).strip()
+    } | {
+        _clean_text_value(c.get("name")).strip()
+        for c in st.session_state.get("pkm_custom_concepts", [])
+        if isinstance(c, dict) and _clean_text_value(c.get("name")).strip()
+    })
+    _lib_n_tag = len({
+        str(t).replace("#", "").strip()
+        for n in _all_notes for t in (n.get("tags", []) or []) if str(t).strip()
+    })
+    _ls = [("📚", "메모", _lib_n_notes), ("🪐", "프로젝트", _lib_n_proj),
+           ("🧠", "개념", _lib_n_con), ("🏷", "태그", _lib_n_tag)]
+    _ls_cols = st.columns(4)
+    for _lc, (_lem, _lnm, _lcnt) in zip(_ls_cols, _ls):
+        with _lc:
+            st.markdown(
+                f"<div style='text-align:center;background:#f8fafc;border:1px solid #e2e8f0;"
+                f"border-radius:12px;padding:12px 8px;'>"
+                f"<div style='font-size:1.3em'>{_lem}</div>"
+                f"<div style='font-size:1.5rem;font-weight:900;color:#6366f1'>{_lcnt}</div>"
+                f"<div style='color:#64748b;font-size:0.85em'>{_lnm}</div></div>",
+                unsafe_allow_html=True)
+    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+
     _fc1, _fc2 = st.columns([3, 1])
     with _fc1:
         search_query = st.text_input("🔍 아카이브 검색", placeholder="제목, URL, 태그, 메모 내용, 개념으로 검색")

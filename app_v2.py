@@ -6695,23 +6695,114 @@ def render_project_page():
                         st.rerun()
 
         with dt3:
-            st.markdown("### 📅 캘린더 (마감일 기준)")
-            _dated_tasks = sorted([t for t in _proj_tasks if t.get("due_date")], key=lambda x: x["due_date"])
-            _dated_notes = sorted([n for n in _proj_notes if n.get("saved_at")], key=lambda x: x["saved_at"])
+            import calendar as _cal_mod
+            from datetime import date as _cal_date
 
-            if not _dated_tasks and not _dated_notes:
-                st.info("마감일이 있는 작업이나 저장된 메모가 없어요.")
+            # ── 이벤트 수집: {YYYY-MM-DD: [(icon, title, type)]} ──
+            _events = {}
+            def _add_event(_raw_date, _icon, _title, _etype):
+                _d = normalize_date_str(_raw_date)
+                if not _d:
+                    return
+                _events.setdefault(_d, []).append((_icon, _title, _etype))
+            # 프로젝트 시작/마감
+            if sel_proj_obj.get("created_at"):
+                _add_event(sel_proj_obj["created_at"][:10], "📁", f"{sel_proj_name} 시작", "project")
+            if sel_proj_obj.get("due_date"):
+                _add_event(sel_proj_obj["due_date"], "🏁", f"{sel_proj_name} 마감", "project")
+            # 작업 마감일
+            for _t in _proj_tasks:
+                if _t.get("due_date"):
+                    _add_event(_t["due_date"], "✅", _t.get("title", "작업"), "task")
+            # 메모 / 연구노트 저장일
+            for _n in _proj_notes:
+                if _n.get("saved_at"):
+                    _is_research = ("연구노트" in str(_n.get("title", ""))
+                                    or "연구노트" in [str(x) for x in _n.get("tags", [])])
+                    _add_event(_n["saved_at"][:10], "🔬" if _is_research else "📝",
+                               _n.get("title", "메모"), "research" if _is_research else "note")
+            # 분석결과 저장일
+            for _a in _proj_analyses:
+                if _a.get("saved_at"):
+                    _add_event(_a["saved_at"][:10], "📊", _a.get("title", "분석결과"), "analysis")
+
+            # ── 월 상태 ──
+            _ym_key = f"cal_ym_{proj_id}"
+            if _ym_key not in st.session_state:
+                _today = _cal_date.today()
+                st.session_state[_ym_key] = (_today.year, _today.month)
+            _cy, _cm = st.session_state[_ym_key]
+
+            # ── 헤더 + 월 이동 ──
+            _nav1, _nav2, _nav3, _nav4 = st.columns([1, 1, 3, 1])
+            with _nav1:
+                if st.button("◀ 이전", key=f"cal_prev_{proj_id}", use_container_width=True):
+                    st.session_state[_ym_key] = (_cy - 1, 12) if _cm == 1 else (_cy, _cm - 1)
+                    st.rerun()
+            with _nav2:
+                if st.button("이번 달", key=f"cal_today_{proj_id}", use_container_width=True):
+                    _t = _cal_date.today()
+                    st.session_state[_ym_key] = (_t.year, _t.month)
+                    st.rerun()
+            with _nav3:
+                st.markdown(f"<h3 style='text-align:center;margin:0'>📅 {_cy}년 {_cm}월</h3>", unsafe_allow_html=True)
+            with _nav4:
+                if st.button("다음 ▶", key=f"cal_next_{proj_id}", use_container_width=True):
+                    st.session_state[_ym_key] = (_cy + 1, 1) if _cm == 12 else (_cy, _cm + 1)
+                    st.rerun()
+
+            # ── 요일 헤더 ──
+            _wd_cols = st.columns(7)
+            for _i, _wd in enumerate(["월", "화", "수", "목", "금", "토", "일"]):
+                _wd_color = "#dc2626" if _wd == "일" else "#2563eb" if _wd == "토" else "#475569"
+                _wd_cols[_i].markdown(f"<div style='text-align:center;font-weight:700;color:{_wd_color}'>{_wd}</div>", unsafe_allow_html=True)
+
+            # ── 달력 그리드 ──
+            _today_str = _cal_date.today().strftime("%Y-%m-%d")
+            _cal_obj = _cal_mod.Calendar(firstweekday=0)  # 월요일 시작
+            _sel_date_key = f"cal_seldate_{proj_id}"
+            for _week in _cal_obj.monthdayscalendar(_cy, _cm):
+                _day_cols = st.columns(7)
+                for _di, _day in enumerate(_week):
+                    with _day_cols[_di]:
+                        if _day == 0:
+                            st.markdown("&nbsp;", unsafe_allow_html=True)
+                            continue
+                        _dstr = f"{_cy:04d}-{_cm:02d}-{_day:02d}"
+                        _evs = _events.get(_dstr, [])
+                        _is_today = (_dstr == _today_str)
+                        _daylabel = f"**{_day}**" if not _is_today else f"🔵 **{_day}**"
+                        if _evs:
+                            if st.button(f"{_day}  ·{len(_evs)}", key=f"cal_day_{proj_id}_{_dstr}", use_container_width=True):
+                                st.session_state[_sel_date_key] = _dstr
+                                st.rerun()
+                            for _icon, _t2, _ty in _evs[:3]:
+                                st.markdown(f"<div style='font-size:0.72em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'>{_icon} {_t2[:8]}</div>", unsafe_allow_html=True)
+                            if len(_evs) > 3:
+                                st.caption(f"+{len(_evs) - 3}개")
+                        else:
+                            st.markdown(f"<div style='text-align:center;color:{'#2563eb' if _is_today else '#94a3b8'}'>{_daylabel}</div>", unsafe_allow_html=True)
+
+            # ── 선택 날짜 상세 ──
+            _sel_d = st.session_state.get(_sel_date_key)
+            if _sel_d and _sel_d in _events:
+                st.divider()
+                st.markdown(f"#### 📌 {_sel_d} 일정 ({len(_events[_sel_d])}개)")
+                for _icon, _t2, _ty in _events[_sel_d]:
+                    _tylabel = {"project": "프로젝트", "task": "작업", "note": "메모",
+                                "research": "연구노트", "analysis": "분석결과"}.get(_ty, "")
+                    st.markdown(f"- {_icon} **{_t2}** &nbsp;<span style='color:#94a3b8;font-size:0.85em'>{_tylabel}</span>", unsafe_allow_html=True)
+
+            # ── 기존 리스트 보기 (마감일/저장일 순) ──
+            if _events:
+                st.divider()
+                with st.expander("📋 리스트로 보기", expanded=False):
+                    for _dk in sorted(_events.keys()):
+                        st.markdown(f"**📅 {_dk}**")
+                        for _icon, _t2, _ty in _events[_dk]:
+                            st.markdown(f"&nbsp;&nbsp;{_icon} {_t2}")
             else:
-                from itertools import groupby
-                _cal_items = (
-                    [{"label": f"✅ {t['title']}", "date": t["due_date"], "type": "task"} for t in _dated_tasks] +
-                    [{"label": f"📝 {n.get('title','메모')}", "date": n["saved_at"][:10], "type": "note"} for n in _dated_notes]
-                )
-                _cal_items.sort(key=lambda x: x["date"])
-                for date_key, grp in groupby(_cal_items, key=lambda x: x["date"]):
-                    with st.expander(f"📅 {date_key}", expanded=True):
-                        for ci in grp:
-                            st.markdown(f"  {ci['label']}")
+                st.info("이 프로젝트에 표시할 일정(작업 마감일·저장일 등)이 없어요.")
 
         with dt4:
             st.markdown("### 📊 타임라인")

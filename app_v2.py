@@ -14866,16 +14866,17 @@ def render_home_universe():
     _univ_names = [p["name"] for p in _planets]
     st.markdown("**🪐 행성을 골라 위성(메모·개념·태그·작업)을 펼쳐봐요**")
     _pick_cols = st.columns(min(5, len(_planets)) + 1)
+    # 버튼 클릭 시 같은 런에서 즉시 펼침 (st.rerun 의존 제거 — 펼침 누락 방지)
+    _sel_planet = st.session_state.get("home_univ_pick")
     for _i, _pl in enumerate(_planets[:5]):
         with _pick_cols[_i]:
             if st.button(f"🪐 {_pl['name'][:8]}", key=f"univ_pick_{_i}", use_container_width=True):
-                st.session_state["home_univ_pick"] = _pl["name"]
-                st.rerun()
+                _sel_planet = _pl["name"]
+                st.session_state["home_univ_pick"] = _sel_planet
     with _pick_cols[-1]:
         if st.button("🌌 전체", key="univ_pick_all", use_container_width=True):
+            _sel_planet = None
             st.session_state["home_univ_pick"] = None
-            st.rerun()
-    _sel_planet = st.session_state.get("home_univ_pick")
     if _sel_planet and _sel_planet in _univ_names:
         _pn = [n for n in _notes if n.get("project") == _sel_planet]
         _pn_ids = {n.get("id") for n in _pn}

@@ -14896,18 +14896,24 @@ def render_home_universe():
     with _pick_cols[-1]:
         if st.button("🌌 전체", key="univ_pick_all", use_container_width=True):
             _btn_action = ("all",)
-    # 우선순위: 버튼 > 지도 클릭(이전 소비분과 다를 때만) > 기존 선택
+    # 우선순위: 버튼 > 지도 클릭 > 기존 선택 — 같은 런에서 _sel_planet 즉시 확정
+    _sel_planet = st.session_state.get("home_univ_pick")
     if _btn_action and _btn_action[0] == "all":
+        _sel_planet = None
         st.session_state["home_univ_pick"] = None
-        st.session_state["_univ_seen_click"] = _map_clicked  # 현재 지도선택은 소비처리(전체와 충돌 방지)
+        st.session_state["_univ_seen_click"] = _map_clicked
     elif _btn_action and _btn_action[0] == "pick":
-        st.session_state["home_univ_pick"] = _btn_action[1]
+        _sel_planet = _btn_action[1]
+        st.session_state["home_univ_pick"] = _sel_planet
         st.session_state["_univ_seen_click"] = _map_clicked
     elif _map_clicked and _map_clicked != st.session_state.get("_univ_seen_click"):
-        st.session_state["home_univ_pick"] = _map_clicked
+        _sel_planet = _map_clicked
+        st.session_state["home_univ_pick"] = _sel_planet
         st.session_state["_univ_seen_click"] = _map_clicked
-    _sel_planet = st.session_state.get("home_univ_pick")
-    if _sel_planet and _sel_planet in _univ_names:
+    _sel_obj = next((p for p in _planets if p["name"] == _sel_planet), None)
+    st.caption(f"🔎 (디버그) 선택: {_sel_planet or '없음'} · 지도클릭: {_map_clicked or '없음'}")
+    if _sel_obj:
+        _sel_planet = _sel_obj["name"]
         _pn = [n for n in _notes if n.get("project") == _sel_planet]
         _pn_ids = {n.get("id") for n in _pn}
         _pcs = sorted({l.get("concept") for l in _links

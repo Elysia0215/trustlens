@@ -348,6 +348,7 @@ def save_persisted_data():
         "note_concept_links": st.session_state.get("note_concept_links", []),
         "hidden_concepts": st.session_state.get("hidden_concepts", []),
         "merge_dismissed": st.session_state.get("merge_dismissed", []),
+        "excluded_concepts_log": st.session_state.get("excluded_concepts_log", []),
         "custom_select_options": st.session_state.get("custom_select_options", {}),
         "saved_searches": st.session_state.get("saved_searches", []),
         "brain_theme": st.session_state.get("brain_theme", "default"),
@@ -1228,6 +1229,7 @@ def init_state():
         "note_concept_links": persisted.get("note_concept_links", []),
         "hidden_concepts": persisted.get("hidden_concepts", []),
         "merge_dismissed": persisted.get("merge_dismissed", []),
+        "excluded_concepts_log": persisted.get("excluded_concepts_log", []),
         "custom_select_options": persisted.get("custom_select_options", {}),
         "saved_searches": persisted.get("saved_searches", []),
         "brain_theme": persisted.get("brain_theme", "default"),
@@ -1608,36 +1610,61 @@ def grade_merge_pair(a, b, ratio):
     return ("red", "의미 차이가 클 수 있음")
 
 
-def clean_concept(raw):
-    """개념 저장 전 품질 게이트 (경량 규칙 기반 — 외부 NLP 의존성 없음).
-    통과하면 정제된 개념명, 탈락하면 None.
-    규칙: 기호/공백 정리 → 조사·어미 제거 → 1글자 제외 → 불용어 제외 → 숫자/기호만 제외."""
+def _classify_concept(raw):
+    """개념 품질 게이트 분류기 (경량 규칙 기반 — 외부 NLP 의존성 없음).
+    반환: (정제값 또는 None, 사유). 통과 시 사유는 빈 문자열.
+    순서: 기호/공백 정리 → 조사·어미 제거(normalize) → 불용어 → 숫자/기호 → 1글자."""
     if not raw:
-        return None
+        return (None, "빈 값")
     s = str(raw).replace("#", "").strip()
     s = s.strip(" \t\n\r\"'`·,.!?()[]{}<>「」『』“”‘’…").strip()
     if not s:
-        return None
+        return (None, "기호/공백만")
+    # 1) 조사/어미 제거
     s = normalize_concept_token(s).strip()
-    if len(s) <= 1:                      # 1글자 개념 제외
-        return None
-    if s in _GENERIC_CONCEPTS:           # 너무 일반적인 단어 제외
-        return None
-    if s.isdigit():                      # 순수 숫자 제외
-        return None
-    if not any(ch.isalnum() for ch in s):  # 기호만 있는 경우 제외
-        return None
-    return s
+    if not s:
+        return (None, "정규화 후 빈 값")
+    # 2) 불용어 (로그에서 먼저 잡히도록 길이검사보다 앞)
+    if s in _GENERIC_CONCEPTS:
+        return (None, "불용어")
+    # 3) 숫자/기호만
+    if not any(ch.isalnum() for ch in s):
+        return (None, "기호만")
+    if s.isdigit():
+        return (None, "숫자만")
+    # 4) 1글자
+    if len(s) <= 1:
+        return (None, "1글자")
+    return (s, "")
+
+
+def clean_concept(raw):
+    """개념 저장 전 품질 게이트. 통과하면 정제된 개념명, 탈락하면 None."""
+    return _classify_concept(raw)[0]
+
+
+def _log_excluded_concept(original, reason):
+    """게이트에서 제외된 개념을 기록 (품질 리포트·stopword 개선용)."""
+    _log = st.session_state.setdefault("excluded_concepts_log", [])
+    _orig = str(original).replace("#", "").strip()
+    if not _orig:
+        return
+    _log.append({"concept": _orig, "reason": reason,
+                 "at": datetime.now().strftime("%Y-%m-%d %H:%M")})
+    if len(_log) > 2000:                 # 무한 증가 방지
+        del _log[: len(_log) - 2000]
 
 
 def filter_concepts(names):
-    """개념명 리스트를 품질 게이트로 정제 + 중복 제거. 통과한 것만 반환."""
+    """개념명 리스트를 품질 게이트로 정제 + 중복 제거. 제외된 개념은 로그에 기록."""
     out, seen = [], set()
     for n in (names or []):
-        c = clean_concept(n)
+        c, reason = _classify_concept(n)
         if c and c not in seen:
             seen.add(c)
             out.append(c)
+        elif not c and str(n).replace("#", "").strip():
+            _log_excluded_concept(n, reason)
     return out
 
 
@@ -1659,6 +1686,67 @@ def concept_frequency(top_n=None):
             if x:
                 _c[x] += 1
     return _c.most_common(top_n) if top_n else _c.most_common()
+
+
+def concept_importance(top_n=None, half_life_days=30):
+    """개념 중요도 = 빈도 × 최근성 가중치.
+    최근성 가중치 = 0.5 ** (경과일수 / half_life_days) 의 등장별 합산.
+    날짜 출처: note_concept_links.linked_at / 작업.updated_at / 메모.saved_at.
+    프로젝트 맵(노드 크기=빈도, 노드 색=최근성)에서 활용 예정. 지금은 계산만 제공.
+    반환: [(개념, {"frequency": f, "importance": imp, "recency": r}), ...]
+    importance 내림차순. r(최근성)=가중치합/빈도(0~1, 1=오늘)."""
+    from collections import defaultdict
+
+    def _days_since(date_str):
+        if not date_str:
+            return None
+        try:
+            d = datetime.strptime(str(date_str)[:10], "%Y-%m-%d")
+            return max(0.0, (datetime.now() - d).total_seconds() / 86400.0)
+        except Exception:
+            return None
+
+    def _weight(date_str):
+        days = _days_since(date_str)
+        if days is None:
+            return 0.5  # 날짜 불명 → 중립 가중치
+        return 0.5 ** (days / max(1, half_life_days))
+
+    freq = defaultdict(int)
+    wsum = defaultdict(float)
+
+    def _add(name, date_str):
+        if not name:
+            return
+        freq[name] += 1
+        wsum[name] += _weight(date_str)
+
+    for l in st.session_state.get("note_concept_links", []):
+        _add(l.get("concept"), l.get("linked_at"))
+    for t in st.session_state.get("tasks", []):
+        for x in (t.get("linked_concepts", []) or []):
+            _add(x, t.get("updated_at") or t.get("created_at"))
+    for n in st.session_state.get("archive_notes", []):
+        for x in (n.get("concepts", []) or []):
+            _add(x, n.get("saved_at") or n.get("created_at"))
+
+    out = []
+    for name, f in freq.items():
+        rec = wsum[name] / f if f else 0.0
+        out.append((name, {"frequency": f, "recency": round(rec, 4),
+                           "importance": round(f * rec, 4)}))
+    out.sort(key=lambda kv: kv[1]["importance"], reverse=True)
+    return out[:top_n] if top_n else out
+
+
+def excluded_concepts_report(top_n=15):
+    """제외된 개념 로그 집계 → (개념별 TOP, 사유별 집계, 총건수).
+    개념 품질 리포트/불용어 개선용."""
+    from collections import Counter
+    log = st.session_state.get("excluded_concepts_log", [])
+    by_concept = Counter(e.get("concept", "") for e in log if e.get("concept"))
+    by_reason = Counter(e.get("reason", "기타") for e in log)
+    return by_concept.most_common(top_n), by_reason.most_common(), len(log)
 
 
 def concept_impact_counts(cands):
@@ -4405,6 +4493,37 @@ def render_knowledge_map_page():
                     f"</div>",
                     unsafe_allow_html=True)
             st.caption("메모·작업·분석에 연결된 횟수예요. 프로젝트 맵에서 노드 크기로 활용할 예정이에요.")
+
+    # ── 개념 품질 리포트 (제외된 개념 로그) ──
+    _ex_top, _ex_reasons, _ex_total = excluded_concepts_report(top_n=15)
+    if _ex_total:
+        with st.expander(f"🚫 개념 품질 리포트 · 제외 {_ex_total}건", expanded=False):
+            st.caption("저장 단계에서 걸러진 개념이에요. 자주 걸러지는 단어는 불용어 사전 개선에 참고하세요.")
+            qr1, qr2 = st.columns(2)
+            with qr1:
+                st.markdown("**🔤 자주 제외된 개념 TOP**")
+                if _ex_top:
+                    _emax = _ex_top[0][1] or 1
+                    for _en2, _ec in _ex_top:
+                        _ew = int(_ec / _emax * 100)
+                        st.markdown(
+                            f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:3px'>"
+                            f"<span style='min-width:120px'>{_en2}</span>"
+                            f"<div style='flex:1;background:#fee2e2;border-radius:4px;height:7px'>"
+                            f"<div style='width:{_ew}%;background:#ef4444;height:7px;border-radius:4px'></div></div>"
+                            f"<span style='min-width:38px;text-align:right;color:#ef4444;font-weight:700'>{_ec}회</span>"
+                            f"</div>",
+                            unsafe_allow_html=True)
+                else:
+                    st.caption("아직 없어요.")
+            with qr2:
+                st.markdown("**📊 제외 사유별**")
+                for _rn, _rc in _ex_reasons:
+                    st.markdown(f"- {_rn} · **{_rc}건**")
+            if st.button("🧹 제외 로그 비우기", key="clear_excluded_log"):
+                st.session_state["excluded_concepts_log"] = []
+                save_persisted_data()
+                st.rerun()
 
     with st.expander("✏️ 개념 수정 / 병합", expanded=False):
         _cc_list = [c if isinstance(c,dict) else {"name":str(c),"folder":"내 개념"} for c in st.session_state.get("pkm_custom_concepts",[]) if c]

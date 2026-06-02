@@ -5119,10 +5119,13 @@ def render_knowledge_map_page():
         st.divider()
 
     # ── 지식맵 IA: 기본 4뷰 + 고급 토글 (기능 삭제 없이 고급 탭은 CSS로 숨김) ──
-    _km_adv = st.toggle(
-        "🔬 고급 보기 (전체 뷰)", value=False, key="km_adv_view",
-        help="기본은 노트·개념·관계·성장 4개. 켜면 노션보드·태그맵·지식페이지·브레인스토밍·프로젝트맵·타임라인도 보여요.")
+    _km_adv_cur = bool(st.session_state.get("km_adv_view", False))
+    _km_toggle_label = ("🔬 고급 뷰 표시 중 — 끄면 기본 4개만 보여요"
+                        if _km_adv_cur else "🔬 고급 기능 6개 더 보기 (노션보드·태그맵·지식페이지·브레인스토밍·프로젝트맵·타임라인)")
+    _km_adv = st.toggle(_km_toggle_label, value=False, key="km_adv_view")
     st.caption("🧭 **기본**: 📚 내 노트 볼까? · 🧠 내 개념 볼까? · 🕸 연결 관계 볼까? · 📈 성장 흐름 볼까?")
+    if not _km_adv:
+        st.caption("➕ 노션 보드·태그맵·지식 페이지·브레인스토밍·프로젝트맵·타임라인은 위 **🔬 고급 기능 6개 더 보기**를 켜면 나와요.")
     if not _km_adv:
         # 기본 모드: 5번째 이후(고급) 탭 버튼만 숨김 — 탭/본문은 그대로 생성(기능 삭제 없음)
         st.markdown(

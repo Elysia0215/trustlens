@@ -15135,6 +15135,7 @@ def render_home_universe():
                 _label,
                 key=f"univ_pick_{_i}",
                 use_container_width=True,
+                type=("primary" if _picked else "secondary"),  # 선택 시 색 유지(활성 상태)
                 help="이 프로젝트 행성을 선택해서 연결된 메모·개념·태그·작업을 아래에 펼쳐요.",
             ):
                 st.session_state["home_univ_pick"] = _pl["name"]
@@ -15145,6 +15146,7 @@ def render_home_universe():
             _all_label,
             key="univ_pick_all",
             use_container_width=True,
+            type=("primary" if _sel_planet is None else "secondary"),  # 선택 시 색 유지
             help="전체 우주 요약을 보고, 프로젝트에 아직 배정되지 않은 지식을 지구 발사대에서 정리해요.",
         ):
             st.session_state["home_univ_pick"] = None

@@ -11171,6 +11171,12 @@ if menu == "지식 AI":
     # ─── 지식 코퍼스 수집 ───────────────────────────────────
     def _pka_build_corpus():
         # text: 검색 매칭용(짧은 메타 포함) / body: 답변 근거용(원문 전체)
+        # dconcepts: 문서의 대표 개념 집합 (canonical) — 근거 재정렬용
+        # note_id별 연결 개념 prebuild
+        _links_by_note = {}
+        for _lk in st.session_state.get("note_concept_links", []):
+            if _lk.get("note_id") and _lk.get("concept"):
+                _links_by_note.setdefault(_lk["note_id"], []).append(_lk["concept"])
         docs = []
         for n in st.session_state.get("archive_notes", []):
             _meta = " ".join([
@@ -11184,9 +11190,12 @@ if menu == "지식 AI":
             _body = _orig if len(_orig) >= 100 else _note
             if _note and _note not in _body:  # 내 메모는 항상 앞에 덧붙임
                 _body = (_note + "\n\n" + _body).strip()
+            _dcon = set(canonical_concepts(
+                list(n.get("concepts", []) or []) + _links_by_note.get(n.get("id"), [])))
             docs.append({
                 "kind": "메모", "title": n.get("title", "제목 없음"),
                 "text": _meta + " " + _body, "body": _body, "date": str(n.get("saved_at", "")),
+                "dconcepts": _dcon,
             })
         for a in st.session_state.get("saved_analyses", []):
             _summary = a.get("summary", "")
@@ -11195,9 +11204,12 @@ if menu == "지식 AI":
             _body = " ".join([str(_summary), str(a.get("note", ""))]).strip()
             _meta = " ".join([str(a.get("title", "")), str(a.get("url", "")),
                               " ".join([str(t) for t in a.get("tags", [])])])
+            _dcon = set(canonical_concepts(
+                list(a.get("concepts", []) or []) + list(a.get("tags", []) or [])))
             docs.append({
                 "kind": "분석", "title": a.get("title", "분석 결과"),
                 "text": _meta + " " + _body, "body": _body, "date": str(a.get("saved_at", "")),
+                "dconcepts": _dcon,
             })
         for c in st.session_state.get("pkm_custom_concepts", []):
             if isinstance(c, dict):
@@ -11205,20 +11217,26 @@ if menu == "지식 AI":
                                   " ".join(c.get("aliases", []) or [])])
                 _txt = _body + " " + str(c.get("folder", ""))
                 _ti = c.get("name", "개념")
+                _dcon = set(canonical_concepts([c.get("name", "")] + (c.get("aliases", []) or [])))
             else:
                 _txt = _body = str(c); _ti = str(c)
-            docs.append({"kind": "개념", "title": _ti, "text": _txt, "body": _body, "date": ""})
+                _dcon = set(canonical_concepts([str(c)]))
+            docs.append({"kind": "개념", "title": _ti, "text": _txt, "body": _body,
+                         "date": "", "dconcepts": _dcon})
         for t in st.session_state.get("tasks", []):
             _txt = " ".join([str(t.get("title", "")), str(t.get("description", "")),
                              str(t.get("status", "")), str(t.get("project", "")),
                              str(t.get("due_date", ""))])
+            _dcon = set(canonical_concepts(t.get("linked_concepts", []) or []))
             docs.append({"kind": "작업", "title": t.get("title", "작업"),
-                         "text": _txt, "body": _txt, "date": str(t.get("due_date", ""))})
+                         "text": _txt, "body": _txt, "date": str(t.get("due_date", "")),
+                         "dconcepts": _dcon})
         for p in st.session_state.get("projects", []):
             _txt = " ".join([str(p.get("name", "")), str(p.get("description", "")),
                              str(p.get("category", "")), str(p.get("status", ""))])
             docs.append({"kind": "프로젝트", "title": p.get("name", "프로젝트"),
-                         "text": _txt, "body": _txt, "date": str(p.get("created_at", ""))})
+                         "text": _txt, "body": _txt, "date": str(p.get("created_at", "")),
+                         "dconcepts": set()})
         return docs
 
     def _pka_score(query, text):
@@ -11231,6 +11249,29 @@ if menu == "지식 AI":
         for w in q_tokens:
             score += t_low.count(w) * (2 if len(w) >= 3 else 1)
         return score
+
+    # 질문에서 핵심 개념 추출 (알려진 개념 기준 + 별칭 + 토큰 정규화)
+    _known_concepts = {c for c, _ in concept_frequency()}
+
+    def _extract_q_concepts(q):
+        import re as _re
+        _ql = q.lower()
+        out = set()
+        # 1) 알려진 대표 개념이 질문에 등장
+        for _c in _known_concepts:
+            if _c and _c.lower() in _ql:
+                out.add(_c)
+        # 2) 별칭이 질문에 등장 → 대표 개념으로
+        for _canon, _als in (st.session_state.get("concept_aliases", {}) or {}).items():
+            for _a in (_als or []):
+                if str(_a).strip() and str(_a).lower() in _ql:
+                    out.add(_canon)
+        # 3) 토큰 정규화 (알려진 개념일 때만 채택 — 노이즈 방지)
+        for _w in _re.split(r"[\s,./?!()\[\]]+", q):
+            _cc = canonical_concept(_w)
+            if _cc and _cc in _known_concepts:
+                out.add(_cc)
+        return out
 
     _pka_docs = _pka_build_corpus()
     _pka_kinds = {}
@@ -11254,13 +11295,41 @@ if menu == "지식 AI":
             _q_low = _pka_q.lower()
             _deep_mode = any(k in _q_low for k in _deep_kw)
 
-            _scored = [(d, _pka_score(_pka_q, d["text"])) for d in _pka_docs]
-            _scored = [x for x in _scored if x[1] > 0]
-            _scored.sort(key=lambda x: x[1], reverse=True)
+            # ── 근거 재정렬: 텍스트 점수 + 개념 일치 점수 ──
+            _q_concepts = _extract_q_concepts(_pka_q)
+            _CMATCH_BOOST = 6          # 개념 1개 일치당 가중
+            _cand = []
+            for d in _pka_docs:
+                _ts = _pka_score(_pka_q, d["text"])
+                _cm = len(d.get("dconcepts", set()) & _q_concepts)
+                if _ts <= 0 and _cm == 0:
+                    continue
+                d["cmatch"] = _cm
+                _cand.append((d, _ts + _cm * _CMATCH_BOOST, _ts, _cm))
+
+            # 질문에 핵심 개념이 있으면, 개념 일치 0점 후보 컷 (단 일치 후보가 3개 이상일 때만)
+            _insufficient = False
+            if _q_concepts:
+                _with_c = [x for x in _cand if x[3] > 0]
+                if len(_with_c) >= 3:
+                    _cand = _with_c
+                elif not _with_c:
+                    _insufficient = True   # 개념 일치 근거가 전혀 없음
+
+            _cand.sort(key=lambda x: x[1], reverse=True)
+            # 하위 30% 컷 (최소 3개 보장)
+            if len(_cand) > 4:
+                _keep = max(3, int(len(_cand) * 0.7))
+                _cand = _cand[:_keep]
+
+            _scored = [(d, sc) for d, sc, ts, cm in _cand]
 
             if not _scored:
                 st.info("관련된 지식을 찾지 못했어요. 다른 키워드로 물어보세요.")
             else:
+                if _insufficient:
+                    st.warning("질문의 핵심 개념과 일치하는 저장 지식이 적어요. "
+                               "저장된 지식만으로는 충분하지 않을 수 있어요 — 관련 메모를 더 저장하면 답이 정확해져요.")
                 # ── 모드별 문서/길이 결정 ──
                 if _deep_mode:
                     # 가장 강한 문서를 길게 + 보조 1~2개
@@ -11315,14 +11384,20 @@ if menu == "지식 AI":
                     st.caption("🔍 깊게 설명 모드 — 가장 관련 높은 원문을 길게 읽어 설명했어요.")
                 st.markdown(_ans)
                 st.markdown("### 🔖 참고한 지식")
+                if _q_concepts:
+                    st.caption("개념 일치 점수순으로 재정렬했어요. 핵심 개념: "
+                               + " ".join(f"`{c}`" for c in list(_q_concepts)[:8]))
                 for i, d in enumerate(_top, 1):
                     _badge = {"메모": "#0ea5e9", "분석": "#6366f1", "개념": "#0f766e",
                               "작업": "#f59e0b", "프로젝트": "#ec4899"}.get(d["kind"], "#64748b")
+                    _cm = d.get("cmatch", 0)
+                    _cm_html = (f' <span style="background:#dcfce7;color:#15803d;font-size:11px;'
+                                f'padding:1px 6px;border-radius:8px;">🎯 개념 {_cm}</span>') if _cm else ""
                     st.markdown(
                         f'<div style="border-left:3px solid {_badge};padding:6px 12px;margin:4px 0;'
                         f'background:#f8fafc;border-radius:6px;">'
                         f'<b>[{i}]</b> <span style="color:{_badge};font-weight:700;">{d["kind"]}</span> '
-                        f'· {d["title"]} <span style="color:#94a3b8;font-size:12px;">{d["date"]}</span></div>',
+                        f'· {d["title"]}{_cm_html} <span style="color:#94a3b8;font-size:12px;">{d["date"]}</span></div>',
                         unsafe_allow_html=True)
                 with st.expander("🛠️ 디버그 — AI가 실제로 읽은 내용", expanded=False):
                     st.write(f"**모드:** {'깊게 설명' if _deep_mode else '일반 검색'}")

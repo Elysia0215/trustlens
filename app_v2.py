@@ -12954,30 +12954,32 @@ if menu == "가이드북":
     <div style="font-size:2rem; font-weight:900; letter-spacing:-1px; margin-bottom:6px;">
         📘 TrustLens 가이드북
     </div>
-    <div style="font-size:1rem; opacity:0.85; line-height:1.6;">
-        처음 오셨나요? 이 페이지 하나로 TrustLens 모든 기능을 이해할 수 있어요.<br>
-        <strong>수집 → 메모 → 연결 → 검색 → AI 활용</strong>의 전체 흐름을 안내해요.
+    <div style="font-size:1rem; opacity:0.9; line-height:1.6;">
+        매일 떠오른 생각을 기록하면, JIUM이 그것들을 <strong>연결하고 확장</strong>해<br>
+        하나의 <strong>내 지식 세계</strong>로 만들어가요.
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-    # ── 한 문장 정의 (자체 용어가 많아 처음 온 사람이 큰 그림부터 잡게) ──
+    # ── 1) 왜 쓰는가 — 기능보다 먼저 '왜'를 (감성 카피) ──
     st.markdown(
-        "<div style='background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;"
-        "padding:16px 20px;margin-bottom:18px;font-size:1.05em;line-height:1.7;color:#0c4a6e;'>"
-        "🪐 <b>TrustLens는</b> <b>‘프로젝트 &gt; 연구노트 &gt; 메모’</b> 구조 위에 "
-        "<b>‘개념 · 태그 · 관계’</b> 그래프를 덧씌운 <b>지식 관리 시스템</b>입니다."
+        "<div style='background:linear-gradient(135deg,#f0f9ff,#faf5ff);border:1px solid #bae6fd;"
+        "border-radius:14px;padding:22px 26px;margin-bottom:20px;line-height:1.8;color:#0c4a6e;'>"
+        "<div style='font-size:1.15rem;font-weight:900;margin-bottom:8px;'>🌍 내 지식 세계</div>"
+        "우리는 매일 많은 생각을 하지만, 대부분은 흩어지고 사라져요.<br>"
+        "<b>JIUM</b>은 그 생각을 <b>기록하고 · 연결하고 · 확장해서</b><br>"
+        "나만의 <b>지식 세계</b>를 만들어가는 공간이에요.<br>"
+        "<span style='color:#475569;'>오늘 ‘한 줄’부터 시작해보세요. 쌓일수록 세계가 넓어져요.</span>"
         "</div>",
         unsafe_allow_html=True)
 
-    # ── 🚀 5분 시작하기 (자체 용어 입문 + 첫 동선) ──
-    st.markdown("#### 🚀 TrustLens 시작하기 (5분)")
+    # ── 2) 3분 시작하기 — 용어보다 먼저 '경험' ──
+    st.markdown("#### 🚀 3분만에 시작하기")
     _quickstart = [
-        ("1️⃣", "메모 작성", "✍️ 홈 한 줄이나 📅 데일리 노트에 떠오른 걸 적어요. 이게 가장 작은 지식 단위예요."),
-        ("2️⃣", "개념 연결", "메모에서 🧠 핵심 개념·🏷️ 태그가 자동 추출돼요. 같은 개념끼리 메모가 이어져요."),
-        ("3️⃣", "관계 생성", "🔗 연구노트↔메모, 작업↔개념처럼 엔티티 사이를 잇는 선(관계)을 만들어요."),
-        ("4️⃣", "프로젝트 배치", "📁 메모·작업·개념을 프로젝트에 묶어요. 프로젝트가 곧 🪐 ‘행성’이 돼요."),
-        ("5️⃣", "지식 우주 확장", "🪐 내 지식 우주에서 행성이 커지는 걸 보고, 🚀 발사대로 흩어진 지식을 정리해요."),
+        ("1️⃣", "오늘 떠오른 생각을 적는다", "✍️ 홈 맨 위 ‘오늘 한 줄’이나 📅 데일리 노트에 그냥 적으면 끝이에요."),
+        ("2️⃣", "JIUM이 개념·태그를 연결해준다", "적은 내용에서 핵심 개념·태그가 자동으로 뽑혀 비슷한 기록끼리 이어져요."),
+        ("3️⃣", "쌓인 기록이 프로젝트·관계로 이어진다", "관련 기록을 하나의 주제(프로젝트)로 묶고, 기록 사이를 관계로 연결해요."),
+        ("4️⃣", "어느 순간 내 지식 세계가 만들어진다", "🪐 지식 우주에서 내 세계가 커지고 연결되는 걸 눈으로 보게 돼요."),
     ]
     for _qi, _qt, _qd in _quickstart:
         st.markdown(
@@ -12986,8 +12988,33 @@ if menu == "가이드북":
             f"<div><b style='color:#1e293b'>{_qt}</b>"
             f"<div style='color:#64748b;font-size:0.9em;margin-top:1px'>{_qd}</div></div></div>",
             unsafe_allow_html=True)
-    st.caption("💡 헷갈리는 용어(행성·발사대·개념·연구노트·관계)는 아래 탭과 FAQ에서 더 자세히 풀어놨어요.")
     st.divider()
+
+    # ── 3) 핵심 용어 — 경험을 설명한 뒤에 용어 ──
+    st.markdown("#### 📖 핵심 용어 5가지")
+    _terms = [
+        ("📝", "메모", "가장 작은 생각 기록 한 조각."),
+        ("📚", "연구노트", "여러 메모를 묶어 정리한 노트."),
+        ("🧠", "개념", "여러 기록에서 반복되는 핵심 아이디어."),
+        ("🔗", "관계", "기록과 기록 사이를 잇는 연결선."),
+        ("🪐", "프로젝트", "하나의 주제를 담은 ‘행성’."),
+    ]
+    _tc1, _tc2 = st.columns(2)
+    for _ti, (_tem, _tnm, _tds) in enumerate(_terms):
+        with (_tc1 if _ti % 2 == 0 else _tc2):
+            st.markdown(
+                f"<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;"
+                f"padding:10px 14px;margin-bottom:8px;'>"
+                f"<b>{_tem} {_tnm}</b><br><span style='color:#64748b;font-size:0.9em'>{_tds}</span></div>",
+                unsafe_allow_html=True)
+    st.caption(
+        "🪐 한 줄 정리: JIUM은 ‘프로젝트 > 연구노트 > 메모’ 구조 위에 "
+        "‘개념·태그·관계’ 연결망을 덧씌운 지식 세계예요."
+    )
+    st.divider()
+
+    # ── 4) 기능 설명 (아래 탭) ──
+    st.markdown("#### 🧭 기능 자세히 보기")
 
     _g0, _g1, _g6, _g2, _g3, _g4, _g5 = st.tabs([
         "🗺 사용 흐름·활용 레벨",

@@ -14751,10 +14751,33 @@ def render_home_universe():
                               key="home_univ_chart", config={"displayModeBar": False})
         _clicked = None
         try:
-            _pts = (_ev.selection or {}).get("points", []) if _ev else []
+            _selobj = getattr(_ev, "selection", None)
+            if _selobj is None and isinstance(_ev, dict):
+                _selobj = _ev.get("selection")
+            _pts = (_selobj or {}).get("points", []) or []
+            # 1) 좌표 기반 매칭 (curve_number/키 이름에 의존 X, 중심(0,0) 제외)
             for _pt in _pts:
-                if _pt.get("curve_number") == 1:  # 행성 trace
-                    _ix = _pt.get("point_number", _pt.get("point_index"))
+                _px, _py = _pt.get("x"), _pt.get("y")
+                if _px is None:
+                    continue
+                if abs(_px) < 0.05 and abs(_py or 0) < 0.05:
+                    continue  # 중심 항성
+                _best, _bd = None, 0.2
+                for _pp_i in range(len(_planets)):
+                    _d = abs(_xs[_pp_i] - _px) + abs(_ys[_pp_i] - (_py or 0))
+                    if _d < _bd:
+                        _bd, _best = _d, _pp_i
+                if _best is not None:
+                    _clicked = _planets[_best]["name"]
+                    break
+            # 2) 폴백: 인덱스 기반
+            if _clicked is None:
+                for _pt in _pts:
+                    _cn = _pt.get("curve_number", _pt.get("curveNumber"))
+                    if _cn == 0:
+                        continue
+                    _ix = _pt.get("point_number", _pt.get("point_index",
+                          _pt.get("pointNumber", _pt.get("pointIndex"))))
                     if _ix is not None and _ix < len(_planets):
                         _clicked = _planets[_ix]["name"]
                         break

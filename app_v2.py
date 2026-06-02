@@ -5143,8 +5143,26 @@ def render_knowledge_map_page():
                         unsafe_allow_html=True)
         st.caption("➕ 고급 6개(노션보드·태그맵·지식페이지·브레인스토밍·프로젝트맵·타임라인)는 위 **🔬 고급 기능 6개 더 보기**를 켜면 나와요.")
     if _km_adv:
-        # ON: 탭이 이미 보여주므로 카탈로그 중복 제거 — 한 줄 안내만 (도구 성격 명시)
-        st.caption("🔬 **고급 도구 6개**가 뒤 탭에 추가됐어요 — 🧩 노션보드 · 🕸️ 태그맵 · 🧠 지식페이지 · 🤖 브레인스토밍 · 🗺️ 프로젝트맵 · 🕰️ 타임라인. (기본 4개는 '무엇을 볼까', 고급은 '어떻게 볼까')")
+        # ON: 기본 4개와 같은 디자인 언어로 고급 6개도 짧은 카드 (도구 성격)
+        st.caption("🔬 고급 도구 — 뒤 탭에서 골라 쓰세요. (기본 4개는 '무엇을 볼까', 고급은 '어떻게 볼까')")
+        _adv_catalog = [
+            ("🧩", "노션보드", "카드로 정리"),
+            ("🕸️", "태그맵", "태그로 탐색"),
+            ("🧠", "지식페이지", "위키처럼 읽기"),
+            ("🤖", "브레인스토밍", "AI 아이디어"),
+            ("🗺️", "프로젝트맵", "연결 시각화"),
+            ("🕰️", "타임라인", "시간순 보기"),
+        ]
+        _adv_cols = st.columns(6)
+        for _ai2, (_em, _nm, _desc) in enumerate(_adv_catalog):
+            with _adv_cols[_ai2]:
+                with st.container(border=True):
+                    st.markdown(
+                        f"<div style='text-align:center'>"
+                        f"<div style='font-size:1.3em'>{_em}</div>"
+                        f"<b style='font-size:0.85em'>{_nm}</b><br>"
+                        f"<span style='color:#64748b;font-size:0.74em'>{_desc}</span></div>",
+                        unsafe_allow_html=True)
     if not _km_adv:
         # 기본 모드: 5번째 이후(고급) 탭 버튼만 숨김 — 탭/본문은 그대로 생성(기능 삭제 없음)
         st.markdown(

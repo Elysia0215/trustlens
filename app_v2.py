@@ -1337,6 +1337,22 @@ section[data-testid="stSidebar"] .stMarkdown {
     padding: 2px 0 4px 0;
 }
 
+/* ── 그룹별 포인트 색 (--grp는 각 그룹 인라인 style로 주입) ── */
+.tl-nav-group[open] > summary {
+    color: var(--grp, rgba(255,255,255,0.95)) !important;
+    box-shadow: inset 3px 0 0 var(--grp, transparent);
+}
+.tl-nav-group > summary:hover {
+    box-shadow: inset 3px 0 0 var(--grp, transparent);
+}
+.tl-nav-group[open] .tl-grp-arrow { color: var(--grp, inherit); opacity: 0.9; }
+/* 활성 메뉴 항목 — 그룹 색으로 강조 (기본 파랑 규칙보다 뒤에 와서 우선) */
+.tl-nav-group .tl-nav-item.active {
+    background: color-mix(in srgb, var(--grp, #60a5fa) 24%, transparent) !important;
+    color: color-mix(in srgb, var(--grp, #bfdbfe) 60%, #ffffff) !important;
+    border-left: 3px solid var(--grp, #60a5fa);
+}
+
 /* hr / caption */
 section[data-testid="stSidebar"] hr { display: none !important; }
 section[data-testid="stSidebar"] .stCaption p {
@@ -1356,33 +1372,34 @@ button[data-testid="collapsedControl"],
     st.markdown(_SIDEBAR_CSS, unsafe_allow_html=True)
 
     # ─── 메뉴 구조 ───
+    # (그룹 이모지, 그룹명, 포인트색, [항목들])
     _NAV_STRUCTURE = [
-        ("🏠", "홈", [
-            ("home",      "🏠", "홈 대시보드"),
+        ("🏠", "홈", "#38bdf8", [          # 하늘
+            ("home",      "🏠", "대시보드"),
             ("daily",     "📅", "데일리 노트"),
             ("search",    "🔍", "통합 검색"),
-            ("new",       "➕", "새 메모·엔터티"),
+            ("new",       "➕", "빠른 작성"),
         ]),
-        ("📝", "지식", [
+        ("📝", "지식", "#a78bfa", [        # 보라
             ("archive",   "📚", "지식 아카이브"),
             ("map",       "🕸️", "지식 맵"),
             ("tags",      "🏷️", "태그 관리"),
         ]),
-        ("📁", "프로젝트", [
+        ("📁", "프로젝트", "#34d399", [    # 초록
             ("projects",  "📂", "프로젝트"),
             ("tasks",     "✅", "작업 관리"),
         ]),
-        ("🤖", "AI", [
+        ("🤖", "AI", "#fb923c", [          # 주황
             ("ai",        "🧠", "지식 AI"),
             ("brain",     "💡", "AI 브레인스토밍"),
             ("pattern",   "📈", "패턴 분석"),
         ]),
-        ("📊", "분석", [
+        ("📊", "분석", "#f87171", [        # 빨강
             ("result",    "📊", "분석 결과"),
             ("criteria",  "🔍", "신뢰도 근거"),
             ("saved",     "🗃️", "분석결과 아카이브"),
         ]),
-        ("⚙️", "관리", [
+        ("⚙️", "관리", "#94a3b8", [        # 회색
             ("entity",    "🔎", "엔터티 상세"),
             ("data",      "🔗", "데이터 관리"),
             ("history",   "🕒", "최근 검색 기록"),
@@ -1412,7 +1429,7 @@ button[data-testid="collapsedControl"],
 
     # ─── 네비게이션 (details/summary 기반 — 새로고침 없음) ───
     _nav_html_parts = []
-    for _grp_icon, _grp_name, _grp_items in _NAV_STRUCTURE:
+    for _grp_icon, _grp_name, _grp_color, _grp_items in _NAV_STRUCTURE:
         # 현재 페이지가 이 그룹에 속하면 기본 열림
         _grp_page_keys = [i[0] for i in _grp_items]
         _open_attr = "open" if _cur_page in _grp_page_keys else ""
@@ -1433,7 +1450,7 @@ button[data-testid="collapsedControl"],
             )
 
         _nav_html_parts.append(
-            f'<details class="tl-nav-group" {_open_attr}>'
+            f'<details class="tl-nav-group" {_open_attr} style="--grp:{_grp_color}">'
             f'<summary>'
             f'<span style="font-size:18px">{_grp_icon}</span>'
             f'<span>{_grp_name}</span>'

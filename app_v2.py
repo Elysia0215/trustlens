@@ -361,6 +361,64 @@ def get_setting(key, default=None):
     return APP_SETTINGS_DEFAULTS.get(key, default)
 
 
+# ── 공통 액션 버튼 시스템 — "보기 → 다음 행동" 통일 ──────────────
+_ACTION_SPECS = {
+    "concept": [("📄 개념 상세", "entity"), ("🕸 관계 보기", "relmap"), ("🤖 브레인스토밍", "brain")],
+    "project": [("📁 프로젝트 열기", "project"), ("🗺 프로젝트맵", "projmap"),
+                ("✅ 작업 보기", "tasks"), ("🤖 브레인스토밍", "brain")],
+    "note":    [("📖 노트 열기", "note"), ("🧠 지식맵", "map"),
+                ("📁 프로젝트", "project"), ("🤖 브레인스토밍", "brain")],
+    "task":    [("📁 프로젝트", "project"), ("📚 아카이브", "archive"), ("🤖 브레인스토밍", "brain")],
+    "report":  [("🧠 개념 보기", "map"), ("📚 아카이브 보기", "archive"),
+                ("📅 데일리 노트", "daily"), ("🤖 브레인스토밍", "brain")],
+}
+
+
+def _action_navigate(act, name=None, target_id=None, project=None):
+    """액션 코드 → page/query_params/session_state 이동 (기존 방식 재사용)."""
+    if act == "entity" and name:
+        st.session_state["ep_jump_entity"] = name; st.query_params["page"] = "entity"
+    elif act == "relmap" and name:
+        st.session_state["rg_sel_node"] = name; st.query_params["page"] = "map"
+    elif act == "projmap" and name:
+        st.session_state["pm_sel_project"] = name; st.query_params["page"] = "map"
+    elif act == "project":
+        _p = project or name
+        if _p:
+            st.session_state["ep_jump_entity"] = _p
+        st.query_params["page"] = "projects"
+    elif act == "tasks":
+        st.query_params["page"] = "tasks"
+    elif act == "note":
+        if target_id:
+            st.session_state["archive_open_note_id"] = target_id
+        st.query_params["page"] = "archive"
+    elif act == "map":
+        st.query_params["page"] = "map"
+    elif act == "archive":
+        st.query_params["page"] = "archive"
+    elif act == "daily":
+        st.query_params["page"] = "daily"
+    elif act == "brain":
+        st.query_params["page"] = "brain"
+
+
+def render_action_buttons(context_type, target_name=None, target_id=None,
+                          project=None, key_prefix="act", title="🚀 다음 행동"):
+    """화면 공통 '다음 행동' 버튼 세트. context_type: concept/project/note/task/report."""
+    _acts = _ACTION_SPECS.get(context_type, [])
+    if not _acts:
+        return
+    if title:
+        st.markdown(f"**{title}**")
+    _cols = st.columns(len(_acts))
+    for _i, (_label, _act) in enumerate(_acts):
+        with _cols[_i]:
+            if st.button(_label, key=f"{key_prefix}_{_act}", use_container_width=True):
+                _action_navigate(_act, target_name, target_id, project)
+                st.rerun()
+
+
 # ── 테마 정의: 같은 데이터, 다른 세계관 ──
 # 설정(Control Center)·홈 대시보드 양쪽에서 쓰여서 파일 상단에 정의.
 # 각 테마: levels[(임계점, 레벨명, 이모지)] / gradient / shadow / 성장단계 이모지 / 5요소 라벨
@@ -6355,18 +6413,10 @@ def render_knowledge_map_page():
                         f"🔗 연결 {len(_rg_connected)} · 📝 관련 메모 {len(_rel_memos)} · "
                         f"📁 {_conn_types['project']} · 🧠 {_conn_types['concept']} · 🏷️ {_conn_types['tag']}")
 
-                    # 행동 버튼: 시각화 → 탐색 → 행동
-                    _ab1, _ab2 = st.columns(2)
-                    with _ab1:
-                        if _rg_ntype in ("concept", "project", "tag") and st.button(
-                                "📄 엔터티 상세", key=f"rg_act_entity_{_rg_sel}", use_container_width=True):
-                            st.session_state["ep_jump_entity"] = _rg_sel
-                            st.query_params["page"] = "entity"
-                            st.rerun()
-                    with _ab2:
-                        if st.button("🤖 브레인스토밍", key=f"rg_act_brain_{_rg_sel}", use_container_width=True):
-                            st.query_params["page"] = "brain"
-                            st.rerun()
+                    # 공통 다음 행동 버튼 (노드 유형별)
+                    _rg_ctx = {"project": "project", "note": "note"}.get(_rg_ntype, "concept")
+                    render_action_buttons(_rg_ctx, target_name=_rg_sel,
+                                          key_prefix=f"rg_act_{_rg_sel}")
 
                     if _rg_connected:
                         st.markdown("**연결된 항목**")
@@ -12085,15 +12135,7 @@ if menu == "패턴 분석":
             _recs.append("메모를 더 쌓으면 맞춤 추천이 나와요.")
         for _r in _recs:
             st.markdown(f"- {_r}")
-        _rb1, _rb2 = st.columns(2)
-        with _rb1:
-            if st.button("🧠 개념 보러가기", key="rep_goto_map", use_container_width=True):
-                st.query_params["page"] = "map"
-                st.rerun()
-        with _rb2:
-            if st.button("📚 아카이브 보러가기", key="rep_goto_arch", use_container_width=True):
-                st.query_params["page"] = "archive"
-                st.rerun()
+        render_action_buttons("report", key_prefix="rpt", title=None)
     st.divider()
     st.caption("아래는 상세 통계예요.")
 
@@ -14958,10 +15000,8 @@ def render_home_universe():
                     st.markdown(f"- {_wt.get('title', '')} · {_wt.get('status', '')}")
             else:
                 st.caption("아직 없어요.")
-        if st.button(f"📁 {_sel_planet} 프로젝트 상세 열기", key="univ_goto_proj", use_container_width=True):
-            st.session_state["ep_jump_entity"] = _sel_planet
-            st.query_params["page"] = "projects"
-            st.rerun()
+        render_action_buttons("project", target_name=_sel_planet, project=_sel_planet,
+                              key_prefix=f"univ_act_{_sel_planet}")
     else:
         st.caption("위 행성 버튼을 누르면 그 프로젝트의 메모·개념·태그·작업이 펼쳐져요.")
 

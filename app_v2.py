@@ -12025,13 +12025,15 @@ if menu == "설정":
 
     with _scr:
         st.markdown("#### 🎨 화면")
-        _seg("카드 밀도", "ui_density", ["여유", "보통", "촘촘"])
-        _seg("글자 크기", "ui_font_scale", ["작게", "보통", "크게"])
-        _tog("✨ 애니메이션", "ui_animations", help="성장 연출·전환 애니메이션")
+        st.caption("🔜 카드 밀도·글자 크기·애니메이션은 지금은 **저장만** 돼요(곧 화면에 반영).")
+        _seg("카드 밀도 🔜", "ui_density", ["여유", "보통", "촘촘"])
+        _seg("글자 크기 🔜", "ui_font_scale", ["작게", "보통", "크게"])
+        _tog("✨ 애니메이션 🔜", "ui_animations", help="성장 연출·전환 애니메이션 (곧 적용)")
         st.caption("라이트/다크 등 색 테마는 우측 상단 ⋮ → Settings(Streamlit) 또는 .streamlit/config.toml에서 바꿔요.")
 
     with _world:
         st.markdown("#### 🌌 세계관")
+        st.caption("✅ 선택 즉시 홈 대시보드 용어에 반영돼요.")
         _theme_keys = list(_BRAIN_THEMES.keys())
         _theme_names = [_BRAIN_THEMES[k]["name"] for k in _theme_keys]
         _cur_theme = st.session_state.get("brain_theme", "default")
@@ -12048,25 +12050,29 @@ if menu == "설정":
 
     with _lumi:
         st.markdown("#### 🤖 루미")
-        _seg("말투(페르소나)", "lumi_persona", ["친구형", "분석가형", "코치형", "철학자형"],
+        st.caption("🔜 페르소나·안내 수준은 **저장만** 돼요(루미 말투 반영은 곧).")
+        _seg("말투(페르소나) 🔜", "lumi_persona", ["친구형", "분석가형", "코치형", "철학자형"],
              help="철학자형은 향후 철학 프로파일 리포트(v4.x)와 연결돼요.")
-        _seg("안내 수준", "lumi_guide_level", ["적게", "보통", "자세히"])
+        _seg("안내 수준 🔜", "lumi_guide_level", ["적게", "보통", "자세히"])
         st.caption("루미 아바타는 홈 대시보드 우측 패널에서도 바꿀 수 있어요.")
 
     with _sb:
         st.markdown("#### 🧠 Second Brain 기능")
-        st.caption("끄면 해당 기능이 화면에서 숨겨지거나 동작하지 않아요. (저장된 데이터는 그대로)")
-        _tog("자동 개념 추출", "feat_auto_concepts")
-        _tog("개념 품질 게이트", "feat_quality_gate")
-        _tog("⭐ TF-IDF 중요 개념 강조", "feat_tfidf")
-        _tog("🪢 관련 메모 추천", "feat_related_notes")
+        st.caption("✅ 표시는 즉시 반영, 🔜 표시는 곧 적용돼요. (저장된 데이터는 항상 그대로)")
+        _tog("자동 개념 추출 🔜", "feat_auto_concepts")
+        _tog("개념 품질 게이트 🔜", "feat_quality_gate")
+        _tog("⭐ TF-IDF 중요 개념 강조 ✅", "feat_tfidf",
+             help="끄면 개념 허브 TF-IDF 섹션·프로젝트 맵 중요도 토글이 숨겨져요.")
+        _tog("🪢 관련 메모 추천 ✅", "feat_related_notes",
+             help="끄면 노트 상세의 관련 메모 추천이 숨겨져요.")
 
     with _notif:
         st.markdown("#### 🔔 알림")
-        _tog("마감일 알림", "notif_due")
-        _tog("작업 완료 토스트", "notif_task_done")
-        _tog("프로젝트 요약 표시", "notif_project_summary")
-        _tog("✨ 토스트 메시지", "ui_toasts")
+        st.caption("🔜 알림 항목은 지금은 **저장만** 돼요(곧 적용).")
+        _tog("마감일 알림 🔜", "notif_due")
+        _tog("작업 완료 토스트 🔜", "notif_task_done")
+        _tog("프로젝트 요약 표시 🔜", "notif_project_summary")
+        _tog("✨ 토스트 메시지 🔜", "ui_toasts")
 
     with _lab:
         st.markdown("#### 📊 실험실 (베타)")
@@ -12091,7 +12097,7 @@ if menu == "설정":
             save_persisted_data()
             _flash("설정을 기본값으로 되돌렸어요.")
             st.rerun()
-    st.caption("변경 후 **설정 저장**을 눌러야 다음 실행에도 유지돼요. (세계관은 즉시 적용)")
+    st.caption("✅ = 지금 바로 반영 · 🔜 = 저장만 되고 곧 적용 예정. 변경 후 **설정 저장**을 눌러야 다음 실행에도 유지돼요. (세계관은 즉시 적용)")
     st.stop()
 
 

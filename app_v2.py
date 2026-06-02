@@ -1337,6 +1337,21 @@ section[data-testid="stSidebar"] .stMarkdown {
     padding: 2px 0 4px 0;
 }
 
+/* 📘 가이드북 — 메인급 독립 메뉴 (그룹 헤더처럼 크게) */
+.tl-nav-item.tl-nav-standalone {
+    font-size: 16px;
+    font-weight: 700;
+    padding: 10px 16px;
+    color: rgba(255,255,255,0.82) !important;
+}
+.tl-nav-item.tl-nav-standalone .ni-icon { font-size: 18px; }
+.tl-nav-item.tl-nav-standalone .ni-label { font-size: 15px; font-weight: 700; }
+.tl-nav-item.tl-nav-standalone.active {
+    background: rgba(59,130,246,0.30) !important;
+    color: #bfdbfe !important;
+    border-left: 3px solid #60a5fa;
+}
+
 /* ── 그룹별 포인트 색 (--grp는 각 그룹 인라인 style로 주입) ── */
 .tl-nav-group[open] > summary {
     color: var(--grp, rgba(255,255,255,0.95)) !important;
@@ -1400,18 +1415,16 @@ button[data-testid="collapsedControl"],
             ("saved",     "🗃️", "분석결과 아카이브"),
         ]),
         ("⚙️", "관리", "#94a3b8", [        # 회색
-            ("entity",    "🔎", "엔터티 상세"),
+            ("settings",  "⚙️", "설정"),
             ("data",      "🔗", "데이터 관리"),
+            ("entity",    "🔎", "엔터티 상세"),
             ("history",   "🕒", "최근 검색 기록"),
+            ("changelog", "🆕", "패치 노트"),
         ]),
     ]
 
-    # 하단 독립 고정 메뉴 (관리 기능이 아닌 온보딩/도움말)
-    _NAV_BOTTOM = [
-        ("settings",  "⚙️", "설정"),
-        ("guide",     "📘", "가이드북"),
-        ("changelog", "🆕", "패치 노트"),
-    ]
+    # 가이드북은 '도움말'이라 관리 안에 숨기지 않고 메인급 독립 메뉴(관리 그룹 바로 위)로 노출
+    _NAV_GUIDE = ("guide", "📘", "가이드북")
 
     _cur_page = st.query_params.get("page", "home")
 
@@ -1430,6 +1443,16 @@ button[data-testid="collapsedControl"],
     # ─── 네비게이션 (details/summary 기반 — 새로고침 없음) ───
     _nav_html_parts = []
     for _grp_icon, _grp_name, _grp_color, _grp_items in _NAV_STRUCTURE:
+        # 관리 그룹 직전에 📘 가이드북을 메인급 독립 메뉴로 끼워 넣기
+        if _grp_name == "관리":
+            _g_active = "active" if _cur_page == _NAV_GUIDE[0] else ""
+            _nav_html_parts.append(
+                f'<a href="?page={_NAV_GUIDE[0]}" target="_self" '
+                f'class="tl-nav-item tl-nav-standalone {_g_active}">'
+                f'<span class="ni-icon">{_NAV_GUIDE[1]}</span>'
+                f'<span class="ni-label">{_NAV_GUIDE[2]}</span></a>'
+                f'<div class="tl-nav-divider"></div>'
+            )
         # 현재 페이지가 이 그룹에 속하면 기본 열림
         _grp_page_keys = [i[0] for i in _grp_items]
         _open_attr = "open" if _cur_page in _grp_page_keys else ""
@@ -1462,18 +1485,6 @@ button[data-testid="collapsedControl"],
         )
 
     st.markdown("\n".join(_nav_html_parts), unsafe_allow_html=True)
-
-    # ─── 하단 독립 고정 메뉴 (가이드북 등) ───
-    _bottom_html = '<div style="height:6px"></div>'
-    for _page_key, _icon, _label in _NAV_BOTTOM:
-        _active_cls = "active" if _cur_page == _page_key else ""
-        _bottom_html += (
-            f'<a href="?page={_page_key}" target="_self" class="tl-nav-item {_active_cls}" '
-            f'style="margin:2px 6px;">'
-            f'<span class="ni-icon">{_icon}</span>'
-            f'<span class="ni-label">{_label}</span></a>'
-        )
-    st.markdown(_bottom_html, unsafe_allow_html=True)
 
     # ─── query param → menu 동기화 ───
     _PAGE_TO_MENU = {

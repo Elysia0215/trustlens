@@ -7716,28 +7716,31 @@ def render_task_page():
                             st.rerun()
                 else:
                     # ── 보기 모드 ──
-                    c1, c2, c3, c4 = st.columns([4, 1, 1, 1])
-                    with c1:
+                    # 좌: 작업 정보 / 우: 액션 그룹(상태+수정+삭제)을 하나로 묶어 오른쪽 끝에 밀착
+                    c_left, c_actions = st.columns([6, 2.6])
+                    with c_left:
                         st.markdown(f"{se} **{task.get('title','')}**")
                         st.caption(f"📁 {task.get('project','없음')} · {pe} {task.get('priority','')} · 📅 {task.get('due_date','—')}")
                         if task.get("summary"):
                             st.caption(task["summary"])
-                    with c2:
-                        _cur_status = _smap.get(task.get("status","시작 전"), task.get("status","시작 전"))
-                        if _cur_status not in _status_opts: _cur_status = "시작 전"
-                        new_status = st.selectbox("", _status_opts, index=_status_opts.index(_cur_status),
-                            key=f"task_status_{_tid}", label_visibility="collapsed")
-                        if new_status != task.get("status"):
-                            task["status"] = new_status
-                            task["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                            save_persisted_data(); _flash("변경사항을 저장했어요"); st.rerun()
-                    with c3:
-                        if st.button("✏️", key=f"task_edit_btn_{_tid}", help="수정"):
-                            st.session_state[_edit_key] = True; st.rerun()
-                    with c4:
-                        if st.button("🗑️", key=f"del_task_{_tid}", help="삭제"):
-                            st.session_state.tasks = [t for t in tasks if t.get("id") != _tid]
-                            save_persisted_data(); _flash("변경사항을 저장했어요"); st.rerun()
+                    with c_actions:
+                        a_status, a_edit, a_del = st.columns([1.7, 0.5, 0.5])
+                        with a_status:
+                            _cur_status = _smap.get(task.get("status","시작 전"), task.get("status","시작 전"))
+                            if _cur_status not in _status_opts: _cur_status = "시작 전"
+                            new_status = st.selectbox("", _status_opts, index=_status_opts.index(_cur_status),
+                                key=f"task_status_{_tid}", label_visibility="collapsed")
+                            if new_status != task.get("status"):
+                                task["status"] = new_status
+                                task["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                                save_persisted_data(); _flash("변경사항을 저장했어요"); st.rerun()
+                        with a_edit:
+                            if st.button("✏️", key=f"task_edit_btn_{_tid}", help="수정", use_container_width=True):
+                                st.session_state[_edit_key] = True; st.rerun()
+                        with a_del:
+                            if st.button("🗑️", key=f"del_task_{_tid}", help="삭제", use_container_width=True):
+                                st.session_state.tasks = [t for t in tasks if t.get("id") != _tid]
+                                save_persisted_data(); _flash("변경사항을 저장했어요"); st.rerun()
                     _lk_cap = task_link_caption(task)
                     _lk_chips = task_concept_chips(task)
                     if _lk_cap:

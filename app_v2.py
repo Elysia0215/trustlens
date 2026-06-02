@@ -15205,34 +15205,67 @@ def render_home_universe():
         _fig = _ugo.Figure()
         _n = len(_planets)
         _sel_now = _sel_planet  # 선택된 행성 — 지도에 강조
-        _xs, _ys, _sizes, _texts, _hov, _colors, _lines, _custom = [], [], [], [], [], [], [], []
+
+        # 행성별 고유 색 팔레트 (진짜 우주처럼 다채롭게)
+        _PL_PALETTE = ["#60a5fa", "#a78bfa", "#34d399", "#f472b6",
+                       "#22d3ee", "#fb923c", "#818cf8", "#2dd4bf"]
+        def _hex_rgba(_hx, _a):
+            _hx = _hx.lstrip("#")
+            return f"rgba({int(_hx[0:2],16)},{int(_hx[2:4],16)},{int(_hx[4:6],16)},{_a})"
+
+        _xs, _ys, _sizes, _texts, _hov, _colors, _lines, _lcolors, _custom = \
+            [], [], [], [], [], [], [], [], []
+        _halo_sizes, _halo_colors = [], []
         for _i, _pl in enumerate(_planets):
             _ang = 2 * _umath.pi * _i / max(1, _n)
             _xs.append(_umath.cos(_ang)); _ys.append(_umath.sin(_ang))
             _is_sel = (_pl["name"] == _sel_now)
             _base = max(26, min(80, 26 + _pl["size"] * 3))  # clamp 26~80
-            _sizes.append(_base + 8 if _is_sel else _base)
-            _colors.append("#f59e0b" if _is_sel else "#6366f1")   # 선택 행성 = 주황 강조
-            _lines.append(3 if _is_sel else 1)
+            _pcolor = _PL_PALETTE[_i % len(_PL_PALETTE)]
+            _sz = _base + 10 if _is_sel else _base
+            _sizes.append(_sz)
+            _colors.append(_pcolor)
+            # 선택 = 밝은 흰 테두리 두껍게 / 평소 = 같은 색 옅은 테두리(대기 가장자리 느낌)
+            _lines.append(3.5 if _is_sel else 1.5)
+            _lcolors.append("#ffffff" if _is_sel else _hex_rgba(_pcolor, 0.9))
+            # 대기광(글로우) — 행성 뒤 반투명 헤일로
+            _halo_sizes.append(_sz * (2.2 if _is_sel else 1.7))
+            _halo_colors.append(_hex_rgba(_pcolor, 0.34 if _is_sel else 0.18))
             _texts.append(f"🪐 {_pl['name']}" + (" ✨" if _is_sel else ""))
             _hov.append(f"{_pl['name']}<br>📝 {_pl['memos']} · 🧠 {_pl['concepts']} · 🏷 {_pl['tags']} · ✅ {_pl['tasks']}")
             _custom.append(_pl["name"])
-        # 중심 항성
+
         _center_selected = _sel_planet is None
+        # 1) 중심 항성 글로우(금빛 대기광)
+        _fig.add_trace(_ugo.Scatter(
+            x=[0], y=[0], mode="markers",
+            marker=dict(size=(40 if _center_selected else 30) * 2.1,
+                        color=_hex_rgba("#fbbf24", 0.30 if _center_selected else 0.16)),
+            hoverinfo="skip", showlegend=False))
+        # 2) 행성 글로우 레이어 (뒤)
+        if _xs:
+            _fig.add_trace(_ugo.Scatter(
+                x=_xs, y=_ys, mode="markers",
+                marker=dict(size=_halo_sizes, color=_halo_colors),
+                hoverinfo="skip", showlegend=False))
+        # 3) 중심 항성 본체 (금빛 — 행성과 색 구분)
         _fig.add_trace(_ugo.Scatter(
             x=[0], y=[0], mode="markers+text",
             text=["🌎 내 지식" + (" ✨" if _center_selected else "")],
             textposition="bottom center",
             marker=dict(size=40 if _center_selected else 30,
-                        color="#f59e0b" if _center_selected else "#fbbf24",
-                        line=dict(width=4 if _center_selected else 1, color="#fff")),
+                        color="#fcd34d" if _center_selected else "#fbbf24",
+                        line=dict(width=4 if _center_selected else 2,
+                                  color="#fff7ed" if _center_selected else _hex_rgba("#fbbf24", 0.8))),
             customdata=["__all__"], hovertext=["전체 지식 우주"], hoverinfo="text",
             showlegend=False))
-        _fig.add_trace(_ugo.Scatter(
-            x=_xs, y=_ys, mode="markers+text", text=_texts, textposition="top center",
-            marker=dict(size=_sizes, color=_colors, opacity=0.9,
-                        line=dict(width=_lines, color="#fff")),
-            customdata=_custom, hovertext=_hov, hoverinfo="text", showlegend=False))
+        # 4) 행성 본체 (앞)
+        if _xs:
+            _fig.add_trace(_ugo.Scatter(
+                x=_xs, y=_ys, mode="markers+text", text=_texts, textposition="top center",
+                marker=dict(size=_sizes, color=_colors, opacity=0.96,
+                            line=dict(width=_lines, color=_lcolors)),
+                customdata=_custom, hovertext=_hov, hoverinfo="text", showlegend=False))
         # 클릭 선택 ON + 줌 비활성(더블클릭/드래그 줌 OFF)
         _fig.update_layout(height=300, margin=dict(l=10, r=10, t=10, b=10),
                            dragmode=False,

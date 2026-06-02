@@ -6187,6 +6187,61 @@ def render_project_page():
 
         with dt1:
             st.markdown(f"**{sel_proj_name}** 에 연결된 자료")
+
+            # ── 자료 연결 액션 바 ──────────────────────────
+            _link_c1, _link_c2 = st.columns(2)
+            _proj_link_key = f"dt1_linkpanel_{proj_id}"
+            with _link_c1:
+                if st.button("➕ 기존 자료 연결", key=f"dt1_linkbtn_{proj_id}", use_container_width=True):
+                    st.session_state[_proj_link_key] = not st.session_state.get(_proj_link_key, False)
+            with _link_c2:
+                if st.button("➕ 새 자료 만들기", key=f"dt1_newdoc_{proj_id}", use_container_width=True):
+                    st.query_params["page"] = "home"
+                    _flash("새 분석을 시작한 뒤 저장할 때 이 프로젝트를 선택하면 연결돼요.")
+                    st.rerun()
+
+            # ── 기존 자료 연결 패널 ──────────────────────────
+            if st.session_state.get(_proj_link_key):
+                with st.container(border=True):
+                    st.markdown("**📎 기존 자료를 이 프로젝트에 연결**")
+                    # 이 프로젝트가 아닌 자료들만 후보로
+                    _cand_notes = [n for n in st.session_state.get("archive_notes", [])
+                                   if n.get("project") != sel_proj_name]
+                    _cand_analyses = [a for a in st.session_state.get("saved_analyses", [])
+                                      if a.get("project") != sel_proj_name]
+                    # 옵션 라벨 → 원본 매핑
+                    _link_opt_map = {}
+                    for _ni, _n in enumerate(_cand_notes):
+                        _lbl = f"📝 {(_n.get('title') or '제목 없음')[:40]} · {(_n.get('project') or '미연결')}"
+                        _link_opt_map[f"{_lbl}__n{_ni}"] = ("note", _n)
+                    for _ai, _a in enumerate(_cand_analyses):
+                        _lbl = f"📊 {(_a.get('title') or '제목 없음')[:40]} · {(_a.get('project') or '미연결')}"
+                        _link_opt_map[f"{_lbl}__a{_ai}"] = ("analysis", _a)
+
+                    if not _link_opt_map:
+                        st.caption("연결할 수 있는 다른 자료가 없어요. 새 자료를 만들어보세요.")
+                    else:
+                        _sel_labels = st.multiselect(
+                            "연결할 자료 선택", list(_link_opt_map.keys()),
+                            key=f"dt1_linksel_{proj_id}",
+                            format_func=lambda x: x.rsplit("__", 1)[0])
+                        # 섹션 선택 (이 프로젝트의 섹션 + 일반)
+                        _proj_secs = [s.get("name") for s in st.session_state.get("project_sections", [])
+                                      if s.get("project_id") == proj_id and s.get("name")]
+                        _sec_opts = ["일반"] + _proj_secs
+                        _link_sec = st.selectbox("연결할 섹션", _sec_opts, key=f"dt1_linksec_{proj_id}")
+                        if st.button("🔗 현재 프로젝트에 연결", key=f"dt1_linkrun_{proj_id}",
+                                     type="primary", use_container_width=True, disabled=not _sel_labels):
+                            for _lab in _sel_labels:
+                                _kind, _obj = _link_opt_map[_lab]
+                                _obj["project"] = sel_proj_name
+                                _obj["project_id"] = proj_id
+                                _obj["section"] = _link_sec
+                            save_persisted_data()
+                            st.session_state[_proj_link_key] = False
+                            _flash(f"✅ 자료 {len(_sel_labels)}개를 '{sel_proj_name}'에 연결했어요.")
+                            st.rerun()
+
             _note_view = st.radio("보기", ["📋 테이블", "🗂️ 카드"], horizontal=True, key="proj_note_view")
 
             all_proj_items = (
@@ -6221,6 +6276,15 @@ def render_project_page():
                             _tag_str = " ".join([f"#{t}" for t in it["tags"][:3]])
                             if _tag_str:
                                 st.caption(_tag_str)
+                            if st.button("🔗 연결 해제", key=f"dt1_unlink_{proj_id}_{i}",
+                                         help="이 프로젝트와의 연결만 해제해요 (자료는 삭제되지 않아요)"):
+                                _obj = it["raw"]
+                                _obj["project"] = "기본 프로젝트"
+                                _obj["project_id"] = ""
+                                _obj["section"] = ""
+                                save_persisted_data()
+                                _flash("연결을 해제했어요. 자료는 '기본 프로젝트'로 이동했어요.")
+                                st.rerun()
 
             # ── 작업 목록 + 인라인 추가 ──────────────────────────
             st.divider()

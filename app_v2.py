@@ -10215,8 +10215,8 @@ if menu == "엔터티 상세":
                                 f'</div>', unsafe_allow_html=True
                             )
 
-                    # 빠른 작업 생성
-                    with st.expander("➕ 이 메모에서 작업 만들기", expanded=False):
+                    # 빠른 작업 생성 (상위가 expander이므로 중첩 금지 → 체크박스 토글)
+                    if st.checkbox("➕ 이 메모에서 작업 만들기", key=f"ep_qt_show_{_en.get('id','')[:8]}"):
                         _qt_title = st.text_input("작업 제목", key=f"ep_qt_title_{_en.get('id','')[:8]}", placeholder="예: 숙소 예약하기")
                         _qt_status = st.selectbox("상태", ["시작전","진행중","완료","보류"], key=f"ep_qt_status_{_en.get('id','')[:8]}")
                         _qt_priority = st.selectbox("우선순위", ["중간","높음","낮음"], key=f"ep_qt_pri_{_en.get('id','')[:8]}")

@@ -6884,47 +6884,106 @@ def render_project_page():
                     st.session_state[_ym_key] = (_cy + 1, 1) if _cm == 12 else (_cy, _cm + 1)
                     st.rerun()
 
+            # ── 유형 메타 (아이콘/라벨/색/순서) ──
+            _TYPE_META = {
+                "project":  ("📁", "프로젝트", "#6366f1"),
+                "task":     ("✅", "작업",     "#16a34a"),
+                "note":     ("📝", "메모",     "#f59e0b"),
+                "research": ("🔬", "연구노트", "#0ea5e9"),
+                "analysis": ("📊", "분석결과", "#8b5cf6"),
+            }
+            _TYPE_ORDER = ["project", "task", "note", "research", "analysis"]
+
+            # ── 이번 달 KPI 요약 ──
+            _month_prefix = f"{_cy:04d}-{_cm:02d}-"
+            _month_counts = {k: 0 for k in _TYPE_META}
+            for _dk, _evlist in _events.items():
+                if _dk.startswith(_month_prefix):
+                    for _icon, _t2, _ty in _evlist:
+                        if _ty in _month_counts:
+                            _month_counts[_ty] += 1
+            _kpi_cols = st.columns(len(_TYPE_ORDER))
+            for _ki, _ty in enumerate(_TYPE_ORDER):
+                _ic, _lb, _ = _TYPE_META[_ty]
+                _kpi_cols[_ki].metric(f"{_ic} {_lb}", f"{_month_counts[_ty]}개")
+
             # ── 요일 헤더 ──
             _wd_cols = st.columns(7)
             for _i, _wd in enumerate(["월", "화", "수", "목", "금", "토", "일"]):
                 _wd_color = "#dc2626" if _wd == "일" else "#2563eb" if _wd == "토" else "#475569"
                 _wd_cols[_i].markdown(f"<div style='text-align:center;font-weight:700;color:{_wd_color}'>{_wd}</div>", unsafe_allow_html=True)
 
-            # ── 달력 그리드 ──
+            # ── 달력 그리드 (카드형 셀) ──
             _today_str = _cal_date.today().strftime("%Y-%m-%d")
             _cal_obj = _cal_mod.Calendar(firstweekday=0)  # 월요일 시작
             _sel_date_key = f"cal_seldate_{proj_id}"
+            _sel_d = st.session_state.get(_sel_date_key)
+            _CARD_H = 78
             for _week in _cal_obj.monthdayscalendar(_cy, _cm):
-                _day_cols = st.columns(7)
+                _day_cols = st.columns(7, gap="small")
                 for _di, _day in enumerate(_week):
                     with _day_cols[_di]:
                         if _day == 0:
-                            st.markdown("&nbsp;", unsafe_allow_html=True)
+                            st.markdown(
+                                f"<div style='min-height:{_CARD_H}px'></div>",
+                                unsafe_allow_html=True)
+                            st.markdown("<div style='height:38px'></div>", unsafe_allow_html=True)
                             continue
                         _dstr = f"{_cy:04d}-{_cm:02d}-{_day:02d}"
                         _evs = _events.get(_dstr, [])
                         _is_today = (_dstr == _today_str)
-                        _daylabel = f"**{_day}**" if not _is_today else f"🔵 **{_day}**"
+                        _is_sel = (_dstr == _sel_d)
+                        # 유형별 개수 집계 (순서 고정)
+                        _tcnt = {}
+                        for _icon, _t2, _ty in _evs:
+                            _tcnt[_ty] = _tcnt.get(_ty, 0) + 1
+                        # 날짜 숫자 (HTML — 마크다운 ** 누출 방지)
+                        if _is_today:
+                            _num_html = (f"<span style='display:inline-block;min-width:22px;height:22px;line-height:22px;"
+                                         f"text-align:center;background:#2563eb;color:#fff;border-radius:50%;"
+                                         f"font-weight:700;font-size:0.82rem'>{_day}</span>")
+                        else:
+                            _dow_color = "#dc2626" if _di == 6 else "#2563eb" if _di == 5 else "#0f172a"
+                            _num_html = f"<span style='font-weight:700;font-size:0.85rem;color:{_dow_color}'>{_day}</span>"
+                        # 배지 (아이콘+개수)
+                        _badge_html = ""
+                        for _ty in _TYPE_ORDER:
+                            if _tcnt.get(_ty):
+                                _ic, _lb, _col = _TYPE_META[_ty]
+                                _badge_html += (f"<span style='display:inline-block;font-size:0.7rem;"
+                                                f"background:{_col}1a;color:{_col};border-radius:6px;"
+                                                f"padding:1px 5px;margin:1px 2px 0 0;white-space:nowrap'>{_ic}{_tcnt[_ty]}</span>")
+                        _border = "2px solid #2563eb" if _is_sel else "1px solid #e2e8f0"
+                        _bg = "#eff6ff" if _is_today else "#ffffff"
+                        st.markdown(
+                            f"<div style='border:{_border};border-radius:10px;background:{_bg};"
+                            f"padding:6px 7px;min-height:{_CARD_H}px;overflow:hidden;'>"
+                            f"<div style='margin-bottom:3px'>{_num_html}</div>"
+                            f"<div style='line-height:1.5'>{_badge_html or '&nbsp;'}</div>"
+                            f"</div>",
+                            unsafe_allow_html=True)
                         if _evs:
-                            if st.button(f"{_day}  ·{len(_evs)}", key=f"cal_day_{proj_id}_{_dstr}", use_container_width=True):
+                            if st.button(f"열기 ·{len(_evs)}", key=f"cal_day_{proj_id}_{_dstr}", use_container_width=True):
                                 st.session_state[_sel_date_key] = _dstr
                                 st.rerun()
-                            for _icon, _t2, _ty in _evs[:3]:
-                                st.markdown(f"<div style='font-size:0.72em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'>{_icon} {_t2[:8]}</div>", unsafe_allow_html=True)
-                            if len(_evs) > 3:
-                                st.caption(f"+{len(_evs) - 3}개")
                         else:
-                            st.markdown(f"<div style='text-align:center;color:{'#2563eb' if _is_today else '#94a3b8'}'>{_daylabel}</div>", unsafe_allow_html=True)
+                            st.markdown("<div style='height:38px'></div>", unsafe_allow_html=True)
 
-            # ── 선택 날짜 상세 ──
-            _sel_d = st.session_state.get(_sel_date_key)
+            # ── 선택 날짜 상세 (유형별 묶음) ──
             if _sel_d and _sel_d in _events:
                 st.divider()
-                st.markdown(f"#### 📌 {_sel_d} 일정 ({len(_events[_sel_d])}개)")
-                for _icon, _t2, _ty in _events[_sel_d]:
-                    _tylabel = {"project": "프로젝트", "task": "작업", "note": "메모",
-                                "research": "연구노트", "analysis": "분석결과"}.get(_ty, "")
-                    st.markdown(f"- {_icon} **{_t2}** &nbsp;<span style='color:#94a3b8;font-size:0.85em'>{_tylabel}</span>", unsafe_allow_html=True)
+                _sevs = _events[_sel_d]
+                st.markdown(f"#### 📌 {_sel_d} · 일정 {len(_sevs)}개")
+                for _ty in _TYPE_ORDER:
+                    _group = [(_i, _t2) for _i, _t2, _yt in _sevs if _yt == _ty]
+                    if not _group:
+                        continue
+                    _ic, _lb, _col = _TYPE_META[_ty]
+                    st.markdown(f"<b style='color:{_col}'>{_ic} {_lb} ({len(_group)})</b>", unsafe_allow_html=True)
+                    for _i, _t2 in _group:
+                        st.markdown(f"&nbsp;&nbsp;{_i} {_t2}")
+            elif _events:
+                st.caption("📅 날짜 아래 **열기** 버튼을 누르면 그 날의 상세 일정을 볼 수 있어요.")
 
             # ── 기존 리스트 보기 (마감일/저장일 순) ──
             if _events:

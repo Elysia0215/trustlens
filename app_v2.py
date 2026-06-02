@@ -7488,7 +7488,7 @@ def render_project_page():
             _cal_obj = _cal_mod.Calendar(firstweekday=0)  # 월요일 시작
             _sel_date_key = f"cal_seldate_{proj_id}"
             _sel_d = st.session_state.get(_sel_date_key)
-            _CARD_H = 78
+            _CARD_H = 96
             for _week in _cal_obj.monthdayscalendar(_cy, _cm):
                 _day_cols = st.columns(7, gap="small")
                 for _di, _day in enumerate(_week):
@@ -7515,21 +7515,24 @@ def render_project_page():
                         else:
                             _dow_color = "#dc2626" if _di == 6 else "#2563eb" if _di == 5 else "#0f172a"
                             _num_html = f"<span style='font-weight:700;font-size:0.85rem;color:{_dow_color}'>{_day}</span>"
-                        # 배지 (아이콘+개수)
-                        _badge_html = ""
-                        for _ty in _TYPE_ORDER:
-                            if _tcnt.get(_ty):
-                                _ic, _lb, _col = _TYPE_META[_ty]
-                                _badge_html += (f"<span style='display:inline-block;font-size:0.7rem;"
-                                                f"background:{_col}1a;color:{_col};border-radius:6px;"
-                                                f"padding:1px 5px;margin:1px 2px 0 0;white-space:nowrap'>{_ic}{_tcnt[_ty]}</span>")
+                        # 제목 미리보기 (숫자 대신 제목 — 캘린더를 '기억 지도'로)
+                        def _esc(_s):
+                            return str(_s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                        _title_html = ""
+                        for _icon, _t2, _ty in _evs[:2]:
+                            _col = _TYPE_META.get(_ty, ("", "", "#64748b"))[2]
+                            _tt = (_t2[:11] + "…") if len(str(_t2)) > 12 else _t2
+                            _title_html += (f"<div style='font-size:0.68rem;color:{_col};white-space:nowrap;"
+                                            f"overflow:hidden;text-overflow:ellipsis;max-width:100%'>{_icon} {_esc(_tt)}</div>")
+                        if len(_evs) > 2:
+                            _title_html += f"<div style='font-size:0.66rem;color:#94a3b8'>+{len(_evs) - 2}</div>"
                         _border = "2px solid #2563eb" if _is_sel else "1px solid #e2e8f0"
                         _bg = "#eff6ff" if _is_today else "#ffffff"
                         st.markdown(
                             f"<div style='border:{_border};border-radius:10px;background:{_bg};"
                             f"padding:6px 7px;min-height:{_CARD_H}px;overflow:hidden;'>"
                             f"<div style='margin-bottom:3px'>{_num_html}</div>"
-                            f"<div style='line-height:1.5'>{_badge_html or '&nbsp;'}</div>"
+                            f"<div style='line-height:1.45'>{_title_html or '&nbsp;'}</div>"
                             f"</div>",
                             unsafe_allow_html=True)
                         if _evs:

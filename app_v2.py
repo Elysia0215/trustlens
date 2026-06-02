@@ -15278,12 +15278,12 @@ def render_home_universe():
             _xi, _yi = _xs[_rt["i"]], _ys[_rt["i"]]
             _xj, _yj = _xs[_rt["j"]], _ys[_rt["j"]]
             if _rt["direct"]:
-                _dash, _lcol = "solid", _hex_rgba("#22c55e", 0.75)   # 🟢 직접 관계
+                _dash, _lcol = "solid", _hex_rgba("#22c55e", 0.95)   # 🟢 직접 관계
             elif _rt["concepts"]:
-                _dash, _lcol = "dash", _hex_rgba("#a855f7", 0.6)      # 🟣 공유 개념
+                _dash, _lcol = "dash", _hex_rgba("#c084fc", 0.9)      # 🟣 공유 개념
             else:
-                _dash, _lcol = "dot", _hex_rgba("#fb923c", 0.6)       # 🟠 공유 태그
-            _rw = min(6, 1.2 + _rt["strength"] * 0.5)
+                _dash, _lcol = "dot", _hex_rgba("#fb923c", 0.9)       # 🟠 공유 태그
+            _rw = min(7, 2.5 + _rt["strength"] * 0.6)
             _rtxt = (f"{_rt['a']} ↔ {_rt['b']}<br>🟣 공유 개념 {len(_rt['concepts'])} · "
                      f"🟠 공유 태그 {len(_rt['tags'])}" + ("<br>🟢 직접 관계 있음" if _rt['direct'] else ""))
             _fig.add_trace(_ugo.Scatter(
@@ -15349,7 +15349,17 @@ def render_home_universe():
             "🌌 **전체**를 누르면 가운데 내 지식이 활성화되고, "
             "그 안의 **🌎🚀 지구 발사대**에서 아직 프로젝트에 안 들어간 지식을 행성으로 보낼 수 있어요."
         )
-        # 🛸 항로 범례 + 발견된 연결 목록
+        # 🛸 항로 범례 + 디버그 카운트 (0이어도 표시)
+        _r_direct = sum(1 for r in _routes if r["direct"])
+        _r_concept = sum(1 for r in _routes if r["concepts"] and not r["direct"])
+        _r_tag = sum(1 for r in _routes if r["tags"] and not r["concepts"] and not r["direct"])
+        st.caption(
+            f"🛸 발견된 항로 {len(_routes)}개 · 🟢 직접 관계 {_r_direct} · "
+            f"🟣 공유 개념 {_r_concept} · 🟠 공유 태그 {_r_tag}"
+        )
+        if not _routes:
+            st.caption("아직 행성 사이 연결이 없어요. 같은 개념·태그를 쓰는 메모가 다른 프로젝트에 생기면 항로가 자동으로 그려져요.")
+        # 🛸 발견된 연결 목록
         if _routes:
             st.caption("🛸 **항로** = 🟢 직접 관계(실선) · 🟣 공유 개념(보라 점선) · 🟠 공유 태그(주황 점선). "
                        "직접 잇지 않아도 **원래 이어져 있던 연결**을 보여줘요.")
@@ -15426,17 +15436,23 @@ def render_home_universe():
         _ptk = [t for t in _tasks if _clean_text_value(t.get("project")).strip() == _sel_planet]
         st.markdown(f"**🪐 {_sel_planet} 위성**")
         st.caption("선택한 행성의 위성을 펼쳐봤어요.")
-        # 위성 4카드
-        _sat = [("🌙", "메모", len(_pn)), ("🧠", "개념", len(_pcs)),
-                ("🏷️", "태그", len(_ptags)), ("✅", "작업", len(_ptk))]
+        # 위성 4카드 — 누르면 아래 '행성 상세'에서 해당 목록이 펼쳐져요 (클릭 가능)
+        _sat = [("🌙", "메모", len(_pn), "memo"), ("🧠", "개념", len(_pcs), "concept"),
+                ("🏷️", "태그", len(_ptags), "tag"), ("✅", "작업", len(_ptk), "task")]
+        _sat_view = st.session_state.get("univ_sat_view") or "memo"
         _sat_cols = st.columns(4)
-        for _si, (_sem, _snm, _scnt) in enumerate(_sat):
+        for _si, (_sem, _snm, _scnt, _skey) in enumerate(_sat):
             with _sat_cols[_si]:
-                with st.container(border=True):
-                    st.markdown(
-                        f"<div style='text-align:center'><div style='font-size:1.3em'>{_sem}</div>"
-                        f"<b>{_snm}</b><br><span style='color:#6366f1;font-weight:700'>{_scnt}개</span></div>",
-                        unsafe_allow_html=True)
+                if st.button(
+                    f"{_sem} {_snm} {_scnt}",
+                    key=f"univ_sat_{_skey}_{_sel_planet}",
+                    use_container_width=True,
+                    type=("primary" if _sat_view == _skey else "secondary"),
+                    help=f"이 행성의 {_snm} 목록을 아래 행성 상세에서 펼쳐 봐요.",
+                ):
+                    st.session_state["univ_sat_view"] = _skey
+                    st.rerun()
+        st.caption("👆 카드를 누르면 아래 **행성 상세**에 그 목록이 펼쳐져요.")
         import html as _univ_html
 
         def _univ_esc(_v):
@@ -15472,10 +15488,11 @@ def render_home_universe():
             unsafe_allow_html=True)
         with st.expander("ℹ️ 이 화면 설명", expanded=False):
             st.markdown(
-                "- **최근 메모**: 이 프로젝트에 연결된 메모예요. ‘메모 열기’로 상세를 봐요.\n"
-                "- **핵심 개념**: 이 프로젝트와 자주 연결된 개념이에요.\n"
-                "- **연관 태그**: 메모에 붙은 태그를 모아 보여줘요.\n"
-                "- **실행 작업**: 이 프로젝트에 연결된 작업이에요. 작업 관리로 이어져요."
+                "- 위의 **🌙 메모 / 🧠 개념 / 🏷️ 태그 / ✅ 작업 카드를 누르면** 그 목록이 여기에 펼쳐져요. (지금 선택된 카드는 파란색)\n"
+                "- **📝 메모**: ‘메모 열기’로 상세를 봐요.\n"
+                "- **🧠 개념 / 🏷️ 태그**: 이 행성에 모인 의미 라벨이에요.\n"
+                "- **✅ 작업**: ‘작업 보드로 이동’으로 관리 화면으로 가요.\n"
+                "- 맨 위 **🛸 항로**는 이 행성이 다른 행성과 어떻게 이어져 있는지 보여줘요(공유 개념·태그·직접 관계)."
             )
         # 🚀 이 행성의 위성을 다른 행성으로 이동 (행성↔행성 재배치)
         _other_planets = [n for n in _univ_names if n and n != _sel_planet]
@@ -15563,18 +15580,20 @@ def render_home_universe():
                                f"univ_move_concepts_{_sel_planet}"):
                         st.session_state.pop(_k, None)
                     st.rerun()
-        _w1, _w2, _w3 = st.columns([1.08, 1, 1.08])
-        with _w1:
-            st.markdown("**📝 최근 메모**")
+        # 위 카드에서 고른 종류의 목록만 펼쳐서 보여줌 (행성 선택 → 카드 클릭 → 목록)
+        _view_label = {"memo": "📝 메모", "concept": "🧠 개념",
+                       "tag": "🏷️ 태그", "task": "✅ 작업"}.get(_sat_view, "📝 메모")
+        st.markdown(f"**{_view_label} 목록 — {_univ_esc(_sel_planet)}**")
+        if _sat_view == "memo":
             if _pn:
-                for _wi, _wn in enumerate(_pn[:6]):
+                for _wi, _wn in enumerate(_pn):
                     _title = _clean_text_value(_wn.get("title")).strip() or "제목 없음"
                     _tags = [
                         _clean_text_value(_t).replace("#", "").strip()
                         for _t in (_wn.get("tags", []) or [])
                         if _clean_text_value(_t).strip()
                     ]
-                    _tag_line = " ".join(f"#{_univ_esc(_t)}" for _t in _tags[:2])
+                    _tag_line = " ".join(f"#{_univ_esc(_t)}" for _t in _tags[:3])
                     with st.container(border=True):
                         st.markdown(
                             f"<div style='font-weight:900;font-size:15px;'>📝 {_univ_esc(_title)}</div>"
@@ -15586,35 +15605,27 @@ def render_home_universe():
                             st.session_state["archive_open_note_id"] = _wn.get("id")
                             st.query_params["page"] = "archive"
                             st.rerun()
-                if len(_pn) > 6:
-                    st.caption(f"외 {len(_pn) - 6}개 메모가 더 있어요.")
             else:
-                st.caption("아직 없어요.")
-        with _w2:
-            st.markdown("**🧠 핵심 개념**")
+                st.caption("아직 이 행성엔 메모가 없어요. ✍️ 메모를 만들어 위성을 띄워보세요.")
+        elif _sat_view == "concept":
             if _pcs:
                 st.markdown(
-                    "<div style='line-height:2.35;'>"
-                    + "".join(_univ_chip(_c, "#ede9fe", "#6d28d9") for _c in _pcs[:14])
-                    + "</div>",
-                    unsafe_allow_html=True)
-                if len(_pcs) > 14:
-                    st.caption(f"외 {len(_pcs) - 14}개 개념")
+                    "<div style='line-height:2.4;'>"
+                    + "".join(_univ_chip(_c, "#ede9fe", "#6d28d9") for _c in _pcs)
+                    + "</div>", unsafe_allow_html=True)
             else:
-                st.caption("아직 없어요.")
+                st.caption("아직 연결된 개념이 없어요. 메모에서 개념이 추출되면 여기 모여요.")
+        elif _sat_view == "tag":
             if _ptags:
-                st.markdown("**🏷️ 연관 태그**")
                 st.markdown(
-                    "<div style='line-height:2.35;'>"
-                    + "".join(_univ_chip(_t, "#dcfce7", "#15803d", "#") for _t in _ptags[:16])
-                    + "</div>",
-                    unsafe_allow_html=True)
-                if len(_ptags) > 16:
-                    st.caption(f"외 {len(_ptags) - 16}개 태그")
-        with _w3:
-            st.markdown("**✅ 실행 작업**")
+                    "<div style='line-height:2.4;'>"
+                    + "".join(_univ_chip(_t, "#dcfce7", "#15803d", "#") for _t in _ptags)
+                    + "</div>", unsafe_allow_html=True)
+            else:
+                st.caption("아직 태그가 없어요. 메모에 태그를 달면 여기 모여요.")
+        elif _sat_view == "task":
             if _ptk:
-                for _ti, _wt in enumerate(_ptk[:6]):
+                for _ti, _wt in enumerate(_ptk):
                     _title = _clean_text_value(_wt.get("title")).strip() or "제목 없음"
                     _status = _clean_text_value(_wt.get("status")).strip() or "상태 없음"
                     _priority = _clean_text_value(_wt.get("priority")).strip()
@@ -15630,13 +15641,11 @@ def render_home_universe():
                             f"<div style='font-weight:900;font-size:15px;margin-top:8px;'>{_univ_esc(_title)}</div>"
                             f"<div style='color:#64748b;font-size:12px;margin-top:4px;'>{_univ_esc(_meta) if _meta else '추가 정보 없음'}</div>",
                             unsafe_allow_html=True)
-                if len(_ptk) > 6:
-                    st.caption(f"외 {len(_ptk) - 6}개 작업이 더 있어요.")
                 if st.button("✅ 작업 보드로 이동", key=f"univ_tasks_open_{_sel_planet}", use_container_width=True):
                     st.query_params["page"] = "tasks"
                     st.rerun()
             else:
-                st.caption("아직 없어요.")
+                st.caption("아직 작업이 없어요. 작업을 만들면 여기서 퀘스트로 보여요.")
         render_action_buttons("project", target_name=_sel_planet, project=_sel_planet,
                               key_prefix=f"univ_act_{_sel_planet}")
     else:

@@ -15307,17 +15307,25 @@ def render_home_universe():
                         if _t.get("id") in _mv_sel_tasks:
                             _t["project"] = _mv_dest
                             _t["updated_at"] = _mv_now
+                    # 메모에 연결된 개념도 함께 이동 (개념은 메모에 딸려감)
+                    _carried = set(_mv_sel_concepts)
                     for _lk in st.session_state.get("note_concept_links", []):
                         _cn = _clean_text_value(_lk.get("concept")).strip()
-                        if _cn in _mv_sel_concepts or _lk.get("note_id") in _mv_sel_notes:
+                        if _cn and _lk.get("note_id") in _mv_sel_notes:
+                            _carried.add(_cn)
+                    for _lk in st.session_state.get("note_concept_links", []):
+                        _cn = _clean_text_value(_lk.get("concept")).strip()
+                        if _cn in _carried or _lk.get("note_id") in _mv_sel_notes:
                             _lk["project"] = _mv_dest
                             _lk["updated_at"] = _mv_now
                     for _c in st.session_state.get("pkm_custom_concepts", []):
-                        if isinstance(_c, dict) and _clean_text_value(_c.get("name")).strip() in _mv_sel_concepts:
+                        if isinstance(_c, dict) and _clean_text_value(_c.get("name")).strip() in _carried:
                             _c["project"] = _mv_dest
                             _c["updated_at"] = _mv_now
                     save_persisted_data()
-                    _flash(f"🚀 {_mv_total}개를 '{_sel_planet}' → '{_mv_dest}'(으)로 이동했어요!")
+                    _carried_extra = len(_carried) - len(_mv_sel_concepts)
+                    _carry_msg = f" (개념 {_carried_extra}개 동반)" if _carried_extra > 0 else ""
+                    _flash(f"🚀 {_mv_total}개를 '{_sel_planet}' → '{_mv_dest}'(으)로 이동했어요!{_carry_msg}")
                     for _k in (f"univ_move_notes_{_sel_planet}",
                                f"univ_move_tasks_{_sel_planet}",
                                f"univ_move_concepts_{_sel_planet}"):
@@ -15598,13 +15606,19 @@ def render_home_universe():
                     if _t.get("id") in _sel_task_ids:
                         _t["project"] = _dest
                         _t["updated_at"] = _now
+                # 메모에 연결된 개념도 함께 발사 (개념은 메모에 딸려감)
+                _launch_carried = set(_sel_concepts)
+                for _lk in st.session_state.get("note_concept_links", []):
+                    _cn = _clean_text_value(_lk.get("concept")).strip()
+                    if _cn and _lk.get("note_id") in _sel_note_ids:
+                        _launch_carried.add(_cn)
                 for _lk in st.session_state.get("note_concept_links", []):
                     _concept_name = _clean_text_value(_lk.get("concept")).strip()
-                    if _concept_name in _sel_concepts or _lk.get("note_id") in _sel_note_ids:
+                    if _concept_name in _launch_carried or _lk.get("note_id") in _sel_note_ids:
                         _lk["project"] = _dest
                         _lk["updated_at"] = _now
                 for _c in st.session_state.get("pkm_custom_concepts", []):
-                    if isinstance(_c, dict) and _clean_text_value(_c.get("name")).strip() in _sel_concepts:
+                    if isinstance(_c, dict) and _clean_text_value(_c.get("name")).strip() in _launch_carried:
                         _c["project"] = _dest
                         _c["updated_at"] = _now
                 for _key in _sel_section_keys:

@@ -12572,7 +12572,7 @@ if menu == "가이드북":
         st.divider()
 
         st.markdown("### 🧙 고급 — 지식을 다듬고 분석하기")
-        st.caption("기능 설명만으론 어디 있는지 모르니, 📍위치 · 🎯언제 · 🔗관련 기능을 함께 표시했어요.")
+        st.caption("📍위치 · 🎯언제 · 🔗관련 · 🚶사용 흐름 으로 '언제 어떻게 쓰는지'까지 안내해요.")
         _hi1, _hi2, _hi3 = st.columns(3)
         with _hi1:
             with st.container(border=True):
@@ -12580,18 +12580,22 @@ if menu == "가이드북":
                 st.markdown("📍 **위치**: 지식 맵 → 🧠 개념 (⚙️ 개념 관리 도구) · 관리 → 데이터 관리 → 🧠 개념 병합")
                 st.markdown("🎯 **언제**: 개념이 중복되거나 추천 품질을 높이고 싶을 때")
                 st.markdown("🔗 **관련**: 품질 게이트 · 별칭 · 병합 · TF-IDF")
+                st.markdown("🚶 **흐름**: 개념 확인 → 별칭 묶기 → 병합 → TF-IDF로 핵심 개념 부각")
         with _hi2:
             with st.container(border=True):
                 st.markdown("**🕸 지식 구조 분석**")
                 st.markdown("📍 **위치**: 지식 맵 → 🕸 관계 / 🗺 프로젝트맵 / 🕰 타임라인 (고급 보기)")
                 st.markdown("🎯 **언제**: 지식이 어떻게 연결돼 있는지 보고 싶을 때")
                 st.markdown("🔗 **관련**: 관계형 지식맵 · 프로젝트맵 · 타임라인")
+                st.markdown("🚶 **흐름**: 관계맵에서 연결 보기 → 프로젝트맵으로 좁히기 → 타임라인으로 변화 보기")
         with _hi3:
             with st.container(border=True):
                 st.markdown("**🤖 AI 활용**")
                 st.markdown("📍 **위치**: AI → 🧠 지식 AI / 💡 브레인스토밍 / 📈 패턴 분석")
                 st.markdown("🎯 **언제**: 쌓인 지식을 근거로 답을 얻거나 아이디어를 확장할 때")
                 st.markdown("🔗 **관련**: 지식 AI · 브레인스토밍 · 패턴 분석")
+                st.markdown("🚶 **흐름**: 지식 AI에 질문 → 브레인스토밍으로 확장 → 패턴 분석으로 회고")
+        st.caption("🚶 **전체 흐름 예시**: ✍️ 오늘 한 줄 → 📅 데일리 노트 → 🧠 개념 생성 → 🕸 관계맵 확인 → 🤖 AI 확장")
         st.divider()
 
         st.markdown("### 🙋 나는 어떤 사용자? — 유형별 시나리오")

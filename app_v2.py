@@ -225,7 +225,7 @@ def create_task(title, project="", status="시작 전", priority="보통",
         "id": _new_id("task"), "user_id": "local_user",
         "title": title.strip(), "project_id": _proj_obj.get("id", ""), "project": project,
         "status": status, "priority": priority, "due_date": due_date,
-        "summary": summary.strip(), "linked_note_ids": [],
+        "summary": summary.strip(), "linked_note_ids": [], "linked_concepts": [],
         "source_note_id": source_note_id, "source_note_title": source_note_title,
         "created_at": _now, "updated_at": _now, "deleted_at": None,
     }
@@ -1429,6 +1429,130 @@ def multiselect_with_all(label, options, key, format_func=None, help=None, hint=
     if help is not None:
         _kw["help"] = help
     return st.multiselect(label, options, **_kw)
+
+
+def link_checkbox_picker(items, current_selected, key_prefix, id_func, label_func,
+                         type_func=None, priority_set=None, search_label="🔍 검색",
+                         empty_text="후보가 없어요.", height=220):
+    """체크박스 기반 연결 선택 리스트 (메모/개념 등을 작업·프로젝트에 연결할 때 재사용).
+    - 검색 + (선택) 유형 필터 + 전체선택/해제 + 체크박스 + 선택 개수
+    - 필터로 일부가 숨겨져도 선택 상태는 유지 (전용 selset이 진실의 원천)
+    반환: 선택된 id 리스트.
+    숨겨진 항목의 선택을 잃지 않도록, selset에는 후보에 더는 없는 id도 보존된다.
+    """
+    items = list(items)
+    _selkey = f"{key_prefix}__selset"
+    if _selkey not in st.session_state:
+        st.session_state[_selkey] = list(current_selected or [])
+    sel = set(st.session_state[_selkey])
+
+    q = st.text_input(search_label, key=f"{key_prefix}__q", placeholder="제목으로 검색").strip().lower()
+    cands = items
+    if type_func is not None:
+        _types = ["전체"] + sorted({type_func(it) for it in items})
+        _tsel = st.selectbox("유형", _types, key=f"{key_prefix}__tf")
+        if _tsel != "전체":
+            cands = [it for it in cands if type_func(it) == _tsel]
+    if q:
+        cands = [it for it in cands if q in label_func(it).lower()]
+    if priority_set:
+        cands = sorted(cands, key=lambda it: (id_func(it) not in priority_set, label_func(it)))
+
+    if cands:
+        _pa, _pb = st.columns(2)
+        with _pa:
+            if st.button(f"☑️ 전체 선택 ({len(cands)})", key=f"{key_prefix}__all", use_container_width=True):
+                for it in cands:
+                    _i = id_func(it)
+                    sel.add(_i)
+                    st.session_state[f"{key_prefix}__cb_{_i}"] = True
+                st.session_state[_selkey] = list(sel)
+                st.rerun()
+        with _pb:
+            if st.button("⬜ 보이는 항목 해제", key=f"{key_prefix}__none", use_container_width=True):
+                for it in cands:
+                    _i = id_func(it)
+                    sel.discard(_i)
+                    st.session_state[f"{key_prefix}__cb_{_i}"] = False
+                st.session_state[_selkey] = list(sel)
+                st.rerun()
+
+    with st.container(height=height, border=True):
+        if not cands:
+            st.caption(empty_text)
+        for it in cands:
+            _iid = id_func(it)
+            _cbkey = f"{key_prefix}__cb_{_iid}"
+            if _cbkey not in st.session_state:
+                st.session_state[_cbkey] = _iid in sel
+            _label = label_func(it)
+            if priority_set and _iid in priority_set:
+                _label = f"⭐ {_label}"
+            _checked = st.checkbox(_label, key=_cbkey)
+            if _checked:
+                sel.add(_iid)
+            else:
+                sel.discard(_iid)
+
+    st.session_state[_selkey] = list(sel)
+    st.caption(f"✅ 선택 {len(sel)}개")
+    return list(sel)
+
+
+def clear_link_picker(key_prefix):
+    """link_checkbox_picker 가 만든 세션 상태(selset/검색/체크박스) 일괄 정리."""
+    for k in [_k for _k in st.session_state.keys() if _k.startswith(f"{key_prefix}__")]:
+        del st.session_state[k]
+
+
+def task_link_editor(key_prefix, project_name, cur_note_ids, cur_concepts):
+    """작업에 연결할 메모/개념을 고르는 2-탭 체크박스 picker. (note_ids, concepts) 반환.
+    현재 프로젝트의 메모/개념을 ⭐로 우선 표시."""
+    notes = st.session_state.get("archive_notes", [])
+    concepts = st.session_state.get("pkm_custom_concepts", [])
+    proj_note_ids = {n.get("id") for n in notes if project_name and n.get("project") == project_name}
+    _links = st.session_state.get("note_concept_links", [])
+    proj_concepts = {l.get("concept") for l in _links
+                     if l.get("note_id") in proj_note_ids and l.get("concept")}
+
+    _pt1, _pt2 = st.tabs([f"📎 메모 ({len(cur_note_ids or [])})", f"🧠 개념 ({len(cur_concepts or [])})"])
+    with _pt1:
+        sel_notes = link_checkbox_picker(
+            notes, cur_note_ids, f"{key_prefix}_note",
+            id_func=lambda n: n.get("id", ""),
+            label_func=lambda n: (n.get("title") or "(제목 없음)"),
+            priority_set=proj_note_ids, empty_text="저장된 메모가 없어요.")
+    with _pt2:
+        sel_cons = link_checkbox_picker(
+            concepts, cur_concepts, f"{key_prefix}_con",
+            id_func=lambda c: c.get("name", ""),
+            label_func=lambda c: (c.get("name", "") + (f"  · {c.get('folder','')}" if c.get("folder") else "")),
+            priority_set=proj_concepts, empty_text="등록된 개념이 없어요.")
+    return sel_notes, sel_cons
+
+
+def task_link_caption(task):
+    """작업 카드 하단에 표시할 연결 요약 문자열. 연결 없으면 빈 문자열."""
+    _n = len(task.get("linked_note_ids", []) or [])
+    _c = len(task.get("linked_concepts", []) or [])
+    parts = []
+    if _n:
+        parts.append(f"📎 메모 {_n}개")
+    if _c:
+        parts.append(f"🧠 개념 {_c}개")
+    return " · ".join(parts)
+
+
+def task_concept_chips(task, limit=6):
+    """연결된 개념을 #chip 문자열로. 없으면 빈 문자열."""
+    cons = [c for c in (task.get("linked_concepts", []) or []) if c]
+    if not cons:
+        return ""
+    shown = cons[:limit]
+    chips = " ".join(f"#{c}" for c in shown)
+    if len(cons) > limit:
+        chips += f" +{len(cons) - limit}"
+    return chips
 
 
 def normalize_date_str(value) -> str:
@@ -6160,6 +6284,7 @@ def render_project_page():
                                         "due_date": "",
                                         "summary": "",
                                         "linked_note_ids": [],
+                                        "linked_concepts": [],
                                         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
                                         "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
                                     }
@@ -6252,6 +6377,13 @@ def render_project_page():
             _hm2.metric("🧠 개념", f"{len(_hub_concepts)}개")
             _hm3.metric("✅ 작업", f"{len(_hub_tasks)}개")
             _hm4.metric("🎉 완료", f"{_hub_done}개")
+            # 작업-메모/개념 연결 지표
+            _hub_task_w_note = sum(1 for t in _hub_tasks if t.get("linked_note_ids"))
+            _hub_task_w_con = sum(1 for t in _hub_tasks if t.get("linked_concepts"))
+            if _hub_tasks:
+                st.caption(
+                    f"🔗 메모 연결 작업 {_hub_task_w_note}/{len(_hub_tasks)} · "
+                    f"개념 연결 작업 {_hub_task_w_con}/{len(_hub_tasks)}")
 
         # 탭: 메모/분석결과 | 섹션 | 캘린더 | 타임라인
         dt1, dt2, dt3, dt4 = st.tabs(["📄 연결된 자료", "📂 섹션 관리", "📅 캘린더", "📊 타임라인"])
@@ -6498,6 +6630,7 @@ def render_project_page():
                                     "due_date": normalize_date_str(_dt1_due),
                                     "summary": "",
                                     "linked_note_ids": [],
+                                    "linked_concepts": [],
                                     "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
                                     "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
                                 }
@@ -6869,6 +7002,9 @@ def render_task_page():
             t_due = st.date_input("마감일", key="new_task_due", value=None)
             t_summary = st.text_input("메모", key="new_task_summary", placeholder="간단한 설명")
 
+        st.markdown("**🔗 연결 (선택)**")
+        _nt_notes, _nt_cons = task_link_editor("newtask", t_proj, [], [])
+
         if st.button("✅ 작업 저장", key="save_new_task", type="primary", use_container_width=True):
             if t_title.strip():
                 proj_obj = next((p for p in projects if p["name"] == t_proj), {})
@@ -6883,13 +7019,16 @@ def render_task_page():
                     "priority": t_priority,
                     "due_date": str(t_due) if t_due else "",
                     "summary": t_summary.strip(),
-                    "linked_note_ids": [],
+                    "linked_note_ids": list(_nt_notes),
+                    "linked_concepts": list(_nt_cons),
                     "created_at": _tnow,
                     "updated_at": _tnow,
                     "deleted_at": None,
                 }
                 tasks.append(new_task)
                 st.session_state.tasks = tasks
+                clear_link_picker("newtask_note")
+                clear_link_picker("newtask_con")
                 save_persisted_data()
                 _flash(f"'{t_title}' 작업을 추가했어요!")
                 st.rerun()
@@ -6951,6 +7090,10 @@ def render_task_page():
                         _e_pri = st.selectbox("우선순위", _pri_opts, index=_pi, key=f"task_epr_{_tid}")
                     _e_due = st.date_input("마감일", value=parse_date_for_input(task.get("due_date","")), key=f"task_ed_{_tid}")
                     _e_sum = st.text_area("메모", value=task.get("summary",""), key=f"task_em_{_tid}", height=60)
+                    st.markdown("**🔗 연결**")
+                    _et_notes, _et_cons = task_link_editor(
+                        f"edittask_{_tid}", _e_proj,
+                        task.get("linked_note_ids", []), task.get("linked_concepts", []))
                     _sv_col, _cl_col = st.columns(2)
                     with _sv_col:
                         if st.button("💾 저장", key=f"task_esave_{_tid}", type="primary", use_container_width=True):
@@ -6960,12 +7103,19 @@ def render_task_page():
                             task["priority"] = _e_pri
                             task["due_date"] = normalize_date_str(_e_due)
                             task["summary"] = _e_sum.strip()
+                            task["linked_note_ids"] = list(_et_notes)
+                            task["linked_concepts"] = list(_et_cons)
                             task["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
                             st.session_state[_edit_key] = False
+                            clear_link_picker(f"edittask_{_tid}_note")
+                            clear_link_picker(f"edittask_{_tid}_con")
                             save_persisted_data(); _flash("변경사항을 저장했어요"); st.rerun()
                     with _cl_col:
                         if st.button("취소", key=f"task_ecancel_{_tid}", use_container_width=True):
-                            st.session_state[_edit_key] = False; st.rerun()
+                            st.session_state[_edit_key] = False
+                            clear_link_picker(f"edittask_{_tid}_note")
+                            clear_link_picker(f"edittask_{_tid}_con")
+                            st.rerun()
                 else:
                     # ── 보기 모드 ──
                     c1, c2, c3, c4 = st.columns([4, 1, 1, 1])
@@ -6990,6 +7140,26 @@ def render_task_page():
                         if st.button("🗑️", key=f"del_task_{_tid}", help="삭제"):
                             st.session_state.tasks = [t for t in tasks if t.get("id") != _tid]
                             save_persisted_data(); _flash("변경사항을 저장했어요"); st.rerun()
+                    _lk_cap = task_link_caption(task)
+                    _lk_chips = task_concept_chips(task)
+                    if _lk_cap:
+                        st.caption(f"🔗 {_lk_cap}" + (f"  ·  {_lk_chips}" if _lk_chips else ""))
+                        _all_notes_v = st.session_state.get("archive_notes", [])
+                        _note_titles = [
+                            (next((n.get("title") or "(제목 없음)" for n in _all_notes_v
+                                   if n.get("id") == nid), None))
+                            for nid in task.get("linked_note_ids", [])
+                        ]
+                        _note_titles = [t for t in _note_titles if t]
+                        with st.expander("🔎 연결 상세 보기", expanded=False):
+                            if _note_titles:
+                                st.markdown("**📎 관련 메모**")
+                                for _ntl in _note_titles:
+                                    st.markdown(f"- {_ntl}")
+                            if task.get("linked_concepts"):
+                                st.markdown("**🧠 관련 개념**")
+                                st.markdown(" ".join(f"`{c}`" for c in task.get("linked_concepts", [])))
+                            st.caption(f"📁 프로젝트: {task.get('project','없음')}  ·  📅 마감: {task.get('due_date','—')}")
 
     elif task_view == "🗂️ 보드":
         statuses = ["시작 전", "진행 중", "검토 중", "완료", "보류"]
@@ -7020,6 +7190,9 @@ def render_task_page():
                         st.markdown(f"**{task.get('title','')}**")
                         st.caption(f"📁 {task.get('project','—')}")
                         st.caption(f"{pe} {task.get('priority','')} · 📅 {task.get('due_date','—')}")
+                        _bcap = task_link_caption(task)
+                        if _bcap:
+                            st.caption(f"🔗 {_bcap}")
                         _tl, _tr = st.columns(2)
                         with _tl:
                             if _tsi > 0 and st.button("←", key=f"tb_left_{_tid2}", help=f"{statuses[_tsi-1]}로"):

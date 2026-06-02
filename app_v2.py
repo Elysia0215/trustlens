@@ -9743,13 +9743,42 @@ if menu == "데이터 관리":
                         except Exception as e:
                             st.error(f"AI 오류: {e}")
 
-                _air_sugg = st.session_state.get("dm_air_suggestions", [])
+                _air_valid_types = {"포함","참조","반박","지지","확장","연결","유사","선행"}
+
+                def _air_rtype(_sg):
+                    return _sg["rtype"] if _sg.get("rtype") in _air_valid_types else "연결"
+
+                def _air_rel_exists(_src, _tgt, _rt):
+                    # 중복 판단: source + target + relation_type (공통 로직)
+                    return any(
+                        r.get("source_name") == _src and r.get("target_name") == _tgt
+                        and r.get("relation_type") == _rt
+                        for r in st.session_state.get("relations", [])
+                    )
+
+                def _air_make_rel(_sg):
+                    import uuid as _aiuuid
+                    return {
+                        "id": str(_aiuuid.uuid4())[:8],
+                        "source_type": "concept", "source_name": _sg["source"],
+                        "target_type": "concept", "target_name": _sg["target"],
+                        "relation_type": _air_rtype(_sg),
+                        "created_by": "ai_suggestion",
+                        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    }
+
+                # 이미 relations에 있는 추천은 화면에서 제외 (개별/전체 동일 기준)
+                _air_all = st.session_state.get("dm_air_suggestions", [])
+                _air_sugg = [s for s in _air_all
+                             if not _air_rel_exists(s["source"], s["target"], _air_rtype(s))]
+                # 저장소도 정리(이미 추가된 항목 제거)
+                if len(_air_sugg) != len(_air_all):
+                    st.session_state["dm_air_suggestions"] = _air_sugg
                 if _air_sugg:
                     st.divider()
                     st.markdown(f"**💡 AI 추천 관계 {len(_air_sugg)}개** — 추가할 항목을 선택하세요")
-                    _air_valid_types = {"포함","참조","반박","지지","확장","연결","유사","선행"}
                     for _si, _sg in enumerate(_air_sugg):
-                        _sg_rt = _sg["rtype"] if _sg["rtype"] in _air_valid_types else "연결"
+                        _sg_rt = _air_rtype(_sg)
                         _ac1, _ac2 = st.columns([5,1])
                         with _ac1:
                             st.markdown(
@@ -9757,40 +9786,27 @@ if menu == "데이터 관리":
                                 f'<b>{_sg["source"]}</b> '
                                 f'<span style="background:#3b82f6;color:white;border-radius:8px;padding:1px 8px;font-size:0.8rem;margin:0 6px;">{_sg_rt}</span> '
                                 f'<b>{_sg["target"]}</b>'
-                                + (f'<br><span style="font-size:0.8rem;color:#64748b;">{_sg["reason"]}</span>' if _sg["reason"] else "")
+                                + (f'<br><span style="font-size:0.8rem;color:#64748b;">{_sg["reason"]}</span>' if _sg.get("reason") else "")
                                 + '</div>', unsafe_allow_html=True
                             )
                         with _ac2:
-                            if st.button("➕", key=f"dm_air_add_{_si}", help="이 관계 추가"):
-                                _rels_ai = st.session_state.setdefault("relations", [])
-                                if not any(r.get("source_name")==_sg["source"] and r.get("target_name")==_sg["target"] for r in _rels_ai):
-                                    import uuid as _aiuuid
-                                    _rels_ai.append({
-                                        "id": str(_aiuuid.uuid4())[:8],
-                                        "source_type":"concept","source_name":_sg["source"],
-                                        "target_type":"concept","target_name":_sg["target"],
-                                        "relation_type": _sg_rt,
-                                        "created_by":"ai_suggestion",
-                                        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                                    })
+                            if st.button("➕", key=f"dm_air_add_{_sg['source']}_{_sg['target']}_{_sg_rt}", help="이 관계 추가"):
+                                if not _air_rel_exists(_sg["source"], _sg["target"], _sg_rt):
+                                    st.session_state.setdefault("relations", []).append(_air_make_rel(_sg))
                                     save_persisted_data()
-                                    _flash(f"'{_sg['source']} → {_sg['target']}' 추가!")
-                                    st.rerun()
+                                # 추천 목록에서 이 항목 제거 (개별 추가 시 카드 즉시 사라짐)
+                                st.session_state["dm_air_suggestions"] = [
+                                    s for s in st.session_state.get("dm_air_suggestions", [])
+                                    if not (s["source"] == _sg["source"] and s["target"] == _sg["target"]
+                                            and _air_rtype(s) == _sg_rt)
+                                ]
+                                _flash(f"'{_sg['source']} → {_sg['target']}' 추가!")
+                                st.rerun()
                     if st.button("✅ 추천 전체 추가", key="dm_air_add_all"):
-                        _rels_ai2 = st.session_state.setdefault("relations", [])
                         _added = 0
-                        import uuid as _aiuuid2
                         for _sg in _air_sugg:
-                            _sg_rt2 = _sg["rtype"] if _sg["rtype"] in _air_valid_types else "연결"
-                            if not any(r.get("source_name")==_sg["source"] and r.get("target_name")==_sg["target"] for r in _rels_ai2):
-                                _rels_ai2.append({
-                                    "id": str(_aiuuid2.uuid4())[:8],
-                                    "source_type":"concept","source_name":_sg["source"],
-                                    "target_type":"concept","target_name":_sg["target"],
-                                    "relation_type": _sg_rt2,
-                                    "created_by":"ai_suggestion",
-                                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                                })
+                            if not _air_rel_exists(_sg["source"], _sg["target"], _air_rtype(_sg)):
+                                st.session_state.setdefault("relations", []).append(_air_make_rel(_sg))
                                 _added += 1
                         save_persisted_data()
                         st.session_state["dm_air_suggestions"] = []

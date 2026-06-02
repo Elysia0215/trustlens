@@ -8646,18 +8646,26 @@ if menu == "새 엔터티":
             placeholder="## 핵심 정리\n- 항목\n- [ ] 확인할 일\n> 인용이나 참고",
             help="마크다운을 지원해요. 저장 후 읽기 화면에서 제목/목록/체크박스가 적용돼요.",
         )
-        # 개념 자동 연결 선택
+        # 개념 연결: 기존에서 고르거나 + 새로 입력 (태그와 동일 패턴 — 개념이 없어도 막히지 않게)
         _wm_all_cons = [c.get("name") if isinstance(c,dict) else str(c) for c in st.session_state.get("pkm_custom_concepts",[]) if c]
-        _wm_link_cons = multiselect_with_all("연결할 개념 (선택)", _wm_all_cons, key="wz_m_cons")
+        _wm_link_cons = multiselect_with_all("연결할 개념 (기존에서 선택)", _wm_all_cons, key="wz_m_cons",
+                                             help="이미 있는 개념을 고르면 같은 개념을 쓰는 다른 메모·프로젝트와 이어져요.")
+        _wm_new_cons = st.text_input("새 개념 추가 (쉼표 구분)", key="wz_m_cons_new",
+                                     placeholder="목록에 없는 개념을 바로 입력. 예: 그래프 구조, 임베딩")
+        st.caption("💡 비워둬도 저장 시 메모 내용에서 핵심 개념이 자동으로 뽑혀 연결돼요.")
         if st.button("✅ 메모 만들기", key="wz_m_save", type="primary", use_container_width=True):
             if _wm_title.strip() and _wm_note.strip():
                 _tags = list(dict.fromkeys(
                     list(_wm_sel_tags) +
                     [t.strip() for t in _wm_new_tags.split(",") if t.strip()]
                 ))
+                _cons = list(dict.fromkeys(
+                    list(_wm_link_cons) +
+                    [c.strip() for c in _wm_new_cons.split(",") if c.strip()]
+                ))
                 create_memo(_wm_title, _wm_note, _wm_proj, _wm_section or "일반",
-                            _tags, original_text=_wm_note, concepts=_wm_link_cons)
-                _flash(f"'{_wm_title}' 메모를 저장했어요!")
+                            _tags, original_text=_wm_note, concepts=_cons)
+                _flash(f"'{_wm_title}' 메모를 '{_wm_proj}'에 저장했어요!")
                 st.rerun()
             else:
                 st.warning("제목과 내용을 입력해주세요.")

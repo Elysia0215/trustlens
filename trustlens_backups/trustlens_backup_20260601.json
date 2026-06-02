@@ -196,9 +196,74 @@
       "embedding_status": "pending",
       "status": "saved",
       "priority": "보통"
+    },
+    {
+      "id": "d4c4e64d",
+      "user_id": "local_user",
+      "url": "https://yhyun225.tistory.com/22",
+      "title": "신경망과 역전파 알고리즘",
+      "project": "기본 프로젝트",
+      "project_id": "",
+      "task": "",
+      "task_id": "",
+      "section": "일반",
+      "step": "없음",
+      "content_type": "info",
+      "score": 31,
+      "favorite": false,
+      "tags": [
+        "신경망",
+        "역전파 알고리즘",
+        "머신러닝",
+        "기술적인 용어"
+      ],
+      "note": "# 신경망과 역전파 알고리즘\n\n## 1. 기본 정보\n- 출처: https://yhyun225.tistory.com/22\n- 콘텐츠 유형: 일반 정보글\n- 신뢰도 점수: 31점\n- 광고 위험도: 낮음\n- 작성자 유형: 기록형\n\n## 2. 핵심 요약\n- 신경망과 역전파 알고리즘에 대한 설명입니다.\n- 머신러닝과 딥러닝의 기초 개념입니다.\n- 기술적인 용어가 포함되어 있습니다.\n\n## 3. 판단 근거\n- 광고 판단 근거: 없음\n- 경험 신호 근거: 없음\n- 단점/비판 신호: 없음\n\n## 4. 내가 선택한 태그\n\n\n## 5. 내 메모\n- 내가 추가로 확인할 점:\n- 나중에 다시 볼 이유:\n- 최종 판단:\n",
+      "original_text": "",
+      "saved_at": "2026-06-01 21:40",
+      "created_at": "2026-06-01 21:40",
+      "updated_at": "2026-06-01 21:40",
+      "deleted_at": null,
+      "entity_id": "b1fa8c60-fd5",
+      "parent_id": null,
+      "created_by": "local_user",
+      "updated_by": "local_user",
+      "vector_id": null,
+      "embedding_status": "pending",
+      "status": "saved",
+      "priority": "보통"
     }
   ],
   "search_history": [
+    {
+      "time": "2026-06-01 21:41",
+      "url": "pasted://20260601214107",
+      "cache_key": "pasted://20260601214107::unknown::글 붙여넣기로 조회하기::v2-20k",
+      "title": "신경망과 역전파 알고리즘",
+      "content_type": "info",
+      "score": 29,
+      "source": "cache",
+      "input_mode": "글 붙여넣기로 조회하기"
+    },
+    {
+      "time": "2026-06-01 21:40",
+      "url": "https://yhyun225.tistory.com/22",
+      "cache_key": "https://yhyun225.tistory.com/22::unknown::링크로 조회하기::v2-20k",
+      "title": "신경망과 역전파 알고리즘",
+      "content_type": "info",
+      "score": 31,
+      "source": "cache",
+      "input_mode": "링크로 조회하기"
+    },
+    {
+      "time": "2026-06-01 21:25",
+      "url": "https://yhyun225.tistory.com/22",
+      "cache_key": "https://yhyun225.tistory.com/22::unknown::링크로 조회하기::v2-20k",
+      "title": "신경망과 역전파 알고리즘",
+      "content_type": "info",
+      "score": 31,
+      "source": "cache",
+      "input_mode": "링크로 조회하기"
+    },
     {
       "time": "2026-06-01 21:06",
       "url": "https://yhyun225.tistory.com/22",
@@ -261,6 +326,71 @@
     }
   ],
   "saved_analyses": [
+    {
+      "url": "pasted://20260601214107",
+      "title": "신경망과 역전파 알고리즘",
+      "content_type": "info",
+      "score": 29,
+      "ad_risk": "low",
+      "author_type": "기록형",
+      "summary": [
+        "본문은 신경망과 역전파 알고리즘에 대한 설명이다.",
+        "신경망의 구조와 역전파 알고리즘의 원리를 설명하고 있다.",
+        "머신러닝의 기초적인 내용을 다루고 있다."
+      ],
+      "evidence": {
+        "official_source": "없음",
+        "ad_signal": "없음",
+        "experience_signal": "없음",
+        "negative_signal": "없음"
+      },
+      "tags": [
+        "신경망",
+        "역전파 알고리즘",
+        "머신러닝"
+      ],
+      "memo": "",
+      "favorite": false,
+      "saved_at": "2026-06-01 21:41",
+      "result": {
+        "content_type": "info",
+        "score_breakdown": {
+          "official_source": 0,
+          "recency": 5,
+          "source_diversity": 0,
+          "ad_free": 15,
+          "info_density": 15,
+          "experience_specificity": 0,
+          "balanced_review": 0,
+          "revisit_mention": 0
+        },
+        "ad_risk": "low",
+        "ad_risk_reason": "본문에 광고성 문구가 없고, 개인의 지식과 정보를 공유하는 내용이다.",
+        "author_type": "기록형",
+        "author_reason": "본문은 개인의 지식과 정보를 공유하는 내용으로, 객관적인 사실을 기록하고 있다.",
+        "is_official": false,
+        "official_org": "",
+        "tags_positive": [
+          "신경망",
+          "역전파 알고리즘",
+          "머신러닝"
+        ],
+        "tags_warning": [],
+        "summary": [
+          "본문은 신경망과 역전파 알고리즘에 대한 설명이다.",
+          "신경망의 구조와 역전파 알고리즘의 원리를 설명하고 있다.",
+          "머신러닝의 기초적인 내용을 다루고 있다."
+        ],
+        "evidence": {
+          "official_source": "없음",
+          "ad_signal": "없음",
+          "experience_signal": "없음",
+          "negative_signal": "없음"
+        },
+        "archive_title": "신경망과 역전파 알고리즘",
+        "trust_score": 29
+      }
+    },
     {
       "url": "https://yhyun225.tistory.com/22",
       "title": "신경망과 역전파 알고리즘",
@@ -861,6 +991,44 @@
       },
       "archive_title": "신경망과 역전파 알고리즘",
       "trust_score": 31
+    },
+    "pasted://20260601214107::unknown::글 붙여넣기로 조회하기::v2-20k": {
+      "content_type": "info",
+      "score_breakdown": {
+        "official_source": 0,
+        "recency": 5,
+        "source_diversity": 0,
+        "ad_free": 15,
+        "info_density": 15,
+        "experience_specificity": 0,
+        "balanced_review": 0,
+        "revisit_mention": 0
+      },
+      "ad_risk": "low",
+      "ad_risk_reason": "본문에 광고성 문구가 없고, 개인의 지식과 정보를 공유하는 내용이다.",
+      "author_type": "기록형",
+      "author_reason": "본문은 개인의 지식과 정보를 공유하는 내용으로, 객관적인 사실을 기록하고 있다.",
+      "is_official": false,
+      "official_org": "",
+      "tags_positive": [
+        "신경망",
+        "역전파 알고리즘",
+        "머신러닝"
+      ],
+      "tags_warning": [],
+      "summary": [
+        "본문은 신경망과 역전파 알고리즘에 대한 설명이다.",
+        "신경망의 구조와 역전파 알고리즘의 원리를 설명하고 있다.",
+        "머신러닝의 기초적인 내용을 다루고 있다."
+      ],
+      "evidence": {
+        "official_source": "없음",
+        "ad_signal": "없음",
+        "experience_signal": "없음",
+        "negative_signal": "없음"
+      },
+      "archive_title": "신경망과 역전파 알고리즘",
+      "trust_score": 29
     }
   },
   "result_closed": false,
@@ -936,7 +1104,10 @@
       "vector_id": null,
       "embedding_status": "pending",
       "status": "active",
-      "priority": "보통"
+      "priority": "보통",
+      "aliases": [
+        "경찰은"
+      ]
     },
     {
       "name": "성범죄",
@@ -966,24 +1137,6 @@
       "updated_at": "2026-06-01 16:23",
       "deleted_at": null,
       "entity_id": "5a27c214-00c",
-      "parent_id": null,
-      "created_by": "local_user",
-      "updated_by": "local_user",
-      "vector_id": null,
-      "embedding_status": "pending",
-      "status": "active",
-      "priority": "보통"
-    },
-    {
-      "name": "경찰은",
-      "folder": "자동",
-      "description": "",
-      "created_at": "",
-      "id": "concept_경찰은_321e",
-      "user_id": "local_user",
-      "updated_at": "2026-06-01 16:23",
-      "deleted_at": null,
-      "entity_id": "cd6d8cb9-cfa",
       "parent_id": null,
       "created_by": "local_user",
       "updated_by": "local_user",
@@ -1044,7 +1197,10 @@
       "vector_id": null,
       "embedding_status": "pending",
       "status": "active",
-      "priority": "보통"
+      "priority": "보통",
+      "aliases": [
+        "회원"
+      ]
     },
     {
       "name": "제목",
@@ -1056,24 +1212,6 @@
       "updated_at": "2026-06-01 16:23",
       "deleted_at": null,
       "entity_id": "fc599fa8-61d",
-      "parent_id": null,
-      "created_by": "local_user",
-      "updated_by": "local_user",
-      "vector_id": null,
-      "embedding_status": "pending",
-      "status": "active",
-      "priority": "보통"
-    },
-    {
-      "name": "회원",
-      "folder": "자동",
-      "description": "",
-      "created_at": "",
-      "id": "concept_회원_3e4c",
-      "user_id": "local_user",
-      "updated_at": "2026-06-01 16:23",
-      "deleted_at": null,
-      "entity_id": "f8c666e7-5d2",
       "parent_id": null,
       "created_by": "local_user",
       "updated_by": "local_user",
@@ -1101,6 +1239,27 @@
       "id": "concept_스크린골프_4593550528",
       "user_id": "local_user",
       "updated_at": "2026-06-01 21:00",
+      "deleted_at": null
+    },
+    {
+      "name": "야장감성",
+      "folder": "",
+      "description": "",
+      "aliases": [
+        "종로야장"
+      ],
+      "created_at": "2026-06-01 21:42",
+      "entity_id": "6650bae2-693",
+      "parent_id": null,
+      "created_by": "local_user",
+      "updated_by": "local_user",
+      "vector_id": null,
+      "embedding_status": "pending",
+      "status": "active",
+      "priority": "보통",
+      "id": "concept_야장감성_4670050752",
+      "user_id": "local_user",
+      "updated_at": "2026-06-01 21:42",
       "deleted_at": null
     }
   ],
@@ -1337,7 +1496,7 @@
     },
     {
       "note_id": "7bc46bc5",
-      "concept": "종로야장",
+      "concept": "야장감성",
       "linked_at": "2026-06-01 18:21"
     },
     {
@@ -1354,9 +1513,32 @@
       "note_id": "441e1ef9",
       "concept": "머신러닝",
       "linked_at": "2026-06-01 20:07"
+    },
+    {
+      "note_id": "d4c4e64d",
+      "concept": "역전파 알고리즘",
+      "linked_at": "2026-06-01 21:40"
+    },
+    {
+      "note_id": "d4c4e64d",
+      "concept": "기술적인 용어",
+      "linked_at": "2026-06-01 21:40"
+    },
+    {
+      "note_id": "d4c4e64d",
+      "concept": "신경망",
+      "linked_at": "2026-06-01 21:40"
+    },
+    {
+      "note_id": "d4c4e64d",
+      "concept": "머신러닝",
+      "linked_at": "2026-06-01 21:40"
     }
   ],
   "hidden_concepts": [
+    "회원",
+    "경찰은",
+    "종로야장",
     "중고스크린골프"
   ],
   "custom_select_options": {},
@@ -1375,11 +1557,11 @@
   },
   "nav_group_states": {
     "nav_grp_open_프로젝트": false,
-    "nav_grp_open_수집": false,
-    "nav_grp_open_가이드북": true,
-    "nav_grp_open_기록": false,
     "nav_grp_open_인사이트": true,
-    "nav_grp_open_지식": false
+    "nav_grp_open_지식": false,
+    "nav_grp_open_가이드북": true,
+    "nav_grp_open_수집": false,
+    "nav_grp_open_기록": false
   },
   "entities": [
     {
@@ -1573,25 +1755,6 @@
       "priority": "보통"
     },
     {
-      "id": "concept_경찰은_321e",
-      "user_id": "local_user",
-      "type": "concept",
-      "name": "경찰은",
-      "folder": "자동",
-      "parent_id": "",
-      "description": "",
-      "created_at": "",
-      "updated_at": "2026-06-01 16:23",
-      "deleted_at": null,
-      "entity_id": "d7dee247-94a",
-      "created_by": "local_user",
-      "updated_by": "local_user",
-      "vector_id": null,
-      "embedding_status": "pending",
-      "status": "active",
-      "priority": "보통"
-    },
-    {
       "id": "concept_집단_f374",
       "user_id": "local_user",
       "type": "concept",
@@ -1660,25 +1823,6 @@
       "updated_at": "2026-06-01 16:23",
       "deleted_at": null,
       "entity_id": "28a9c1cc-122",
-      "created_by": "local_user",
-      "updated_by": "local_user",
-      "vector_id": null,
-      "embedding_status": "pending",
-      "status": "active",
-      "priority": "보통"
-    },
-    {
-      "id": "concept_회원_3e4c",
-      "user_id": "local_user",
-      "type": "concept",
-      "name": "회원",
-      "folder": "자동",
-      "parent_id": "",
-      "description": "",
-      "created_at": "",
-      "updated_at": "2026-06-01 16:23",
-      "deleted_at": null,
-      "entity_id": "39ee84d9-2a7",
       "created_by": "local_user",
       "updated_by": "local_user",
       "vector_id": null,
@@ -1877,17 +2021,17 @@
       "priority": "보통"
     },
     {
-      "id": "task_ce2c5be3",
+      "id": "concept_야장감성_4670050752",
       "user_id": "local_user",
-      "type": "task",
-      "name": "테스트1",
+      "type": "concept",
+      "name": "야장감성",
       "folder": "",
-      "parent_id": "9fbcd88b",
+      "parent_id": "",
       "description": "",
-      "created_at": "2026-06-01 21:01",
-      "updated_at": "2026-06-01 21:01",
+      "created_at": "2026-06-01 21:42",
+      "updated_at": "2026-06-01 21:42",
       "deleted_at": null,
-      "entity_id": "0961c0f8-fce",
+      "entity_id": "a7de3db9-4c9",
       "created_by": "local_user",
       "updated_by": "local_user",
       "vector_id": null,

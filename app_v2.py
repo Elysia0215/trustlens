@@ -14848,11 +14848,19 @@ def render_home_universe():
         _pn = [n for n in _notes if n.get("project") == _nm]
         _pn_ids = {n.get("id") for n in _pn}
         _cc = len({l.get("concept") for l in _links if l.get("note_id") in _pn_ids and l.get("concept")})
+        _tg = len({str(t).replace("#", "").strip() for n in _pn
+                   for t in (n.get("tags", []) or []) if str(t).strip()})
         _tk = sum(1 for t in _tasks if t.get("project") == _nm)
         _size = len(_pn) + _cc + _tk
-        _planets.append({"name": _nm, "memos": len(_pn), "concepts": _cc, "tasks": _tk, "size": _size})
+        _planets.append({"name": _nm, "memos": len(_pn), "concepts": _cc,
+                         "tags": _tg, "tasks": _tk, "size": _size})
     _planets.sort(key=lambda x: x["size"], reverse=True)
     _planets = _planets[:8]
+    _univ_names = [p["name"] for p in _planets]
+    _sel_planet = st.session_state.get("home_univ_pick")
+    if _sel_planet not in _univ_names:
+        _sel_planet = None
+        st.session_state["home_univ_pick"] = None
 
     st.markdown(
         "<div style='font-weight:800;font-size:1.05rem;'>🪐 내 지식 우주</div>"
@@ -14864,13 +14872,13 @@ def render_home_universe():
             "- 🪐 **행성** = 프로젝트 · **크기 = 메모+개념+작업 수** (쌓일수록 커져요)\n"
             "- 🛰️ **아래 행성 버튼**을 누르면 → 🌙 위성(메모·개념·태그·작업)이 펼쳐져요\n"
             "- 📝 메모는 클릭하면 상세로, 📁 버튼으로 프로젝트로 이동해요\n"
-            "- 마우스를 행성에 올리면 📝/🧠/✅ 개수가 보여요")
+            "- 마우스를 행성에 올리면 📝/🧠/🏷️/✅ 개수가 보여요")
     try:
         import plotly.graph_objects as _ugo
         import math as _umath
         _fig = _ugo.Figure()
         _n = len(_planets)
-        _sel_now = st.session_state.get("home_univ_pick")  # 선택된 행성 — 지도에 강조
+        _sel_now = _sel_planet  # 선택된 행성 — 지도에 강조
         _xs, _ys, _sizes, _texts, _hov, _colors, _lines = [], [], [], [], [], [], []
         for _i, _pl in enumerate(_planets):
             _ang = 2 * _umath.pi * _i / max(1, _n)
@@ -14881,7 +14889,7 @@ def render_home_universe():
             _colors.append("#f59e0b" if _is_sel else "#6366f1")   # 선택 행성 = 주황 강조
             _lines.append(3 if _is_sel else 1)
             _texts.append(f"🪐 {_pl['name']}" + (" ✨" if _is_sel else ""))
-            _hov.append(f"{_pl['name']}<br>📝 {_pl['memos']} · 🧠 {_pl['concepts']} · ✅ {_pl['tasks']}")
+            _hov.append(f"{_pl['name']}<br>📝 {_pl['memos']} · 🧠 {_pl['concepts']} · 🏷 {_pl['tags']} · ✅ {_pl['tasks']}")
         # 중심 항성
         _fig.add_trace(_ugo.Scatter(x=[0], y=[0], mode="markers+text", text=["🌎 내 지식"],
                                     textposition="bottom center", marker=dict(size=30, color="#fbbf24"),
@@ -14891,69 +14899,38 @@ def render_home_universe():
             marker=dict(size=_sizes, color=_colors, opacity=0.9,
                         line=dict(width=_lines, color="#fff")),
             hovertext=_hov, hoverinfo="text", showlegend=False))
-        # 지도 클릭 선택 ON + 줌 비활성(더블클릭/드래그 줌 OFF)
+        # 보기 전용 지도 + 줌 비활성(더블클릭/드래그 줌 OFF)
         _fig.update_layout(height=300, margin=dict(l=10, r=10, t=10, b=10),
                            dragmode=False,
                            xaxis=dict(visible=False, fixedrange=True, range=[-1.6, 1.6]),
                            yaxis=dict(visible=False, fixedrange=True, range=[-1.6, 1.6]),
                            plot_bgcolor="#0f172a", paper_bgcolor="#0f172a",
                            font=dict(color="#e2e8f0"))
-        _ev = st.plotly_chart(_fig, use_container_width=True, on_select="rerun",
-                              key="home_univ_chart",
-                              config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False})
-        # 클릭된 행성 파싱 (좌표 기반, 중심 제외)
-        _map_clicked = None
-        try:
-            _selobj = getattr(_ev, "selection", None)
-            if _selobj is None and isinstance(_ev, dict):
-                _selobj = _ev.get("selection")
-            for _pt in ((_selobj or {}).get("points", []) or []):
-                _px, _py = _pt.get("x"), _pt.get("y")
-                if _px is None or (abs(_px) < 0.05 and abs(_py or 0) < 0.05):
-                    continue
-                _best, _bd = None, 0.25
-                for _pp_i in range(len(_planets)):
-                    _d = abs(_xs[_pp_i] - _px) + abs(_ys[_pp_i] - (_py or 0))
-                    if _d < _bd:
-                        _bd, _best = _d, _pp_i
-                if _best is not None:
-                    _map_clicked = _planets[_best]["name"]
-                    break
-        except Exception:
-            _map_clicked = None
-        st.caption("🛰️ 지도에서 행성을 클릭하거나 아래 버튼으로 선택하면 위성이 펼쳐져요.")
+        # 지도는 보기 전용(클릭 파싱 불안정 → 제거). 선택은 아래 버튼이 공식 조작.
+        st.plotly_chart(_fig, use_container_width=True,
+                        config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False})
+        st.caption("🛰️ 아래 **행성 버튼**으로 선택하면 위성이 펼쳐져요.")
     except Exception:
         _map_clicked = None
         for _pl in _planets:
             st.markdown(f"🪐 **{_pl['name']}** · 📝 {_pl['memos']} 🧠 {_pl['concepts']} ✅ {_pl['tasks']}")
-    # 🪐 행성 선택 — 지도 클릭 + 버튼 (위젯키 충돌 없는 home_univ_pick)
-    _univ_names = [p["name"] for p in _planets]
+    # 🪐 행성 선택 — 버튼이 공식 조작 (위젯키 충돌 없는 home_univ_pick)
     st.markdown("**🪐 행성을 골라 위성(메모·개념·태그·작업)을 펼쳐봐요**")
     _pick_cols = st.columns(min(5, len(_planets)) + 1)
-    _btn_action = None  # ("pick", name) | ("all",)
     for _i, _pl in enumerate(_planets[:5]):
         with _pick_cols[_i]:
-            if st.button(f"🪐 {_pl['name'][:8]}", key=f"univ_pick_{_i}", use_container_width=True):
-                _btn_action = ("pick", _pl["name"])
+            _picked = _pl["name"] == _sel_planet
+            _label = f"{'✨ ' if _picked else ''}🪐 {_pl['name'][:8]}"
+            if st.button(_label, key=f"univ_pick_{_i}", use_container_width=True):
+                st.session_state["home_univ_pick"] = _pl["name"]
+                st.rerun()
     with _pick_cols[-1]:
-        if st.button("🌌 전체", key="univ_pick_all", use_container_width=True):
-            _btn_action = ("all",)
-    # 우선순위: 버튼 > 지도 클릭 > 기존 선택 — 같은 런에서 _sel_planet 즉시 확정
+        _all_label = f"{'✨ ' if _sel_planet is None else ''}🌌 전체"
+        if st.button(_all_label, key="univ_pick_all", use_container_width=True):
+            st.session_state["home_univ_pick"] = None
+            st.rerun()
     _sel_planet = st.session_state.get("home_univ_pick")
-    if _btn_action and _btn_action[0] == "all":
-        _sel_planet = None
-        st.session_state["home_univ_pick"] = None
-        st.session_state["_univ_seen_click"] = _map_clicked
-    elif _btn_action and _btn_action[0] == "pick":
-        _sel_planet = _btn_action[1]
-        st.session_state["home_univ_pick"] = _sel_planet
-        st.session_state["_univ_seen_click"] = _map_clicked
-    elif _map_clicked and _map_clicked != st.session_state.get("_univ_seen_click"):
-        _sel_planet = _map_clicked
-        st.session_state["home_univ_pick"] = _sel_planet
-        st.session_state["_univ_seen_click"] = _map_clicked
     _sel_obj = next((p for p in _planets if p["name"] == _sel_planet), None)
-    st.caption(f"🔎 (디버그) 선택: {_sel_planet or '없음'} · 지도클릭: {_map_clicked or '없음'}")
     if _sel_obj:
         _sel_planet = _sel_obj["name"]
         _pn = [n for n in _notes if n.get("project") == _sel_planet]
@@ -14963,7 +14940,8 @@ def render_home_universe():
         _ptags = sorted({str(t).replace("#", "").strip() for n in _pn
                          for t in (n.get("tags", []) or []) if str(t).strip()})
         _ptk = [t for t in _tasks if t.get("project") == _sel_planet]
-        st.markdown(f"**🪐 {_sel_planet}** 위성")
+        st.markdown(f"**🪐 {_sel_planet} 위성**")
+        st.caption("선택한 행성의 위성을 펼쳐봤어요.")
         # 위성 4카드
         _sat = [("🌙", "메모", len(_pn)), ("🧠", "개념", len(_pcs)),
                 ("🏷️", "태그", len(_ptags)), ("✅", "작업", len(_ptk))]
@@ -15003,7 +14981,29 @@ def render_home_universe():
         render_action_buttons("project", target_name=_sel_planet, project=_sel_planet,
                               key_prefix=f"univ_act_{_sel_planet}")
     else:
-        st.caption("위 행성 버튼을 누르면 그 프로젝트의 메모·개념·태그·작업이 펼쳐져요.")
+        _all_note_ids = {n.get("id") for n in _notes}
+        _all_concepts = {l.get("concept") for l in _links
+                         if l.get("note_id") in _all_note_ids and l.get("concept")}
+        _all_tags = {str(t).replace("#", "").strip() for n in _notes
+                     for t in (n.get("tags", []) or []) if str(t).strip()}
+        st.markdown("**🌌 전체 지식 우주**")
+        st.caption("전체 지식 우주의 규모를 한눈에 봐요.")
+        _overview = [("🪐", "프로젝트", len(_projs)), ("🌙", "메모", len(_notes)),
+                     ("🧠", "개념", len(_all_concepts)), ("🏷️", "태그", len(_all_tags)),
+                     ("✅", "작업", len(_tasks))]
+        _overview_cols = st.columns(5)
+        for _oi, (_oem, _onm, _ocnt) in enumerate(_overview):
+            with _overview_cols[_oi]:
+                with st.container(border=True):
+                    st.markdown(
+                        f"<div style='text-align:center'><div style='font-size:1.3em'>{_oem}</div>"
+                        f"<b>{_onm}</b><br><span style='color:#6366f1;font-weight:700'>{_ocnt}개</span></div>",
+                        unsafe_allow_html=True)
+        st.markdown("**최근 커진 행성**")
+        for _pl in _planets[:3]:
+            st.markdown(
+                f"- 🪐 {_pl['name']} · 메모 {_pl['memos']} · 개념 {_pl['concepts']} · 작업 {_pl['tasks']}"
+            )
 
 
 render_home_universe()

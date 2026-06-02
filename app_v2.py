@@ -1471,8 +1471,11 @@ def normalize_custom_concepts():
     normalized = []
     for c in st.session_state.get("pkm_custom_concepts", []):
         if isinstance(c, dict):
+            c["name"] = _clean_text_value(c.get("name")).strip()
+            c["folder"] = _clean_text_value(c.get("folder")).strip() or "내 개념"
+            c["description"] = _clean_text_value(c.get("description"))
             # 필수 필드 보강
-            c.setdefault("id", f"concept_{c.get('name','')[:8]}_{id(c)}")
+            c.setdefault("id", f"concept_{c.get('name', '')[:8]}_{id(c)}")
             c.setdefault("user_id", "local_user")
             c.setdefault("created_at", _now)
             c.setdefault("updated_at", _now)
@@ -14897,7 +14900,10 @@ def render_home_mini_knowledge_graph(theme_key):
 
 def render_home_universe():
     """🪐 내 지식 우주 — 프로젝트=행성(메모·개념·작업 수에 비례한 크기). 홈 축약판."""
-    _projs = [p for p in st.session_state.get("projects", []) if p.get("name")]
+    _projs = [
+        p for p in st.session_state.get("projects", [])
+        if isinstance(p, dict) and _clean_text_value(p.get("name")).strip()
+    ]
     if not _projs:
         st.markdown(
             "<div style='font-weight:800;font-size:1.05rem;'>🪐 내 지식 우주</div>",
@@ -14909,20 +14915,20 @@ def render_home_universe():
     _links = st.session_state.get("note_concept_links", [])
     _planets = []
     for _p in _projs:
-        _nm = _p.get("name")
-        _pn = [n for n in _notes if n.get("project") == _nm]
+        _nm = _clean_text_value(_p.get("name")).strip()
+        _pn = [n for n in _notes if _clean_text_value(n.get("project")).strip() == _nm]
         _pn_ids = {n.get("id") for n in _pn}
         _cc = len({l.get("concept") for l in _links if l.get("note_id") in _pn_ids and l.get("concept")})
         _tg = len({str(t).replace("#", "").strip() for n in _pn
                    for t in (n.get("tags", []) or []) if str(t).strip()})
-        _tk = sum(1 for t in _tasks if t.get("project") == _nm)
+        _tk = sum(1 for t in _tasks if _clean_text_value(t.get("project")).strip() == _nm)
         _size = len(_pn) + _cc + _tk
         _planets.append({"name": _nm, "memos": len(_pn), "concepts": _cc,
                          "tags": _tg, "tasks": _tk, "size": _size})
     _planets.sort(key=lambda x: x["size"], reverse=True)
     _planets = _planets[:8]
     _univ_names = [p["name"] for p in _planets]
-    _sel_planet = st.session_state.get("home_univ_pick")
+    _sel_planet = _clean_text_value(st.session_state.get("home_univ_pick")).strip()
     if _sel_planet not in _univ_names:
         _sel_planet = None
         st.session_state["home_univ_pick"] = None
@@ -14994,7 +15000,7 @@ def render_home_universe():
         if st.button(_all_label, key="univ_pick_all", use_container_width=True):
             st.session_state["home_univ_pick"] = None
             st.rerun()
-    _sel_planet = st.session_state.get("home_univ_pick")
+    _sel_planet = _clean_text_value(st.session_state.get("home_univ_pick")).strip()
     _sel_obj = next((p for p in _planets if p["name"] == _sel_planet), None)
     if _sel_obj:
         _sel_planet = _sel_obj["name"]

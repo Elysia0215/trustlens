@@ -12195,17 +12195,24 @@ if menu == "데일리 노트":
                         st.markdown("<div style='height:40px'></div>", unsafe_allow_html=True)
                         continue
                     _ds = f"{_dn_sel.year:04d}-{_dn_sel.month:02d}-{_day:02d}"
-                    _titles = _dn_by_date.get(_ds, [])
+                    _titles = [str(t).strip() or "메모" for t in _dn_by_date.get(_ds, [])]
                     _is_sel = (_ds == _dn_str)
                     _is_today = (_ds == _today_dn)
-                    _mark = "🟦" if _is_sel else ("•" if _titles else "")
-                    _lbl = f"{_day}\n{_mark}" if _mark else f"{_day}"
-                    _help = " / ".join(_titles[:3]) + (f" +{len(_titles)-3}" if len(_titles) > 3 else "") if _titles else None
-                    _bt = "primary" if _is_sel else "secondary"
+                    # 날짜 헤더: 오늘은 📍, 선택일은 🟦
+                    _head = f"{'📍' if _is_today else ''}{_day}{'🟦' if _is_sel else ''}"
+                    # 셀에 제목 1개 미리보기(6자) + +N
+                    if _titles:
+                        _first = _titles[0][:6] + ("…" if len(_titles[0]) > 6 else "")
+                        _more = f" +{len(_titles) - 1}" if len(_titles) > 1 else ""
+                        _lbl = f"{_head}\n📝{_first}{_more}"
+                    else:
+                        _lbl = _head
+                    _help = (" / ".join(_titles[:3]) + (f" +{len(_titles)-3}" if len(_titles) > 3 else "")) if _titles else None
+                    _bt = "primary" if (_is_sel or _is_today) else "secondary"
                     if st.button(_lbl, key=f"dn_cal_{_ds}", use_container_width=True, help=_help, type=_bt):
                         st.session_state["_dn_pending"] = _dn_date(_dn_sel.year, _dn_sel.month, _day)
                         st.rerun()
-        st.caption("🟦 선택한 날 · • 메모 있는 날 (마우스를 올리면 제목이 보여요)")
+        st.caption("📍 오늘 · 🟦 선택한 날 · 📝 메모 제목 (마우스를 올리면 전체 제목이 보여요)")
 
     _dn_ctx, _dn_left, _dn_right = st.columns([1, 1.6, 1.1])
 

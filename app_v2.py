@@ -4388,6 +4388,24 @@ def render_knowledge_map_page():
     st.markdown("### 🧠 핵심 개념 허브")
     st.caption("폴더별로 묶인 개념이에요. 폴더를 눌러 펼치고, 개념을 클릭하면 연결 문서를 볼 수 있어요.")
 
+    # ── 자주 등장하는 개념 Top N (빈도 기반 중요도) ──
+    _freq_rank = concept_frequency(top_n=10)
+    if _freq_rank:
+        with st.expander(f"🔝 자주 등장하는 개념 Top {len(_freq_rank)}", expanded=False):
+            _max_freq = _freq_rank[0][1] or 1
+            for _fi, (_fname, _fcnt) in enumerate(_freq_rank, 1):
+                _bar_w = int(_fcnt / _max_freq * 100)
+                st.markdown(
+                    f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:3px'>"
+                    f"<span style='min-width:24px;color:#64748b;font-size:0.85em'>{_fi}.</span>"
+                    f"<span style='min-width:130px;font-weight:600'>{_fname}</span>"
+                    f"<div style='flex:1;background:#e2e8f0;border-radius:4px;height:8px'>"
+                    f"<div style='width:{_bar_w}%;background:#3b82f6;height:8px;border-radius:4px'></div></div>"
+                    f"<span style='min-width:42px;text-align:right;color:#3b82f6;font-weight:700'>{_fcnt}회</span>"
+                    f"</div>",
+                    unsafe_allow_html=True)
+            st.caption("메모·작업·분석에 연결된 횟수예요. 프로젝트 맵에서 노드 크기로 활용할 예정이에요.")
+
     with st.expander("✏️ 개념 수정 / 병합", expanded=False):
         _cc_list = [c if isinstance(c,dict) else {"name":str(c),"folder":"내 개념"} for c in st.session_state.get("pkm_custom_concepts",[]) if c]
         _cc_names = [c.get("name","") for c in _cc_list]

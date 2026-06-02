@@ -11406,22 +11406,33 @@ if menu == "지식 AI":
                          "dconcepts": set()})
         return docs
 
-    def _pka_score(query, text):
+    def _q_tokens(query):
+        """질문 토큰 + 조사 제거 정규화 토큰 (len>=2). '역전파가' → '역전파' 포함."""
         import re as _re
-        q_tokens = [w for w in _re.split(r"[\s,./]+", query.lower()) if len(w) >= 2]
-        if not q_tokens:
+        _toks = set()
+        for _w in _re.split(r"[\s,./?!()\[\]]+", query.lower()):
+            if len(_w) >= 2:
+                _toks.add(_w)
+            _nw = normalize_concept_token(_w).lower()
+            if len(_nw) >= 2:
+                _toks.add(_nw)
+        return _toks
+
+    def _pka_score(query, text):
+        # 조사 정규화 토큰으로 부분 일치 카운트 ('역전파'가 '역전파 알고리즘'에 잡힘)
+        _toks = _q_tokens(query)
+        if not _toks:
             return 0
         t_low = text.lower()
         score = 0
-        for w in q_tokens:
+        for w in _toks:
             score += t_low.count(w) * (2 if len(w) >= 3 else 1)
         return score
 
-    # 질문에서 핵심 개념 추출 (알려진 개념 기준 + 별칭 + 토큰 정규화)
+    # 질문에서 핵심 개념 추출 (알려진 개념 기준 + 별칭 + 토큰 정규화 + 부분 일치)
     _known_concepts = {c for c, _ in concept_frequency()}
 
     def _extract_q_concepts(q):
-        import re as _re
         _ql = q.lower()
         out = set()
         # 1) 알려진 대표 개념이 질문에 등장
@@ -11433,11 +11444,19 @@ if menu == "지식 AI":
             for _a in (_als or []):
                 if str(_a).strip() and str(_a).lower() in _ql:
                     out.add(_canon)
-        # 3) 토큰 정규화 (알려진 개념일 때만 채택 — 노이즈 방지)
-        for _w in _re.split(r"[\s,./?!()\[\]]+", q):
+        # 3) 토큰 정규화 (알려진 개념일 때 채택)
+        _qtoks = _q_tokens(q)
+        for _w in _qtoks:
             _cc = canonical_concept(_w)
             if _cc and _cc in _known_concepts:
                 out.add(_cc)
+        # 4) 부분 일치: 질문 토큰이 개념에 포함되거나 그 반대 ('역전파' ↔ '역전파 알고리즘')
+        for _c in _known_concepts:
+            _cl = _c.lower()
+            for _qt in _qtoks:
+                if len(_qt) >= 2 and (_qt in _cl or _cl in _qt):
+                    out.add(_c)
+                    break
         return out
 
     _pka_docs = _pka_build_corpus()

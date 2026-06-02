@@ -7,6 +7,12 @@ textColor = "#0f172a"
 font = "sans serif"
 
 [server]
-headless = false
+# headless=true 여야 클라우드에서 '이메일 온보딩' 프롬프트 없이 바로 기동됨
+# (false면 서버가 입력 대기로 멈춰 healthz connection refused 발생)
+headless = true
+port = 8501
 enableCORS = false
 enableXsrfProtection = false
+
+[browser]
+gatherUsageStats = false

@@ -14685,6 +14685,13 @@ def render_home_universe():
         "<div style='font-weight:800;font-size:1.05rem;'>🪐 내 지식 우주</div>"
         "<div style='color:#64748b;font-size:13px;'>프로젝트가 행성이에요. 메모·개념·작업이 쌓일수록 행성이 커져요.</div>",
         unsafe_allow_html=True)
+    with st.expander("ℹ️ 우주맵 읽는 법", expanded=False):
+        st.markdown(
+            "- 🌎 **중심** = 내 지식 전체 (항성)\n"
+            "- 🪐 **행성** = 프로젝트 · **크기 = 메모+개념+작업 수** (쌓일수록 커져요)\n"
+            "- 🛰️ **행성 선택** → 🌙 위성(메모·개념·태그·작업)이 펼쳐져요\n"
+            "- 📝 메모는 클릭하면 상세로, 📁 버튼으로 프로젝트로 이동해요\n"
+            "- 마우스를 행성에 올리면 📝/🧠/✅ 개수가 보여요")
     try:
         import plotly.graph_objects as _ugo
         import math as _umath

@@ -14849,34 +14849,64 @@ def render_home_universe():
             marker=dict(size=_sizes, color=_colors, opacity=0.9,
                         line=dict(width=_lines, color="#fff")),
             hovertext=_hov, hoverinfo="text", showlegend=False))
-        # 지도는 보기 전용(드래그/더블클릭 줌 비활성) — 선택은 아래 버튼으로 (확실/충돌 없음)
+        # 지도 클릭 선택 ON + 줌 비활성(더블클릭/드래그 줌 OFF)
         _fig.update_layout(height=300, margin=dict(l=10, r=10, t=10, b=10),
                            dragmode=False,
                            xaxis=dict(visible=False, fixedrange=True, range=[-1.6, 1.6]),
                            yaxis=dict(visible=False, fixedrange=True, range=[-1.6, 1.6]),
                            plot_bgcolor="#0f172a", paper_bgcolor="#0f172a",
                            font=dict(color="#e2e8f0"))
-        st.plotly_chart(_fig, use_container_width=True,
-                        config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False})
-        st.caption("🛰️ 아래 버튼으로 행성을 선택하면 위성이 펼쳐져요. (지도는 보기 전용)")
+        _ev = st.plotly_chart(_fig, use_container_width=True, on_select="rerun",
+                              key="home_univ_chart",
+                              config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False})
+        # 클릭된 행성 파싱 (좌표 기반, 중심 제외)
+        _map_clicked = None
+        try:
+            _selobj = getattr(_ev, "selection", None)
+            if _selobj is None and isinstance(_ev, dict):
+                _selobj = _ev.get("selection")
+            for _pt in ((_selobj or {}).get("points", []) or []):
+                _px, _py = _pt.get("x"), _pt.get("y")
+                if _px is None or (abs(_px) < 0.05 and abs(_py or 0) < 0.05):
+                    continue
+                _best, _bd = None, 0.25
+                for _pp_i in range(len(_planets)):
+                    _d = abs(_xs[_pp_i] - _px) + abs(_ys[_pp_i] - (_py or 0))
+                    if _d < _bd:
+                        _bd, _best = _d, _pp_i
+                if _best is not None:
+                    _map_clicked = _planets[_best]["name"]
+                    break
+        except Exception:
+            _map_clicked = None
+        st.caption("🛰️ 지도에서 행성을 클릭하거나 아래 버튼으로 선택하면 위성이 펼쳐져요.")
     except Exception:
+        _map_clicked = None
         for _pl in _planets:
             st.markdown(f"🪐 **{_pl['name']}** · 📝 {_pl['memos']} 🧠 {_pl['concepts']} ✅ {_pl['tasks']}")
-    # 🪐 행성 선택 버튼 (100% 확실한 펼침 — 위젯키 충돌 없는 home_univ_pick 사용)
+    # 🪐 행성 선택 — 지도 클릭 + 버튼 (위젯키 충돌 없는 home_univ_pick)
     _univ_names = [p["name"] for p in _planets]
     st.markdown("**🪐 행성을 골라 위성(메모·개념·태그·작업)을 펼쳐봐요**")
     _pick_cols = st.columns(min(5, len(_planets)) + 1)
-    # 버튼 클릭 시 같은 런에서 즉시 펼침 (st.rerun 의존 제거 — 펼침 누락 방지)
-    _sel_planet = st.session_state.get("home_univ_pick")
+    _btn_action = None  # ("pick", name) | ("all",)
     for _i, _pl in enumerate(_planets[:5]):
         with _pick_cols[_i]:
             if st.button(f"🪐 {_pl['name'][:8]}", key=f"univ_pick_{_i}", use_container_width=True):
-                _sel_planet = _pl["name"]
-                st.session_state["home_univ_pick"] = _sel_planet
+                _btn_action = ("pick", _pl["name"])
     with _pick_cols[-1]:
         if st.button("🌌 전체", key="univ_pick_all", use_container_width=True):
-            _sel_planet = None
-            st.session_state["home_univ_pick"] = None
+            _btn_action = ("all",)
+    # 우선순위: 버튼 > 지도 클릭(이전 소비분과 다를 때만) > 기존 선택
+    if _btn_action and _btn_action[0] == "all":
+        st.session_state["home_univ_pick"] = None
+        st.session_state["_univ_seen_click"] = _map_clicked  # 현재 지도선택은 소비처리(전체와 충돌 방지)
+    elif _btn_action and _btn_action[0] == "pick":
+        st.session_state["home_univ_pick"] = _btn_action[1]
+        st.session_state["_univ_seen_click"] = _map_clicked
+    elif _map_clicked and _map_clicked != st.session_state.get("_univ_seen_click"):
+        st.session_state["home_univ_pick"] = _map_clicked
+        st.session_state["_univ_seen_click"] = _map_clicked
+    _sel_planet = st.session_state.get("home_univ_pick")
     if _sel_planet and _sel_planet in _univ_names:
         _pn = [n for n in _notes if n.get("project") == _sel_planet]
         _pn_ids = {n.get("id") for n in _pn}

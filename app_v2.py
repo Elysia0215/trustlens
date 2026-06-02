@@ -14763,6 +14763,7 @@ def render_home_universe():
         if _clicked and st.session_state.get("_univ_last_click") != _clicked:
             st.session_state["_univ_last_click"] = _clicked
             st.session_state["home_univ_sel"] = _clicked
+            st.rerun()  # 즉시 다시 그려 지도 강조 + 위성 펼침 (단일 클릭 반영)
         st.caption("🛰️ 행성을 클릭하거나 아래에서 골라 위성을 펼쳐요.")
     except Exception:
         for _pl in _planets:

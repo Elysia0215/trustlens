@@ -12521,6 +12521,27 @@ if menu == "가이드북":
             st.markdown("**🤖 AI 활용**")
             st.markdown("지식 AI → 브레인스토밍 → 패턴 분석")
             st.caption("쌓인 지식을 근거로 AI가 답하고 확장해요.")
+        st.divider()
+
+        st.markdown("### 🙋 나는 어떤 사용자? — 유형별 시나리오")
+        st.caption("정답 사용법은 없어요. 자기 방식에 가까운 흐름을 골라 시작해보세요.")
+        _personas = [
+            ("🎓 학생", "강의·공부 정리", "📅 Daily Note → 🧠 개념 → 🤖 지식 AI → 시험 정리"),
+            ("💼 취준생", "채용·면접 준비", "채용공고 메모 → 🧠 개념 → 📁 프로젝트 → 면접 준비"),
+            ("🚀 창업가", "아이디어 발전", "아이디어 → 🤖 브레인스토밍 → 📁 프로젝트 → 🕸 관계맵"),
+            ("🔬 연구자", "논문·자료 정리", "노트 → 🧠 개념 → ⭐ TF-IDF → 🔬 연구노트"),
+            ("🧘 철학형", "생각·사고 기록", "📅 Daily Note → 생각 → 🧠 개념 → 🕸 관계 → 사고 패턴 → 🧠 철학 프로파일(예정)"),
+        ]
+        for _pi in range(0, len(_personas), 2):
+            _pcols = st.columns(2)
+            for _pj, (_pname, _pdesc, _pflow) in enumerate(_personas[_pi:_pi + 2]):
+                with _pcols[_pj]:
+                    with st.container(border=True):
+                        st.markdown(f"**{_pname}** · <span style='color:#94a3b8'>{_pdesc}</span>",
+                                    unsafe_allow_html=True)
+                        st.markdown(f"<span style='color:#475569;font-size:0.9em'>{_pflow}</span>",
+                                    unsafe_allow_html=True)
+        st.info("👉 처음이라면 유형과 상관없이 **‘홈에서 오늘 한 줄’**부터. 쌓이면 자연스럽게 자기 흐름이 생겨요.")
 
     # ─── 탭 1: TrustLens란 ───────────────────────────────────
     with _g1:

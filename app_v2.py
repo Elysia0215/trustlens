@@ -12616,59 +12616,34 @@ if menu == "데일리 노트":
     _dn_str = _dn_sel.strftime("%Y-%m-%d")
     _dn_projects = [p.get("name", "") for p in st.session_state.get("projects", []) if p.get("name")]
 
-    # ── 📅 미니 캘린더 (전체 메모 기준 기억 지도) — 날짜 클릭 시 선택 ──
-    import calendar as _dn_cal_mod
+    # ── 📅 기록 캘린더 (컴팩트) — 큰 월간 달력 대신 '오늘 요약 + 최근 기록한 날' ──
     _dn_by_date = {}
     for _n in st.session_state.get("archive_notes", []):
         _nd = str(_n.get("saved_at", ""))[:10]
         if _nd:
-            _dn_by_date.setdefault(_nd, []).append(_n.get("title", "메모"))
-    with st.expander("📅 미니 캘린더 — 언제 무엇을 적었는지", expanded=True):
-        _mc1, _mc2, _mc3 = st.columns([1, 2, 1])
-        with _mc1:
-            if st.button("◀", key="dn_cal_prev", use_container_width=True):
-                _py, _pm = (_dn_sel.year - 1, 12) if _dn_sel.month == 1 else (_dn_sel.year, _dn_sel.month - 1)
-                st.session_state["_dn_pending"] = _dn_date(_py, _pm, 1)
-                st.rerun()
-        with _mc2:
-            st.markdown(f"<div style='text-align:center;font-weight:700'>{_dn_sel.year}년 {_dn_sel.month}월</div>",
-                        unsafe_allow_html=True)
-        with _mc3:
-            if st.button("▶", key="dn_cal_next", use_container_width=True):
-                _ny, _nm = (_dn_sel.year + 1, 1) if _dn_sel.month == 12 else (_dn_sel.year, _dn_sel.month + 1)
-                st.session_state["_dn_pending"] = _dn_date(_ny, _nm, 1)
-                st.rerun()
-        _wd_cols = st.columns(7)
-        for _i, _wd in enumerate(["월", "화", "수", "목", "금", "토", "일"]):
-            _wd_cols[_i].markdown(f"<div style='text-align:center;font-size:0.8em;color:#94a3b8'>{_wd}</div>",
-                                  unsafe_allow_html=True)
-        _today_dn = _dn_date.today().strftime("%Y-%m-%d")
-        for _week in _dn_cal_mod.Calendar(firstweekday=0).monthdayscalendar(_dn_sel.year, _dn_sel.month):
-            _wcols = st.columns(7)
-            for _di, _day in enumerate(_week):
-                with _wcols[_di]:
-                    if _day == 0:
-                        st.markdown("<div style='height:40px'></div>", unsafe_allow_html=True)
-                        continue
-                    _ds = f"{_dn_sel.year:04d}-{_dn_sel.month:02d}-{_day:02d}"
-                    _titles = [str(t).strip() or "메모" for t in _dn_by_date.get(_ds, [])]
-                    _is_sel = (_ds == _dn_str)
-                    _is_today = (_ds == _today_dn)
-                    # 날짜 헤더: 오늘은 📍, 선택일은 🟦
-                    _head = f"{'📍' if _is_today else ''}{_day}{'🟦' if _is_sel else ''}"
-                    # 셀에 제목 1개 미리보기(6자) + +N
-                    if _titles:
-                        _first = _titles[0][:6] + ("…" if len(_titles[0]) > 6 else "")
-                        _more = f" +{len(_titles) - 1}" if len(_titles) > 1 else ""
-                        _lbl = f"{_head}\n📝{_first}{_more}"
-                    else:
-                        _lbl = _head
-                    _help = (" / ".join(_titles[:3]) + (f" +{len(_titles)-3}" if len(_titles) > 3 else "")) if _titles else None
-                    _bt = "primary" if (_is_sel or _is_today) else "secondary"
-                    if st.button(_lbl, key=f"dn_cal_{_ds}", use_container_width=True, help=_help, type=_bt):
-                        st.session_state["_dn_pending"] = _dn_date(_dn_sel.year, _dn_sel.month, _day)
-                        st.rerun()
-        st.caption("📍 오늘 · 🟦 선택한 날 · 📝 메모 제목 (마우스를 올리면 전체 제목이 보여요)")
+            _dn_by_date.setdefault(_nd, []).append(_n)
+    _sel_day_notes = _dn_by_date.get(_dn_str, [])
+    _sel_day_concepts = sorted({c for n in _sel_day_notes for c in (n.get("concepts", []) or []) if c})
+    _sel_day_tags = sorted({str(t).replace("#", "").strip() for n in _sel_day_notes
+                            for t in (n.get("tags", []) or []) if str(t).strip()})
+    st.markdown(
+        f"**📅 {_dn_str}의 기록** — 📝 메모 {len(_sel_day_notes)} · "
+        f"🧠 개념 {len(_sel_day_concepts)} · 🏷️ 태그 {len(_sel_day_tags)}")
+    _recent_days = sorted(_dn_by_date.keys(), reverse=True)[:7]
+    if _recent_days:
+        st.caption("최근 기록한 날 — 눌러서 그날로 이동")
+        _rd_cols = st.columns(len(_recent_days))
+        for _i, _d in enumerate(_recent_days):
+            with _rd_cols[_i]:
+                _md = _d[5:].replace("-", "/")  # MM/DD
+                if st.button(f"{_md} · {len(_dn_by_date[_d])}", key=f"dn_recent_{_d}",
+                             use_container_width=True,
+                             type=("primary" if _d == _dn_str else "secondary")):
+                    _y, _m, _dd = _d.split("-")
+                    st.session_state["_dn_pending"] = _dn_date(int(_y), int(_m), int(_dd))
+                    st.rerun()
+    else:
+        st.caption("아직 기록한 날이 없어요. 아래에서 오늘 메모를 적어보세요.")
 
     _dn_ctx, _dn_left, _dn_right = st.columns([1, 1.6, 1.1])
 

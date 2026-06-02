@@ -5126,6 +5126,26 @@ def render_knowledge_map_page():
     st.caption("🧭 **기본**: 📚 내 노트 볼까? · 🧠 내 개념 볼까? · 🕸 연결 관계 볼까? · 📈 성장 흐름 볼까?")
     if not _km_adv:
         st.caption("➕ 노션 보드·태그맵·지식 페이지·브레인스토밍·프로젝트맵·타임라인은 위 **🔬 고급 기능 6개 더 보기**를 켜면 나와요.")
+    if _km_adv:
+        # 고급 기능 카탈로그 — 기능명만으론 모르니 '한 줄 설명 + 언제 쓰는지'
+        _adv_catalog = [
+            ("🧩", "노션 보드", "노트를 카드로 정리", "대분류별로 한눈에 훑고 싶을 때"),
+            ("🕸️", "태그맵", "태그 중심으로 연결 탐색", "비슷한 주제 메모를 묶어 보고 싶을 때"),
+            ("🧠", "지식 페이지", "위키처럼 개념 단위로 읽기", "한 개념을 깊게 파고들 때"),
+            ("🤖", "브레인스토밍", "AI가 아이디어 확장", "막혔거나 다음 행동이 필요할 때"),
+            ("🗺️", "프로젝트맵", "프로젝트·작업·개념 관계 시각화", "프로젝트가 커져 연결을 보고 싶을 때"),
+            ("🕰️", "타임라인", "시간순으로 지식 흐름 보기", "언제 뭘 했는지 되짚을 때"),
+        ]
+        with st.container(border=True):
+            st.markdown("**🔬 고급 기능 6개** — 아래 탭에서 골라 쓰세요.")
+            _cat_cols = st.columns(3)
+            for _ci, (_em, _nm, _desc, _when) in enumerate(_adv_catalog):
+                with _cat_cols[_ci % 3]:
+                    st.markdown(
+                        f"<div style='font-size:0.9em'><b>{_em} {_nm}</b><br>"
+                        f"<span style='color:#475569'>{_desc}</span><br>"
+                        f"<span style='color:#94a3b8;font-size:0.85em'>추천: {_when}</span></div>",
+                        unsafe_allow_html=True)
     if not _km_adv:
         # 기본 모드: 5번째 이후(고급) 탭 버튼만 숨김 — 탭/본문은 그대로 생성(기능 삭제 없음)
         st.markdown(

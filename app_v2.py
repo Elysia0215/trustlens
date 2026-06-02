@@ -15111,19 +15111,24 @@ def render_home_universe():
                            yaxis=dict(visible=False, fixedrange=True, range=[-1.6, 1.6]),
                            plot_bgcolor="#0f172a", paper_bgcolor="#0f172a",
                            font=dict(color="#e2e8f0"))
-        _ev = st.plotly_chart(
-            _fig, use_container_width=True, on_select="rerun", key="home_univ_chart",
-            config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False}
-        )
+        try:
+            from streamlit_plotly_events import plotly_events as _plotly_events
+            _points = _plotly_events(
+                _fig,
+                click_event=True,
+                select_event=False,
+                hover_event=False,
+                override_height=300,
+                key="home_univ_chart_click",
+            )
+        except Exception:
+            st.plotly_chart(
+                _fig, use_container_width=True,
+                config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False}
+            )
+            _points = []
         _map_has_pick, _map_pick = False, None
         try:
-            _selobj = getattr(_ev, "selection", None)
-            if _selobj is None and isinstance(_ev, dict):
-                _selobj = _ev.get("selection")
-            if isinstance(_selobj, dict):
-                _points = (_selobj or {}).get("points", []) or []
-            else:
-                _points = getattr(_selobj, "points", []) or []
             for _pt in _points:
                 _cd = _pt.get("customdata")
                 if _cd == "__all__":

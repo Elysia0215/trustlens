@@ -15251,6 +15251,7 @@ def render_home_universe():
         _xs, _ys, _sizes, _texts, _hov, _colors, _lines, _lcolors, _custom = \
             [], [], [], [], [], [], [], [], []
         _halo_sizes, _halo_colors = [], []
+        _sel_xy = None  # 선택 행성 좌표 — 🚀 탐사선 띄울 위치
         for _i, _pl in enumerate(_planets):
             _ang = 2 * _umath.pi * _i / max(1, _n)
             _xs.append(_umath.cos(_ang)); _ys.append(_umath.sin(_ang))
@@ -15258,6 +15259,8 @@ def render_home_universe():
             _base = max(26, min(80, 26 + _pl["size"] * 3))  # clamp 26~80
             _pcolor = _PL_PALETTE[_i % len(_PL_PALETTE)]
             _sz = _base + 10 if _is_sel else _base
+            if _is_sel:
+                _sel_xy = (_xs[-1], _ys[-1], _sz)  # 🚀 탐사선 위치·행성 크기
             _sizes.append(_sz)
             _colors.append(_pcolor)
             # 선택 = 밝은 흰 테두리 두껍게 / 평소 = 같은 색 옅은 테두리(대기 가장자리 느낌)
@@ -15266,7 +15269,7 @@ def render_home_universe():
             # 대기광(글로우) — 행성 뒤 반투명 헤일로
             _halo_sizes.append(_sz * (2.2 if _is_sel else 1.7))
             _halo_colors.append(_hex_rgba(_pcolor, 0.34 if _is_sel else 0.18))
-            _texts.append(f"🪐 {_pl['name']}" + (" ✨" if _is_sel else ""))
+            _texts.append(f"🪐 {_pl['name']}" + (" · 🚀 탐사중" if _is_sel else ""))
             _hov.append(f"{_pl['name']}<br>📝 {_pl['memos']} · 🧠 {_pl['concepts']} · 🏷 {_pl['tags']} · ✅ {_pl['tasks']}")
             _custom.append(_pl["name"])
 
@@ -15319,6 +15322,17 @@ def render_home_universe():
                 marker=dict(size=_sizes, color=_colors, opacity=0.96,
                             line=dict(width=_lines, color=_lcolors)),
                 customdata=_custom, hovertext=_hov, hoverinfo="text", showlegend=False))
+        # 5) 🚀 탐사선 — 선택 행성을 스토리텔링적으로 표시 (작은 행성도 한눈에)
+        if _sel_xy is not None:
+            _sx, _sy, _ssz = _sel_xy
+            _off = 0.05 + (_ssz / 80.0) * 0.16  # 행성 크기에 비례한 오프셋(겹침 방지)
+            _fig.add_trace(_ugo.Scatter(
+                x=[_sx + _off], y=[_sy + _off], mode="markers+text",
+                text=["🚀"], textposition="middle center",
+                textfont=dict(size=22),
+                marker=dict(size=1, color="rgba(0,0,0,0)"),
+                hovertext=["탐사선 — 지금 이 행성을 탐험 중"], hoverinfo="text",
+                showlegend=False))
         # 클릭 선택 ON + 줌 비활성(더블클릭/드래그 줌 OFF)
         _fig.update_layout(height=300, margin=dict(l=10, r=10, t=10, b=10),
                            dragmode=False,

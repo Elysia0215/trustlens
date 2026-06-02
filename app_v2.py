@@ -15111,46 +15111,11 @@ def render_home_universe():
                            yaxis=dict(visible=False, fixedrange=True, range=[-1.6, 1.6]),
                            plot_bgcolor="#0f172a", paper_bgcolor="#0f172a",
                            font=dict(color="#e2e8f0"))
-        try:
-            from streamlit_plotly_events import plotly_events as _plotly_events
-            _points = _plotly_events(
-                _fig,
-                click_event=True,
-                select_event=False,
-                hover_event=False,
-                override_height=300,
-                key="home_univ_chart_click",
-            )
-        except Exception:
-            st.plotly_chart(
-                _fig, use_container_width=True,
-                config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False}
-            )
-            _points = []
-        _map_has_pick, _map_pick = False, None
-        try:
-            for _pt in _points:
-                _cd = _pt.get("customdata")
-                if _cd == "__all__":
-                    _map_has_pick, _map_pick = True, None
-                    break
-                if _cd in _univ_names:
-                    _map_has_pick, _map_pick = True, _cd
-                    break
-                _curve = _pt.get("curve_number", _pt.get("curveNumber"))
-                _point = _pt.get("point_number", _pt.get("pointNumber", _pt.get("pointIndex")))
-                if _curve == 0:
-                    _map_has_pick, _map_pick = True, None
-                    break
-                if _curve == 1 and _point is not None and 0 <= int(_point) < len(_planets):
-                    _map_has_pick, _map_pick = True, _planets[int(_point)]["name"]
-                    break
-        except Exception:
-            _map_has_pick, _map_pick = False, None
-        if _map_has_pick and _map_pick != _sel_planet:
-            st.session_state["home_univ_pick"] = _map_pick
-            st.rerun()
-        st.caption("🛰️ 지도 행성이나 아래 **행성 버튼**으로 선택하면 위성이 펼쳐져요.")
+        st.plotly_chart(
+            _fig, use_container_width=True,
+            config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False}
+        )
+        st.caption("🛰️ 아래 **행성 버튼**으로 선택하면 위성이 펼쳐져요. 🌌 전체를 누르면 가운데 내 지식이 활성화돼요.")
     except Exception:
         _map_clicked = None
         for _pl in _planets:

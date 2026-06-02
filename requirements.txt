@@ -4,4 +4,3 @@ beautifulsoup4==4.12.3
 python-dotenv==1.0.1
 pandas
 plotly
-streamlit-plotly-events

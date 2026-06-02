@@ -268,11 +268,12 @@ def create_memo(title, note="", project="기본 프로젝트", section="일반",
         "saved_at": _now,
     }
     st.session_state.setdefault("archive_notes", []).append(memo)
-    # 개념 자동 연결
+    # 개념 자동 연결 (품질 게이트 통과한 개념만)
     _links = st.session_state.setdefault("note_concept_links", [])
-    for _c in (concepts or []):
-        if _c:
-            _links.append({"note_id": note_id, "concept": _c, "linked_at": _now})
+    _clean_concepts = filter_concepts(concepts)
+    memo["concepts"] = _clean_concepts
+    for _c in _clean_concepts:
+        _links.append({"note_id": note_id, "concept": _c, "linked_at": _now})
     save_persisted_data()
     return memo
 
@@ -1568,6 +1569,9 @@ _GENERIC_CONCEPTS = {
     "사회", "정보", "제목", "최근", "회원", "여기", "내용", "설명", "자료",
     "관련", "주제", "오늘", "경우", "사람", "문제", "방법", "사용", "생각",
     "이번", "대상", "결과", "시작", "진행", "상황", "부분", "정도", "다음",
+    # 관측된 잡개념·기능어 (보수적 확장)
+    "테스트", "위해", "통해", "또한", "그것", "이것", "저것", "무엇", "때문",
+    "여러", "각각", "모두", "전체", "일부", "기타", "내일", "어제", "지금",
 }
 
 
@@ -1602,6 +1606,59 @@ def grade_merge_pair(a, b, ratio):
     if ratio >= 0.75:
         return ("yellow", "문자열 유사도 높음")
     return ("red", "의미 차이가 클 수 있음")
+
+
+def clean_concept(raw):
+    """개념 저장 전 품질 게이트 (경량 규칙 기반 — 외부 NLP 의존성 없음).
+    통과하면 정제된 개념명, 탈락하면 None.
+    규칙: 기호/공백 정리 → 조사·어미 제거 → 1글자 제외 → 불용어 제외 → 숫자/기호만 제외."""
+    if not raw:
+        return None
+    s = str(raw).replace("#", "").strip()
+    s = s.strip(" \t\n\r\"'`·,.!?()[]{}<>「」『』“”‘’…").strip()
+    if not s:
+        return None
+    s = normalize_concept_token(s).strip()
+    if len(s) <= 1:                      # 1글자 개념 제외
+        return None
+    if s in _GENERIC_CONCEPTS:           # 너무 일반적인 단어 제외
+        return None
+    if s.isdigit():                      # 순수 숫자 제외
+        return None
+    if not any(ch.isalnum() for ch in s):  # 기호만 있는 경우 제외
+        return None
+    return s
+
+
+def filter_concepts(names):
+    """개념명 리스트를 품질 게이트로 정제 + 중복 제거. 통과한 것만 반환."""
+    out, seen = [], set()
+    for n in (names or []):
+        c = clean_concept(n)
+        if c and c not in seen:
+            seen.add(c)
+            out.append(c)
+    return out
+
+
+def concept_frequency(top_n=None):
+    """개념 등장 빈도 Counter (note_concept_links + 작업 linked_concepts + 메모 concepts).
+    most_common 리스트 반환 [(개념, 횟수), ...]."""
+    from collections import Counter
+    _c = Counter()
+    for l in st.session_state.get("note_concept_links", []):
+        _cn = l.get("concept")
+        if _cn:
+            _c[_cn] += 1
+    for t in st.session_state.get("tasks", []):
+        for x in (t.get("linked_concepts", []) or []):
+            if x:
+                _c[x] += 1
+    for n in st.session_state.get("archive_notes", []):
+        for x in (n.get("concepts", []) or []):
+            if x:
+                _c[x] += 1
+    return _c.most_common(top_n) if top_n else _c.most_common()
 
 
 def concept_impact_counts(cands):
@@ -2646,11 +2703,8 @@ def save_note_to_archive(note_key, result, final_url, selected_tags):
         _one_line = next((str(s).strip() for s in _summary_val if str(s).strip()), "")
     else:
         _one_line = str(_summary_val).split(".")[0].strip()
-    # 자동 추출 핵심 개념 목록 (정제는 P2 개념 품질 게이트에서 강화 예정)
-    _note_concepts = [
-        str(c).strip() for c in result.get("key_concepts", result.get("concepts", []))
-        if str(c).strip()
-    ]
+    # 자동 추출 핵심 개념 목록 (P2 품질 게이트: 1글자·불용어·조사 정제)
+    _note_concepts = filter_concepts(result.get("key_concepts", result.get("concepts", [])))
     st.session_state.archive_notes.append(
         {
             "id": note_id,
@@ -2699,9 +2753,8 @@ def save_note_to_archive(note_key, result, final_url, selected_tags):
             _link_concepts.add(cc)
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
     links = st.session_state.setdefault("note_concept_links", [])
-    for concept in _link_concepts:
-        if concept:
-            links.append({"note_id": note_id, "concept": concept, "linked_at": now_str})
+    for concept in filter_concepts(_link_concepts):
+        links.append({"note_id": note_id, "concept": concept, "linked_at": now_str})
     st.session_state.note_saved = True
     st.session_state.show_result = True
     # 저장 결과를 명확히 (사용자가 신규 저장/총 개수를 바로 확인 가능)

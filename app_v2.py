@@ -12679,7 +12679,10 @@ if menu == "데일리 노트":
     # 미니 캘린더/월 이동에서 고른 날짜를 위젯 생성 '전에' 반영 (위젯 키 직접 수정 시 예외 방지)
     if "_dn_pending" in st.session_state:
         st.session_state["dn_date"] = st.session_state.pop("_dn_pending")
-    _dn_sel = st.date_input("날짜 선택", value=_dn_date.today(), key="dn_date")
+    # value=와 session_state를 동시에 주면 경고가 나므로, 기본값은 session_state로만 초기화
+    if "dn_date" not in st.session_state:
+        st.session_state["dn_date"] = _dn_date.today()
+    _dn_sel = st.date_input("날짜 선택", key="dn_date")
     _dn_str = _dn_sel.strftime("%Y-%m-%d")
     _dn_projects = [p.get("name", "") for p in st.session_state.get("projects", []) if p.get("name")]
 
@@ -15322,16 +15325,16 @@ def render_home_universe():
                 marker=dict(size=_sizes, color=_colors, opacity=0.96,
                             line=dict(width=_lines, color=_lcolors)),
                 customdata=_custom, hovertext=_hov, hoverinfo="text", showlegend=False))
-        # 5) 🚀 탐사선 — 선택 행성을 스토리텔링적으로 표시 (작은 행성도 한눈에)
+        # 5) 🚀 탐사선 — 선택 행성 '바깥 궤도'의 작은 보조 장식 (주인공은 행성)
         if _sel_xy is not None:
             _sx, _sy, _ssz = _sel_xy
-            _off = 0.05 + (_ssz / 80.0) * 0.16  # 행성 크기에 비례한 오프셋(겹침 방지)
+            # 행성 반지름보다 살짝 바깥(우상단 궤도)에 배치 — 행성을 가리지 않게
+            _orb = 0.13 + (_ssz / 80.0) * 0.18
             _fig.add_trace(_ugo.Scatter(
-                x=[_sx + _off], y=[_sy + _off], mode="markers+text",
+                x=[_sx + _orb * 0.72], y=[_sy + _orb * 0.72], mode="text",
                 text=["🚀"], textposition="middle center",
-                textfont=dict(size=22),
-                marker=dict(size=1, color="rgba(0,0,0,0)"),
-                hovertext=["탐사선 — 지금 이 행성을 탐험 중"], hoverinfo="text",
+                textfont=dict(size=12),   # 작게 (장식 역할)
+                hovertext=["탐사선이 이 행성을 탐험 중"], hoverinfo="text",
                 showlegend=False))
         # 클릭 선택 ON + 줌 비활성(더블클릭/드래그 줌 OFF)
         _fig.update_layout(height=300, margin=dict(l=10, r=10, t=10, b=10),

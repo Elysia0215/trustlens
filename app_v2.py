@@ -5118,33 +5118,43 @@ def render_knowledge_map_page():
 
         st.divider()
 
-    # ── 지식맵 IA: 기본 4뷰 + 고급 토글 (기능 삭제 없이 고급 탭은 CSS로 숨김) ──
-    _km_adv_cur = bool(st.session_state.get("km_adv_view", False))
-    _km_toggle_label = ("🔬 고급 뷰 표시 중 — 끄면 기본 4개만 보여요"
-                        if _km_adv_cur else "🔬 고급 기능 6개 더 보기 (노션보드·태그맵·지식페이지·브레인스토밍·프로젝트맵·타임라인)")
-    _km_adv = st.toggle(_km_toggle_label, value=False, key="km_adv_view")
-    if not _km_adv:
-        # 기본 4뷰 — 짧은 카드 (긴 설명 X, '무엇을 볼까?'만)
-        _basic_catalog = [
-            ("📚", "노트", "메모 보기"),
-            ("🧠", "개념", "핵심 개념 찾기"),
-            ("🕸", "관계", "연결 구조 보기"),
-            ("📈", "성장", "학습 흐름 보기"),
-        ]
-        _bc_cols = st.columns(4)
-        for _bi, (_em, _nm, _desc) in enumerate(_basic_catalog):
-            with _bc_cols[_bi]:
-                with st.container(border=True):
-                    st.markdown(
-                        f"<div style='text-align:center'>"
-                        f"<div style='font-size:1.4em'>{_em}</div>"
-                        f"<b>{_nm}</b><br>"
-                        f"<span style='color:#64748b;font-size:0.8em'>{_desc}</span></div>",
-                        unsafe_allow_html=True)
-        st.caption("➕ 고급 6개(노션보드·태그맵·지식페이지·브레인스토밍·프로젝트맵·타임라인)는 위 **🔬 고급 기능 6개 더 보기**를 켜면 나와요.")
+    # ── 지식맵 IA: 개념 관리 → 🔹 기본 탐색 도구 → 🔬 고급 분석 도구 (3구역) ──
+    def _km_section(_label, _color="#3b82f6"):
+        st.markdown(
+            f"<div style='display:flex;align-items:center;gap:10px;margin:14px 0 8px;'>"
+            f"<div style='flex:1;height:3px;border-radius:3px;"
+            f"background:linear-gradient(90deg,{_color}00,{_color});'></div>"
+            f"<span style='font-weight:800;color:{_color};white-space:nowrap'>{_label}</span>"
+            f"<div style='flex:1;height:3px;border-radius:3px;"
+            f"background:linear-gradient(90deg,{_color},{_color}00);'></div></div>",
+            unsafe_allow_html=True)
+
+    # 🔹 기본 탐색 도구 (항상 노출)
+    _km_section("🔹 기본 탐색 도구")
+    _basic_catalog = [
+        ("📚", "노트", "메모 보기"),
+        ("🧠", "개념", "핵심 개념 찾기"),
+        ("🕸", "관계", "연결 구조 보기"),
+        ("📈", "성장", "학습 흐름 보기"),
+    ]
+    _bc_cols = st.columns(4)
+    for _bi, (_em, _nm, _desc) in enumerate(_basic_catalog):
+        with _bc_cols[_bi]:
+            with st.container(border=True):
+                st.markdown(
+                    f"<div style='text-align:center'>"
+                    f"<div style='font-size:1.4em'>{_em}</div>"
+                    f"<b>{_nm}</b><br>"
+                    f"<span style='color:#64748b;font-size:0.8em'>{_desc}</span></div>",
+                    unsafe_allow_html=True)
+
+    # 🔬 고급 분석 도구 (토글 — 기본 접힘)
+    _km_section("🔬 고급 분석 도구", "#7c3aed")
+    _km_adv = st.toggle(
+        "고급 기능 6개 더 보기 (노션보드·태그맵·지식페이지·브레인스토밍·프로젝트맵·타임라인)",
+        value=False, key="km_adv_view",
+        help="기본 4개는 '무엇을 볼까', 고급 6개는 '어떻게 볼까'. 가끔 쓰는 분석 도구예요.")
     if _km_adv:
-        # ON: 기본 4개와 같은 디자인 언어로 고급 6개도 짧은 카드 (도구 성격)
-        st.caption("🔬 고급 도구 — 뒤 탭에서 골라 쓰세요. (기본 4개는 '무엇을 볼까', 고급은 '어떻게 볼까')")
         _adv_catalog = [
             ("🧩", "노션보드", "카드로 정리"),
             ("🕸️", "태그맵", "태그로 탐색"),
@@ -5163,7 +5173,8 @@ def render_knowledge_map_page():
                         f"<b style='font-size:0.85em'>{_nm}</b><br>"
                         f"<span style='color:#64748b;font-size:0.74em'>{_desc}</span></div>",
                         unsafe_allow_html=True)
-    if not _km_adv:
+    else:
+        st.caption("끄면 아래 탭은 기본 4개(노트·개념·관계·성장)만 보여요.")
         # 기본 모드: 5번째 이후(고급) 탭 버튼만 숨김 — 탭/본문은 그대로 생성(기능 삭제 없음)
         st.markdown(
             """<style>

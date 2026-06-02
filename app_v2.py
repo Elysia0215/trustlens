@@ -8446,15 +8446,192 @@ if menu == "태그 관리":
     st.stop()
 
 if menu == "지식 아카이브":
+    _NOTE_TYPE_META = {
+        "study": ("📘", "공부자료"), "review": ("⭐", "후기/리뷰"),
+        "policy": ("📜", "정책"), "info": ("📰", "정보"),
+        "research": ("🔬", "연구"), "news": ("📰", "뉴스"),
+        "essay": ("✍️", "칼럼"), "unknown": ("📝", "메모"),
+    }
+
+    def _note_meta(n):
+        return _NOTE_TYPE_META.get(n.get("note_type", "unknown"), ("📝", "메모"))
+
+    def _note_concepts(n):
+        """메모 concepts ∪ note_concept_links 의 개념 집합 (순서 보존)."""
+        out, seen = [], set()
+        for c in (n.get("concepts", []) or []):
+            if c and c not in seen:
+                seen.add(c); out.append(c)
+        _nid = n.get("id")
+        for lk in st.session_state.get("note_concept_links", []):
+            if lk.get("note_id") == _nid and lk.get("concept") and lk["concept"] not in seen:
+                seen.add(lk["concept"]); out.append(lk["concept"])
+        return out
+
+    def _note_one_line(n):
+        _ol = (n.get("one_line_summary") or "").strip()
+        if _ol:
+            return _ol
+        _src = (n.get("summary") or n.get("note") or "").strip()
+        if not _src:
+            return ""
+        for _sep in ["다.", ".", "\n"]:
+            if _sep in _src:
+                return _src.split(_sep)[0].strip()[:120] + ("…" if len(_src) > 120 else "")
+        return _src[:120] + ("…" if len(_src) > 120 else "")
+
+    def _crumb_of(n):
+        parts = [p for p in [n.get("project", ""), n.get("section", ""), n.get("step", "")]
+                 if p and p not in ("기본 프로젝트", "일반", "없음")]
+        return " › ".join(parts)
+
+    _all_notes = st.session_state.archive_notes
+
+    # ════════════════ 노트 상세 보기 모드 ════════════════
+    _open_id = st.session_state.get("archive_open_note_id")
+    _open_note = next((n for n in _all_notes if n.get("id") == _open_id), None) if _open_id else None
+
+    if _open_id and _open_note is None:
+        st.session_state["archive_open_note_id"] = None  # 삭제된 노트
+    elif _open_note is not None:
+        item = _open_note
+        _icon, _label = _note_meta(item)
+        if st.button("← 목록으로", key="archive_back"):
+            st.session_state["archive_open_note_id"] = None
+            st.rerun()
+
+        _crumb = _crumb_of(item)
+        st.markdown(f"## {_icon} {item.get('title', '제목 없음')}")
+        st.caption(
+            f"{_label} · 📅 {item.get('saved_at', '')[:16]}"
+            + (f" · 📁 {_crumb}" if _crumb else "")
+            + (f" · 🔗 {display_source_label(item.get('url', ''))}" if item.get('url') else "")
+            + (f" · {item.get('score', 0)}점" if item.get('score') else "")
+        )
+
+        # 📌 한 줄 핵심
+        _one = _note_one_line(item)
+        if _one:
+            st.markdown(
+                f"<div style='background:#eff6ff;border-left:4px solid #2563eb;border-radius:8px;"
+                f"padding:12px 16px;margin:8px 0;font-size:1.05em;'>📌 {_one}</div>",
+                unsafe_allow_html=True)
+
+        # 🧠 핵심 개념
+        _cons = _note_concepts(item)
+        if _cons:
+            st.markdown("#### 🧠 핵심 개념")
+            st.markdown(" ".join(f"`{c}`" for c in _cons), unsafe_allow_html=True)
+
+        # 🔗 연결된 지식
+        st.markdown("#### 🔗 연결된 지식")
+        _lk1, _lk2 = st.columns(2)
+        with _lk1:
+            _proj = item.get("project", "")
+            st.markdown(f"**📁 프로젝트:** {_proj or '없음'}")
+            if _proj and _proj not in ("기본 프로젝트", "없음"):
+                if st.button("프로젝트 상세 열기", key="archive_goto_proj"):
+                    st.session_state["ep_jump_entity"] = _proj
+                    st.query_params["page"] = "projects"
+                    st.rerun()
+        with _lk2:
+            _nid = item.get("id")
+            _rel_tasks = [t for t in st.session_state.get("tasks", [])
+                          if _nid in (t.get("linked_note_ids", []) or [])
+                          or t.get("source_note_id") == _nid]
+            st.markdown(f"**✅ 연결된 작업:** {len(_rel_tasks)}개")
+            for _t in _rel_tasks[:5]:
+                st.caption(f"· {_t.get('title', '')} ({_t.get('status', '')})")
+
+        # 🪢 관련 메모 추천 (공유 개념 기반)
+        if _cons:
+            _conset = set(_cons)
+            _related = []
+            for _on in _all_notes:
+                if _on.get("id") == _nid:
+                    continue
+                _shared = _conset & set(_note_concepts(_on))
+                if _shared:
+                    _related.append((_on, len(_shared), _shared))
+            _related.sort(key=lambda x: x[1], reverse=True)
+            if _related:
+                st.markdown("#### 🪢 관련 메모 추천")
+                for _on, _sc, _sh in _related[:5]:
+                    _oicon, _ = _note_meta(_on)
+                    rc1, rc2 = st.columns([5, 1])
+                    with rc1:
+                        st.markdown(f"{_oicon} **{_on.get('title', '제목 없음')}**")
+                        st.caption("공유 개념: " + " ".join(f"`{c}`" for c in list(_sh)[:5]))
+                    with rc2:
+                        if st.button("열기", key=f"archive_rel_{_on.get('id')}"):
+                            st.session_state["archive_open_note_id"] = _on.get("id")
+                            st.rerun()
+
+        # 📚 원문 (접힘)
+        _orig = (item.get("original_text") or "").strip()
+        _body = (item.get("note") or "").strip()
+        with st.expander("📚 원문 / 메모 본문 보기", expanded=False):
+            if _body:
+                st.markdown("**📝 내 메모**")
+                st.markdown(_body)
+            if _orig:
+                st.markdown("**📄 원문**")
+                st.markdown(_orig[:8000] + ("…(이하 생략)" if len(_orig) > 8000 else ""))
+            if not _body and not _orig:
+                st.caption("저장된 본문이 없어요.")
+
+        # 🤖 지식 AI 질문 연결
+        if st.button("🤖 이 메모로 지식 AI에 질문하기", key="archive_goto_ai", type="primary"):
+            st.session_state["pka_query"] = f"'{item.get('title', '')}' 메모 내용을 정리해줘"
+            st.query_params["page"] = "ai"
+            st.rerun()
+
+        # ✏️ 편집 / 🗑️ 삭제
+        with st.expander("✏️ 편집 / 🗑️ 삭제", expanded=False):
+            original_index = st.session_state.archive_notes.index(item)
+            title_key = f"archive_note_title_{original_index}"
+            edit_key = f"archive_note_{original_index}"
+            tags_key = f"archive_note_tags_{original_index}"
+            new_tags_key = f"archive_note_new_tags_{original_index}"
+            tag_options_for_edit = get_tag_edit_options(item)
+
+            st.text_input("제목 수정", value=item.get("title", ""), key=title_key)
+            st.multiselect(
+                "기존 태그 선택/삭제", options=tag_options_for_edit,
+                default=[tag for tag in item.get("tags", []) if tag in tag_options_for_edit],
+                key=tags_key, help="기존 기록의 태그를 선택/해제할 수 있어요.")
+            st.text_input("새 태그 추가", placeholder="예: 맛집후보, 재확인필요 (쉼표로 여러 개)",
+                          key=new_tags_key, help="입력 후 아래 저장 버튼을 눌러야 반영돼요.")
+            st.text_area("저장된 메모 수정", value=item.get("note", ""), height=280, key=edit_key)
+            fav_label = "⭐ 즐겨찾기 해제" if item.get("favorite", False) else "☆ 즐겨찾기"
+            st.button(fav_label, key=f"favorite_archive_note_{original_index}",
+                      use_container_width=True, on_click=toggle_archive_favorite, args=(original_index,))
+            if st.button("💾 제목/태그/메모 수정 저장", key=f"save_archive_note_{original_index}",
+                         use_container_width=True):
+                update_archive_note_and_tags(original_index, edit_key, tags_key, new_tags_key, title_key)
+                _flash("수정한 메모를 저장했어요.")
+                st.rerun()
+            if st.button("🗑️ 이 메모 삭제", key=f"delete_archive_note_{original_index}",
+                         use_container_width=True):
+                delete_archive_note(original_index)
+                st.session_state["archive_open_note_id"] = None
+                st.rerun()
+        st.stop()
+
+    # ════════════════ 카드 목록 모드 ════════════════
     st.markdown("## 🗂️ 지식 아카이브")
-    st.caption("분석 결과에서 저장한 메모가 여기에 쌓여요. 테스트 단계에서는 trustlens_data.json 파일에 저장돼서 재실행해도 유지돼요.")
+    st.caption("저장한 메모를 카드로 훑어보고, 카드를 열면 한 줄 핵심·핵심 개념·연결된 지식·관련 메모를 한 화면에서 봐요.")
     if st.session_state.get("archive_deleted"):
         st.success("저장된 메모를 삭제했어요.")
         st.session_state["archive_deleted"] = False
-    search_query = st.text_input("🔍 아카이브 검색", placeholder="제목, URL, 태그, 메모 내용으로 검색")
-    only_fav = st.checkbox("⭐ 즐겨찾기만 보기", value=False)
 
-    notes_to_show = st.session_state.archive_notes
+    _fc1, _fc2 = st.columns([3, 1])
+    with _fc1:
+        search_query = st.text_input("🔍 아카이브 검색", placeholder="제목, URL, 태그, 메모 내용, 개념으로 검색")
+    with _fc2:
+        only_fav = st.checkbox("⭐ 즐겨찾기만", value=False)
+
+    notes_to_show = list(_all_notes)
     if search_query.strip():
         q = search_query.strip().lower()
         notes_to_show = [
@@ -8467,83 +8644,46 @@ if menu == "지식 아카이브":
             or q in str(note.get("step", "")).lower()
             or q in str(note.get("original_text", "")).lower()
             or q in " ".join([str(t) for t in note.get("tags", [])]).lower()
+            or q in " ".join([str(c) for c in _note_concepts(note)]).lower()
         ]
-
     if only_fav:
         notes_to_show = [note for note in notes_to_show if note.get("favorite", False)]
 
-    if notes_to_show:
-        _archive_note_open_idx = st.session_state.pop("_archive_note_open_idx", None)
-        for idx, item in enumerate(notes_to_show, start=1):
-            tags_text = ", ".join([str(t) for t in item.get("tags", [])])
-            _proj_crumb = item.get("project", "")
-            _sec_crumb = item.get("section", "")
-            _step_crumb = item.get("step", "")
-            _crumb_parts = [p for p in [_proj_crumb, _sec_crumb, _step_crumb] if p and p not in ("기본 프로젝트","일반","없음")]
-            _crumb_str = " › ".join(_crumb_parts) if _crumb_parts else ""
-            _expander_label = f"{idx}. {item.get('title', '저장 메모')}"
-            if _crumb_str:
-                _expander_label += f" · 📁 {_crumb_str}"
-            _expander_label += f" · {item.get('score', 0)}점"
-            _this_orig_idx = st.session_state.archive_notes.index(item)
-            with st.expander(_expander_label, expanded=(_archive_note_open_idx == _this_orig_idx)):
-                if _crumb_str:
-                    st.markdown(
-                        f'<div style="background:#eef4ff;border-radius:8px;padding:6px 12px;margin-bottom:8px;font-size:0.88em;color:#1f3f91">'
-                        f'📁 {item.get("project","")} › 📂 {item.get("section","")} › 🔖 {item.get("step","없음")}</div>',
-                        unsafe_allow_html=True
-                    )
-                st.markdown(f"**출처:** {display_source_label(item.get('url', ''))}")
-                st.markdown(f"**저장일:** {item.get('saved_at', '')}")
-                st.markdown("**제목, 태그와 메모 수정**")
-                original_index = st.session_state.archive_notes.index(item)
-                title_key = f"archive_note_title_{original_index}"
-                edit_key = f"archive_note_{original_index}"
-                tags_key = f"archive_note_tags_{original_index}"
-                new_tags_key = f"archive_note_new_tags_{original_index}"
-                tag_options_for_edit = get_tag_edit_options(item)
-
-                st.text_input("제목 수정", value=item.get("title", ""), key=title_key)
-                st.multiselect(
-                    "기존 태그 선택/삭제",
-                    options=tag_options_for_edit,
-                    default=[tag for tag in item.get("tags", []) if tag in tag_options_for_edit],
-                    key=tags_key,
-                    help="기존 기록의 태그를 선택/해제할 수 있어요.",
-                )
-                st.text_input(
-                    "새 태그 추가",
-                    placeholder="예: 맛집후보, 재확인필요 처럼 쉼표/엔터로 여러 개 입력/태그 입력 후 아래 버튼(태그수정 저장)을 누른 뒤 위 기존 태그 선택칸을 누르세요.",
-                    key=new_tags_key,
-                    help="입력 후 아래의 제목/태그/메모 수정 저장 버튼을 눌러야 반영돼요.",
-                )
-                st.text_area("저장된 메모 수정", value=item.get("note", ""), height=320, key=edit_key)
-                fav_label = "⭐ 즐겨찾기 해제" if item.get("favorite", False) else "☆ 즐겨찾기"
-                st.button(
-                    fav_label,
-                    key=f"favorite_archive_note_{original_index}",
-                    use_container_width=True,
-                    on_click=toggle_archive_favorite,
-                    args=(original_index,),
-                )
-                if st.button(
-                    "💾 제목/태그/메모 수정 저장",
-                    key=f"save_archive_note_{original_index}",
-                    use_container_width=True,
-                ):
-                    update_archive_note_and_tags(original_index, edit_key, tags_key, new_tags_key, title_key)
-                    st.session_state["_archive_note_open_idx"] = original_index
-                    _flash("수정한 메모를 저장했어요.")
-                    st.rerun()
-                st.button(
-                    "🗑️ 이 메모 삭제",
-                    key=f"delete_archive_note_{original_index}",
-                    use_container_width=True,
-                    on_click=delete_archive_note,
-                    args=(original_index,),
-                )
-    else:
+    if not notes_to_show:
         st.info("아직 저장된 메모가 없어요. 분석 결과 하단에서 메모를 저장해보세요.")
+        st.stop()
+
+    st.caption(f"총 {len(notes_to_show)}개")
+    # 최신순 정렬
+    notes_to_show = sorted(notes_to_show, key=lambda n: str(n.get("saved_at", "")), reverse=True)
+
+    _cards_per_row = 2
+    for _row_start in range(0, len(notes_to_show), _cards_per_row):
+        _row_notes = notes_to_show[_row_start:_row_start + _cards_per_row]
+        _cols = st.columns(_cards_per_row)
+        for _col, item in zip(_cols, _row_notes):
+            with _col:
+                with st.container(border=True):
+                    _icon, _label = _note_meta(item)
+                    _star = "⭐ " if item.get("favorite") else ""
+                    st.markdown(f"{_star}{_icon} **{item.get('title', '제목 없음')}**")
+                    _crumb = _crumb_of(item)
+                    st.caption(
+                        f"{_label} · 📅 {str(item.get('saved_at', ''))[:10]}"
+                        + (f" · 📁 {_crumb}" if _crumb else ""))
+                    _one = _note_one_line(item)
+                    if _one:
+                        st.markdown(f"<div style='color:#475569;font-size:0.9em;min-height:38px'>{_one}</div>",
+                                    unsafe_allow_html=True)
+                    _cons = _note_concepts(item)
+                    if _cons:
+                        st.markdown(
+                            " ".join(f"`{c}`" for c in _cons[:5])
+                            + (f" +{len(_cons) - 5}" if len(_cons) > 5 else ""))
+                    if st.button("📖 열기", key=f"archive_open_{item.get('id', _row_start)}",
+                                 use_container_width=True):
+                        st.session_state["archive_open_note_id"] = item.get("id")
+                        st.rerun()
     st.stop()
 
 if menu == "프로젝트":

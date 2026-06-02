@@ -4713,8 +4713,8 @@ def render_knowledge_map_page():
             else:
                 st.warning("개념명을 입력해주세요.")
 
-    st.markdown("### 🧠 핵심 개념 허브")
-    st.caption("폴더별로 묶인 개념이에요. 폴더를 눌러 펼치고, 개념을 클릭하면 연결 문서를 볼 수 있어요.")
+    st.markdown("### 🧠 핵심 개념 탐색")
+    st.caption("자주 등장하는 개념과 중요 개념을 보고, 아래에서 개념을 탐색해요. 관리 도구(별칭·병합·품질)는 ⚙️ 버튼에 모아뒀어요.")
 
     # ── 자주 등장하는 개념 Top N (빈도 기반 중요도) ──
     _freq_rank = concept_frequency(top_n=10)
@@ -4754,9 +4754,15 @@ def render_knowledge_map_page():
                     unsafe_allow_html=True)
             st.caption("전체 메모에서 흔한 개념은 낮게, 특정 메모·프로젝트에 특화된 개념은 높게 평가해요. (TF-IDF, API 비용 없음)")
 
+    # ── ⚙️ 개념 관리 도구 (탐색과 분리 — 평소엔 접힘) ──
+    st.divider()
+    _show_concept_mgmt = st.toggle(
+        "⚙️ 개념 관리 도구 (별칭 · 병합 · 품질 리포트)", value=False, key="hub_show_mgmt",
+        help="자주 쓰지 않는 관리 기능이에요. 필요할 때만 펼쳐서 사용하세요.")
+
     # ── 개념 품질 리포트 (제외된 개념 로그) ──
     _ex_top, _ex_reasons, _ex_total = excluded_concepts_report(top_n=15)
-    if _ex_total:
+    if _show_concept_mgmt and _ex_total:
         with st.expander(f"🚫 개념 품질 리포트 · 제외 {_ex_total}건", expanded=False):
             st.caption("저장 단계에서 걸러진 개념이에요. 자주 걸러지는 단어는 불용어 사전 개선에 참고하세요.")
             qr1, qr2 = st.columns(2)
@@ -4785,82 +4791,84 @@ def render_knowledge_map_page():
                 save_persisted_data()
                 st.rerun()
 
-    # ── 🔗 별칭(alias) 관리 — 비파괴적 개념 연결 ──
-    with st.expander("🔗 개념 별칭 관리", expanded=False):
-        st.caption("같은 개념의 다른 표기를 대표 개념으로 묶어요. (예: BackPropagation·역전파 알고리즘 → 역전파) "
-                   "원본 메모는 바뀌지 않고, 검색·랭킹·관련 메모 추천·프로젝트 맵에서만 대표 개념으로 합산돼요.")
-        _alias_map = st.session_state.setdefault("concept_aliases", {})
+    if _show_concept_mgmt:
+        # ── 🔗 별칭(alias) 관리 — 비파괴적 개념 연결 ──
+        with st.expander("🔗 개념 별칭 관리", expanded=False):
+            st.caption("같은 개념의 다른 표기를 대표 개념으로 묶어요. (예: BackPropagation·역전파 알고리즘 → 역전파) "
+                       "원본 메모는 바뀌지 않고, 검색·랭킹·관련 메모 추천·프로젝트 맵에서만 대표 개념으로 합산돼요.")
+            _alias_map = st.session_state.setdefault("concept_aliases", {})
 
-        _ac1, _ac2 = st.columns([1, 1])
-        with _ac1:
-            _new_canon = st.text_input("대표 개념", key="alias_canon", placeholder="예: 역전파")
-        with _ac2:
-            _new_aliases = st.text_input("별칭 (쉼표로 여러 개)", key="alias_inputs",
-                                         placeholder="예: BackPropagation, 역전파 알고리즘")
-        if st.button("🔗 별칭 등록", key="alias_add_btn", type="primary"):
-            if _new_canon.strip() and _new_aliases.strip():
-                _n = add_concept_aliases(
-                    _new_canon, [a for a in _new_aliases.split(",") if a.strip()])
-                st.session_state.pop("_alias_rev_cache", None)
-                save_persisted_data()
-                _flash(f"별칭 {_n}개를 '{clean_concept(_new_canon) or _new_canon.strip()}'에 등록했어요." if _n
-                       else "추가된 별칭이 없어요 (중복/자기 자신 제외).")
-                st.rerun()
+            _ac1, _ac2 = st.columns([1, 1])
+            with _ac1:
+                _new_canon = st.text_input("대표 개념", key="alias_canon", placeholder="예: 역전파")
+            with _ac2:
+                _new_aliases = st.text_input("별칭 (쉼표로 여러 개)", key="alias_inputs",
+                                             placeholder="예: BackPropagation, 역전파 알고리즘")
+            if st.button("🔗 별칭 등록", key="alias_add_btn", type="primary"):
+                if _new_canon.strip() and _new_aliases.strip():
+                    _n = add_concept_aliases(
+                        _new_canon, [a for a in _new_aliases.split(",") if a.strip()])
+                    st.session_state.pop("_alias_rev_cache", None)
+                    save_persisted_data()
+                    _flash(f"별칭 {_n}개를 '{clean_concept(_new_canon) or _new_canon.strip()}'에 등록했어요." if _n
+                           else "추가된 별칭이 없어요 (중복/자기 자신 제외).")
+                    st.rerun()
+                else:
+                    st.warning("대표 개념과 별칭을 모두 입력해주세요.")
+
+            if _alias_map:
+                st.markdown("**등록된 별칭**")
+                for _canon in sorted(_alias_map.keys()):
+                    _aliases = _alias_map.get(_canon, [])
+                    if not _aliases:
+                        continue
+                    st.markdown(f"**{_canon}** <span style='color:#94a3b8'>· alias {len(_aliases)}</span>",
+                                unsafe_allow_html=True)
+                    for _al in list(_aliases):
+                        _dc1, _dc2 = st.columns([5, 1])
+                        with _dc1:
+                            st.markdown(f"&nbsp;&nbsp;↳ `{_al}`", unsafe_allow_html=True)
+                        with _dc2:
+                            if st.button("삭제", key=f"alias_del_{_canon}_{_al}"):
+                                remove_concept_alias(_canon, _al)
+                                st.session_state.pop("_alias_rev_cache", None)
+                                save_persisted_data()
+                                st.rerun()
             else:
-                st.warning("대표 개념과 별칭을 모두 입력해주세요.")
+                st.caption("아직 등록된 별칭이 없어요.")
 
-        if _alias_map:
-            st.markdown("**등록된 별칭**")
-            for _canon in sorted(_alias_map.keys()):
-                _aliases = _alias_map.get(_canon, [])
-                if not _aliases:
-                    continue
-                st.markdown(f"**{_canon}** <span style='color:#94a3b8'>· alias {len(_aliases)}</span>",
-                            unsafe_allow_html=True)
-                for _al in list(_aliases):
-                    _dc1, _dc2 = st.columns([5, 1])
-                    with _dc1:
-                        st.markdown(f"&nbsp;&nbsp;↳ `{_al}`", unsafe_allow_html=True)
-                    with _dc2:
-                        if st.button("삭제", key=f"alias_del_{_canon}_{_al}"):
-                            remove_concept_alias(_canon, _al)
-                            st.session_state.pop("_alias_rev_cache", None)
-                            save_persisted_data()
-                            st.rerun()
-        else:
-            st.caption("아직 등록된 별칭이 없어요.")
-
-    with st.expander("✏️ 개념 수정 / 병합", expanded=False):
-        _cc_list = [c if isinstance(c,dict) else {"name":str(c),"folder":"내 개념"} for c in st.session_state.get("pkm_custom_concepts",[]) if c]
-        _cc_names = [c.get("name","") for c in _cc_list]
-        ec1, ec2 = st.columns(2)
-        with ec1:
-            st.markdown("**✏️ 이름 수정 / 삭제**")
-            _et = st.selectbox("수정할 개념", _cc_names, key="edit_c_target") if _cc_names else None
-            _en = st.text_input("새 이름", key="edit_c_new")
-            if st.button("이름 변경", key="do_rename_c", use_container_width=True):
-                if _et and _en.strip():
-                    for c in st.session_state.pkm_custom_concepts:
-                        if (c.get("name") if isinstance(c,dict) else str(c)) == _et:
-                            if isinstance(c,dict): c["name"] = _en.strip()
-                    for lk in st.session_state.get("note_concept_links",[]):
-                        if lk.get("concept") == _et: lk["concept"] = _en.strip()
-                    save_persisted_data(); _flash(f"'{_et}' → '{_en.strip()}'"); st.rerun()
-            if st.button("🗑️ 삭제", key="do_delete_c", use_container_width=True):
-                if _et:
-                    st.session_state.pkm_custom_concepts = [c for c in _cc_list if c.get("name") != _et]
-                    st.session_state["note_concept_links"] = [lk for lk in st.session_state.get("note_concept_links",[]) if lk.get("concept") != _et]
-                    save_persisted_data(); _flash(f"'{_et}' 삭제됨"); st.rerun()
-        with ec2:
-            st.markdown("**🔗 병합 (A → B로)**")
-            _mf = st.selectbox("없앨 개념 (A)", _cc_names, key="merge_from_c") if _cc_names else None
-            _mt = st.selectbox("남길 개념 (B)", _cc_names, key="merge_to_c") if _cc_names else None
-            if st.button("병합", key="do_merge_c", use_container_width=True):
-                if _mf and _mt and _mf != _mt:
-                    st.session_state.pkm_custom_concepts = [c for c in _cc_list if c.get("name") != _mf]
-                    for lk in st.session_state.get("note_concept_links",[]):
-                        if lk.get("concept") == _mf: lk["concept"] = _mt
-                    save_persisted_data(); _flash(f"'{_mf}' → '{_mt}' 병합 완료"); st.rerun()
+        with st.expander("✏️ 개념 수정 / 병합", expanded=False):
+            _cc_list = [c if isinstance(c,dict) else {"name":str(c),"folder":"내 개념"} for c in st.session_state.get("pkm_custom_concepts",[]) if c]
+            _cc_names = [c.get("name","") for c in _cc_list]
+            ec1, ec2 = st.columns(2)
+            with ec1:
+                st.markdown("**✏️ 이름 수정 / 삭제**")
+                _et = st.selectbox("수정할 개념", _cc_names, key="edit_c_target") if _cc_names else None
+                _en = st.text_input("새 이름", key="edit_c_new")
+                if st.button("이름 변경", key="do_rename_c", use_container_width=True):
+                    if _et and _en.strip():
+                        for c in st.session_state.pkm_custom_concepts:
+                            if (c.get("name") if isinstance(c,dict) else str(c)) == _et:
+                                if isinstance(c,dict): c["name"] = _en.strip()
+                        for lk in st.session_state.get("note_concept_links",[]):
+                            if lk.get("concept") == _et: lk["concept"] = _en.strip()
+                        save_persisted_data(); _flash(f"'{_et}' → '{_en.strip()}'"); st.rerun()
+                if st.button("🗑️ 삭제", key="do_delete_c", use_container_width=True):
+                    if _et:
+                        st.session_state.pkm_custom_concepts = [c for c in _cc_list if c.get("name") != _et]
+                        st.session_state["note_concept_links"] = [lk for lk in st.session_state.get("note_concept_links",[]) if lk.get("concept") != _et]
+                        save_persisted_data(); _flash(f"'{_et}' 삭제됨"); st.rerun()
+            with ec2:
+                st.markdown("**🔗 병합 (A → B로)**")
+                _mf = st.selectbox("없앨 개념 (A)", _cc_names, key="merge_from_c") if _cc_names else None
+                _mt = st.selectbox("남길 개념 (B)", _cc_names, key="merge_to_c") if _cc_names else None
+                if st.button("병합", key="do_merge_c", use_container_width=True):
+                    if _mf and _mt and _mf != _mt:
+                        st.session_state.pkm_custom_concepts = [c for c in _cc_list if c.get("name") != _mf]
+                        for lk in st.session_state.get("note_concept_links",[]):
+                            if lk.get("concept") == _mf: lk["concept"] = _mt
+                        save_persisted_data(); _flash(f"'{_mf}' → '{_mt}' 병합 완료"); st.rerun()
+        st.divider()
 
     concept_counter = Counter()
     concept_source_items = get_all_knowledge_items()

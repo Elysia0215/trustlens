@@ -1741,6 +1741,72 @@ def concept_importance(top_n=None, half_life_days=30):
     return out[:top_n] if top_n else out
 
 
+def concept_tfidf(note_filter=None, top_n=None):
+    """메모 단위 문서 기준 TF-IDF 개념 중요도 (경량·표준 라이브러리만).
+    - 문서 = 지식 메모 1개 (concepts ∪ note_concept_links)
+    - IDF는 전체 메모(코퍼스) 기준 → 전체에서 흔한 개념은 점수↓
+    - TF는 note_filter로 좁힌 범위(프로젝트 등)에서 합산 → 그 범위에 특화된 개념 점수↑
+    idf = log((1 + N) / (1 + df)) + 1,  tfidf = tf × idf
+    note_filter: 메모 dict -> bool. None이면 전체 메모.
+    반환: [(concept, {"tf","df","idf","tfidf"}), ...] tfidf 내림차순."""
+    import math
+    from collections import Counter, defaultdict
+    notes = st.session_state.get("archive_notes", [])
+
+    _links_by_note = defaultdict(Counter)
+    for _lk in st.session_state.get("note_concept_links", []):
+        _nid, _c = _lk.get("note_id"), _lk.get("concept")
+        if _nid and _c:
+            _links_by_note[_nid][_c] += 1
+
+    def _doc_counter(n):
+        c = Counter()
+        for x in (n.get("concepts", []) or []):
+            if x:
+                c[x] += 1
+        for x, cnt in _links_by_note.get(n.get("id"), {}).items():
+            c[x] += cnt
+        return c
+
+    # 글로벌 코퍼스 (IDF용) — concepts 없는 메모는 자동 제외
+    _global_docs = []
+    for n in notes:
+        dc = _doc_counter(n)
+        if dc:
+            _global_docs.append(dc)
+    _N = len(_global_docs)
+    if _N == 0:
+        return []
+    _df = Counter()
+    for dc in _global_docs:
+        for concept in dc:
+            _df[concept] += 1
+    _idf = {c: math.log((1 + _N) / (1 + d)) + 1 for c, d in _df.items()}
+
+    # 범위 문서 (TF용)
+    _scope_docs = []
+    for n in notes:
+        if note_filter is not None and not note_filter(n):
+            continue
+        dc = _doc_counter(n)
+        if dc:
+            _scope_docs.append(dc)
+    if not _scope_docs:
+        return []
+    _tf = Counter()
+    for dc in _scope_docs:
+        for c, cnt in dc.items():
+            _tf[c] += cnt
+
+    rows = []
+    for c, t in _tf.items():
+        i = _idf.get(c, math.log((1 + _N) / 1) + 1)
+        rows.append((c, {"tf": t, "df": _df.get(c, 0),
+                         "idf": round(i, 4), "tfidf": round(t * i, 4)}))
+    rows.sort(key=lambda kv: kv[1]["tfidf"], reverse=True)
+    return rows[:top_n] if top_n else rows
+
+
 def excluded_concepts_report(top_n=15):
     """제외된 개념 로그 집계 → (개념별 TOP, 사유별 집계, 총건수).
     개념 품질 리포트/불용어 개선용."""
@@ -4500,6 +4566,26 @@ def render_knowledge_map_page():
                     f"</div>",
                     unsafe_allow_html=True)
             st.caption("메모·작업·분석에 연결된 횟수예요. 프로젝트 맵에서 노드 크기로 활용할 예정이에요.")
+
+    # ── ⭐ TF-IDF 중요 개념 Top N (전체에서 흔하지 않은 특화 개념) ──
+    _tfidf_rank = concept_tfidf(top_n=10)
+    if _tfidf_rank:
+        with st.expander(f"⭐ TF-IDF 중요 개념 Top {len(_tfidf_rank)}", expanded=False):
+            _max_tfidf = _tfidf_rank[0][1]["tfidf"] or 1
+            for _ti, (_tname, _tinfo) in enumerate(_tfidf_rank, 1):
+                _t_tf, _t_df, _t_idf, _t_score = _tinfo["tf"], _tinfo["df"], _tinfo["idf"], _tinfo["tfidf"]
+                _tw = int(_t_score / _max_tfidf * 100)
+                _ttip = f"빈도 {_t_tf} · 등장 문서 {_t_df} · idf {_t_idf}"
+                st.markdown(
+                    f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:3px'>"
+                    f"<span style='min-width:24px;color:#64748b;font-size:0.85em'>{_ti}.</span>"
+                    f"<span style='min-width:130px;font-weight:600' title='{_ttip}'>{_tname}</span>"
+                    f"<div style='flex:1;background:#fef3c7;border-radius:4px;height:8px'>"
+                    f"<div style='width:{_tw}%;background:#f59e0b;height:8px;border-radius:4px'></div></div>"
+                    f"<span style='min-width:48px;text-align:right;color:#d97706;font-weight:700'>{_t_score}</span>"
+                    f"</div>",
+                    unsafe_allow_html=True)
+            st.caption("전체 메모에서 흔한 개념은 낮게, 특정 메모·프로젝트에 특화된 개념은 높게 평가해요. (TF-IDF, API 비용 없음)")
 
     # ── 개념 품질 리포트 (제외된 개념 로그) ──
     _ex_top, _ex_reasons, _ex_total = excluded_concepts_report(top_n=15)
@@ -7373,22 +7459,49 @@ def render_project_page():
             if not _proj_tasks and _doc_n == 0 and not _map_concepts:
                 st.info("아직 작업·메모·개념이 연결되지 않았어요. 작업을 만들고 **작업 수정**에서 관련 메모와 개념을 연결해보세요.")
             else:
-                # 🧠 핵심 개념 (크기=빈도, 색/배지=최근성, importance 표기)
+                # 🧠 핵심 개념 (빈도 기준 / 중요도(TF-IDF) 기준 토글)
                 st.markdown("#### 🧠 핵심 개념 Top N")
                 if _map_concepts:
-                    _mx = _map_concepts[0][1]["frequency"] or 1
-                    _chips = ""
-                    for _c, _d in _map_concepts[:30]:
-                        _f, _rec, _imp = _d["frequency"], _d["recency"], _d["importance"]
-                        _sz = 0.85 + (_f / _mx) * 0.95          # 0.85~1.8em (노드 크기=빈도)
-                        _lbl, _bg, _fg = _recency_badge(_rec)
-                        _chips += (
-                            f"<span title='빈도 {_f} · 최근성 {_rec} · 중요도 {_imp}' "
-                            f"style='display:inline-block;margin:3px;padding:3px 11px;border-radius:14px;"
-                            f"background:{_bg};color:{_fg};font-size:{_sz:.2f}em;font-weight:700'>"
-                            f"{_c} <span style='opacity:.65;font-size:.65em'>×{_f}</span></span>")
-                    st.markdown(_chips, unsafe_allow_html=True)
-                    st.caption("크기 = 등장 빈도(frequency) · 색 = 최근성(recency 🔴최근 🟡보통 ⚪오래됨) · 마우스를 올리면 중요도(importance)가 보여요.")
+                    _rank_mode = st.radio(
+                        "정렬 기준", ["빈도순", "중요도순 (TF-IDF)"],
+                        horizontal=True, key=f"map_rank_{sel_proj_name}",
+                        help="빈도순: 자주 등장한 개념 / 중요도순: 전체에선 흔치 않지만 이 프로젝트에 특화된 개념")
+
+                    if _rank_mode.startswith("중요도"):
+                        # 이 프로젝트 메모를 문서로, IDF는 전체 메모 기준
+                        _tfidf_rows = concept_tfidf(
+                            note_filter=lambda n: n.get("project") == sel_proj_name, top_n=30)
+                        if _tfidf_rows:
+                            _mx_t = _tfidf_rows[0][1]["tfidf"] or 1
+                            _chips = ""
+                            for _c, _td in _tfidf_rows:
+                                _t_tf, _t_df, _t_score = _td["tf"], _td["df"], _td["tfidf"]
+                                _rec = (_map_w[_c] / _map_freq[_c]) if _map_freq.get(_c) else 0.5
+                                _sz = 0.85 + (_t_score / _mx_t) * 0.95   # 크기 = TF-IDF
+                                _lbl, _bg, _fg = _recency_badge(_rec)
+                                _chips += (
+                                    f"<span title='빈도 {_t_tf} · 최근성 {round(_rec,2)} · TF-IDF {_t_score} (df {_t_df})' "
+                                    f"style='display:inline-block;margin:3px;padding:3px 11px;border-radius:14px;"
+                                    f"background:{_bg};color:{_fg};font-size:{_sz:.2f}em;font-weight:700'>"
+                                    f"{_c} <span style='opacity:.65;font-size:.65em'>{_t_score}</span></span>")
+                            st.markdown(_chips, unsafe_allow_html=True)
+                            st.caption("크기 = TF-IDF 중요도(이 프로젝트에 특화될수록 큼) · 색 = 최근성 · 마우스를 올리면 빈도/최근성/df가 보여요.")
+                        else:
+                            st.info("TF-IDF를 계산할 메모 개념이 부족해요. 메모에 개념이 더 쌓이면 정확해져요.")
+                    else:
+                        _mx = _map_concepts[0][1]["frequency"] or 1
+                        _chips = ""
+                        for _c, _d in _map_concepts[:30]:
+                            _f, _rec, _imp = _d["frequency"], _d["recency"], _d["importance"]
+                            _sz = 0.85 + (_f / _mx) * 0.95          # 0.85~1.8em (노드 크기=빈도)
+                            _lbl, _bg, _fg = _recency_badge(_rec)
+                            _chips += (
+                                f"<span title='빈도 {_f} · 최근성 {_rec} · 중요도 {_imp}' "
+                                f"style='display:inline-block;margin:3px;padding:3px 11px;border-radius:14px;"
+                                f"background:{_bg};color:{_fg};font-size:{_sz:.2f}em;font-weight:700'>"
+                                f"{_c} <span style='opacity:.65;font-size:.65em'>×{_f}</span></span>")
+                        st.markdown(_chips, unsafe_allow_html=True)
+                        st.caption("크기 = 등장 빈도(frequency) · 색 = 최근성(recency 🔴최근 🟡보통 ⚪오래됨) · 마우스를 올리면 중요도(importance)가 보여요.")
                 else:
                     st.info("이 프로젝트에 연결된 개념이 아직 없어요.")
 

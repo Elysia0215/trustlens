@@ -6276,7 +6276,7 @@ def render_project_page():
                     _flash("새 분석을 시작한 뒤 저장할 때 이 프로젝트를 선택하면 연결돼요.")
                     st.rerun()
 
-            # ── 기존 자료 연결 패널 ──────────────────────────
+            # ── 기존 자료 연결 패널 (체크박스 선택 리스트) ──────────────
             if st.session_state.get(_proj_link_key):
                 with st.container(border=True):
                     st.markdown("**📎 기존 자료를 이 프로젝트에 연결**")
@@ -6285,37 +6285,85 @@ def render_project_page():
                                    if n.get("project") != sel_proj_name]
                     _cand_analyses = [a for a in st.session_state.get("saved_analyses", [])
                                       if a.get("project") != sel_proj_name]
-                    # 옵션 라벨 → 원본 매핑
-                    _link_opt_map = {}
+                    # 후보 목록 구성: (uid, kind, title, cur_proj, obj)
+                    _cands = []
                     for _ni, _n in enumerate(_cand_notes):
-                        _lbl = f"📝 {(_n.get('title') or '제목 없음')[:40]} · {(_n.get('project') or '미연결')}"
-                        _link_opt_map[f"{_lbl}__n{_ni}"] = ("note", _n)
+                        _cands.append((f"n{_ni}", "note", "📝 지식 메모",
+                                       _n.get("title") or "제목 없음",
+                                       _n.get("project") or "미연결", _n))
                     for _ai, _a in enumerate(_cand_analyses):
-                        _lbl = f"📊 {(_a.get('title') or '제목 없음')[:40]} · {(_a.get('project') or '미연결')}"
-                        _link_opt_map[f"{_lbl}__a{_ai}"] = ("analysis", _a)
+                        _cands.append((f"a{_ai}", "analysis", "📊 분석 결과",
+                                       _a.get("title") or "제목 없음",
+                                       _a.get("project") or "미연결", _a))
 
-                    if not _link_opt_map:
+                    if not _cands:
                         st.caption("연결할 수 있는 다른 자료가 없어요. 새 자료를 만들어보세요.")
                     else:
-                        _sel_labels = st.multiselect(
-                            "연결할 자료 선택", list(_link_opt_map.keys()),
-                            key=f"dt1_linksel_{proj_id}",
-                            format_func=lambda x: x.rsplit("__", 1)[0])
-                        # 섹션 선택 (이 프로젝트의 섹션 + 일반)
+                        # 검색 + 유형 필터
+                        _fc1, _fc2 = st.columns([2, 1])
+                        with _fc1:
+                            _link_q = st.text_input("🔍 검색", key=f"dt1_linkq_{proj_id}",
+                                                    placeholder="제목으로 검색", label_visibility="collapsed")
+                        with _fc2:
+                            _link_filter = st.selectbox("유형", ["전체", "지식 메모", "분석 결과"],
+                                                        key=f"dt1_linkfilter_{proj_id}", label_visibility="collapsed")
+                        _kind_label = {"note": "지식 메모", "analysis": "분석 결과"}
+                        _q_low = (_link_q or "").strip().lower()
+                        _filtered = [c for c in _cands
+                                     if (_link_filter == "전체" or _kind_label[c[1]] == _link_filter)
+                                     and (not _q_low or _q_low in c[3].lower())]
+
+                        # 섹션 선택
                         _proj_secs = [s.get("name") for s in st.session_state.get("project_sections", [])
                                       if s.get("project_id") == proj_id and s.get("name")]
                         _sec_opts = ["일반"] + _proj_secs
                         _link_sec = st.selectbox("연결할 섹션", _sec_opts, key=f"dt1_linksec_{proj_id}")
-                        if st.button("🔗 현재 프로젝트에 연결", key=f"dt1_linkrun_{proj_id}",
-                                     type="primary", use_container_width=True, disabled=not _sel_labels):
-                            for _lab in _sel_labels:
-                                _kind, _obj = _link_opt_map[_lab]
+
+                        # 전체 선택 / 해제
+                        _allk = f"dt1_linkall_{proj_id}"
+                        _ac1, _ac2, _ac3 = st.columns([1, 1, 2])
+                        with _ac1:
+                            if st.button("☑️ 전체 선택", key=f"dt1_linkselall_{proj_id}", use_container_width=True):
+                                for c in _filtered:
+                                    st.session_state[f"dt1_linkcb_{proj_id}_{c[0]}"] = True
+                                st.rerun()
+                        with _ac2:
+                            if st.button("⬜ 선택 해제", key=f"dt1_linkclr_{proj_id}", use_container_width=True):
+                                for c in _cands:
+                                    st.session_state[f"dt1_linkcb_{proj_id}_{c[0]}"] = False
+                                st.rerun()
+
+                        if not _filtered:
+                            st.caption("검색/필터에 맞는 자료가 없어요.")
+
+                        # 체크박스 리스트 (스크롤 컨테이너)
+                        _selected_objs = []
+                        with st.container(height=260, border=False):
+                            for _uid, _kind, _kicon, _title, _curp, _obj in _filtered:
+                                _cbkey = f"dt1_linkcb_{proj_id}_{_uid}"
+                                _checked = st.checkbox(
+                                    f"{_kicon[:2]} **{_title[:50]}**",
+                                    key=_cbkey)
+                                st.caption(f"&nbsp;&nbsp;&nbsp;&nbsp;{_kind_label[_kind]} · {_curp}")
+                                if _checked:
+                                    _selected_objs.append(_obj)
+
+                        # 전체 후보 중 체크된 것 집계 (필터로 안 보여도 유지)
+                        _all_selected = [c[5] for c in _cands
+                                         if st.session_state.get(f"dt1_linkcb_{proj_id}_{c[0]}")]
+                        st.markdown(f"**선택 {len(_all_selected)}개**")
+                        if st.button(f"🔗 현재 프로젝트에 연결 ({len(_all_selected)}개)", key=f"dt1_linkrun_{proj_id}",
+                                     type="primary", use_container_width=True, disabled=not _all_selected):
+                            for _obj in _all_selected:
                                 _obj["project"] = sel_proj_name
                                 _obj["project_id"] = proj_id
                                 _obj["section"] = _link_sec
+                            # 체크 상태 초기화
+                            for c in _cands:
+                                st.session_state.pop(f"dt1_linkcb_{proj_id}_{c[0]}", None)
                             save_persisted_data()
                             st.session_state[_proj_link_key] = False
-                            _flash(f"✅ 자료 {len(_sel_labels)}개를 '{sel_proj_name}'에 연결했어요.")
+                            _flash(f"✅ 자료 {len(_all_selected)}개를 '{sel_proj_name}'에 연결했어요.")
                             st.rerun()
 
             _note_view = st.radio("보기", ["📋 테이블", "🗂️ 카드"], horizontal=True, key="proj_note_view")

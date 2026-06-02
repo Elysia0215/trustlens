@@ -6334,26 +6334,62 @@ def render_knowledge_map_page():
                 _rg_ninfo = _rg_nodes.get(_rg_sel, {})
                 _rg_ntype = _rg_ninfo.get("type", "")
                 _type_labels = {"project": "📁 프로젝트", "note": "📝 메모", "concept": "🧠 개념", "tag": "🏷️ 태그"}
-                st.markdown(f"**{_type_labels.get(_rg_ntype, _rg_ntype)}** — `{_rg_sel}`")
-                _rg_connected = [e for e in _rg_edges if e["src"] == _rg_sel or e["tgt"] == _rg_sel]
-                if _rg_connected:
-                    st.markdown(f"연결 수: **{len(_rg_connected)}개**")
-                    for _rce in _rg_connected[:15]:
-                        _other = _rce["tgt"] if _rce["src"] == _rg_sel else _rce["src"]
-                        _dir = "→" if _rce["src"] == _rg_sel else "←"
-                        st.markdown(f"- {_dir} **{_other}** ({_rce['rtype']})")
-                else:
-                    st.info("이 노드에 연결된 관계가 없어요.")
+                with st.container(border=True):
+                    st.markdown(f"**{_type_labels.get(_rg_ntype, _rg_ntype)}** — `{_rg_sel}`")
+                    _rg_connected = [e for e in _rg_edges if e["src"] == _rg_sel or e["tgt"] == _rg_sel]
 
-                # related memos
-                if _rg_ntype in ("concept", "tag"):
-                    _rel_memos = [n for n in _rg_notes if
-                                  _rg_sel in [str(t).replace("#","").strip() for t in n.get("tags",[])] or
-                                  any(l.get("concept") == _rg_sel for l in _rg_nclinks if l.get("note_id") == n.get("id",""))]
+                    # 관련 메모(개념/태그일 때)
+                    _rel_memos = []
+                    if _rg_ntype in ("concept", "tag"):
+                        _rel_memos = [n for n in _rg_notes if
+                                      _rg_sel in [str(t).replace("#","").strip() for t in n.get("tags",[])] or
+                                      any(l.get("concept") == _rg_sel for l in _rg_nclinks if l.get("note_id") == n.get("id",""))]
+                    # 연결 노드 유형별 집계
+                    _conn_types = {"project": 0, "note": 0, "concept": 0, "tag": 0}
+                    for _rce in _rg_connected:
+                        _other = _rce["tgt"] if _rce["src"] == _rg_sel else _rce["src"]
+                        _ot = _rg_nodes.get(_other, {}).get("type", "")
+                        if _ot in _conn_types:
+                            _conn_types[_ot] += 1
+                    st.caption(
+                        f"🔗 연결 {len(_rg_connected)} · 📝 관련 메모 {len(_rel_memos)} · "
+                        f"📁 {_conn_types['project']} · 🧠 {_conn_types['concept']} · 🏷️ {_conn_types['tag']}")
+
+                    # 행동 버튼: 시각화 → 탐색 → 행동
+                    _ab1, _ab2 = st.columns(2)
+                    with _ab1:
+                        if _rg_ntype in ("concept", "project", "tag") and st.button(
+                                "📄 엔터티 상세", key=f"rg_act_entity_{_rg_sel}", use_container_width=True):
+                            st.session_state["ep_jump_entity"] = _rg_sel
+                            st.query_params["page"] = "entity"
+                            st.rerun()
+                    with _ab2:
+                        if st.button("🤖 브레인스토밍", key=f"rg_act_brain_{_rg_sel}", use_container_width=True):
+                            st.query_params["page"] = "brain"
+                            st.rerun()
+
+                    if _rg_connected:
+                        st.markdown("**연결된 항목**")
+                        for _rce in _rg_connected[:15]:
+                            _other = _rce["tgt"] if _rce["src"] == _rg_sel else _rce["src"]
+                            _dir = "→" if _rce["src"] == _rg_sel else "←"
+                            st.markdown(f"- {_dir} **{_other}** ({_rce['rtype']})")
+                    else:
+                        st.info("이 노드에 연결된 관계가 없어요. 데이터 관리 → 관계 관리에서 연결해보세요.")
+
+                    # 관련 메모 — 클릭 이동
                     if _rel_memos:
                         st.markdown(f"**관련 메모 ({len(_rel_memos)}개)**")
-                        for _rm in _rel_memos[:5]:
-                            st.markdown(f"- 📝 {_rm.get('title','')}")
+                        for _rmi, _rm in enumerate(_rel_memos[:5]):
+                            _rmc1, _rmc2 = st.columns([5, 1])
+                            with _rmc1:
+                                st.markdown(f"📝 {_rm.get('title','제목 없음')}")
+                            with _rmc2:
+                                if _rm.get("id") and st.button("열기", key=f"rg_open_memo_{_rm.get('id')}_{_rmi}",
+                                                               use_container_width=True):
+                                    st.session_state["archive_open_note_id"] = _rm.get("id")
+                                    st.query_params["page"] = "archive"
+                                    st.rerun()
 
     # ══════════════════════════════════════════════════════════
     # TAB 9 — 📈 지식 성장 (Graph Evolution)

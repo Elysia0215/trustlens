@@ -38,9 +38,42 @@ def _clean_text_value(value):
     """JSON에 숫자/None이 섞여도 화면 표시용 문자열 필드는 안전하게 다룬다."""
     if value is None:
         return ""
+    try:
+        if value != value:  # NaN
+            return ""
+    except Exception:
+        pass
     if isinstance(value, str):
-        return value
+        text = value.strip()
+        return "" if text.lower() in {"nan", "none", "null", "nat"} else text
     return str(value)
+
+
+def _clean_number_value(value, default=0):
+    if _clean_text_value(value) == "":
+        return default
+    try:
+        return int(value)
+    except Exception:
+        try:
+            return float(value)
+        except Exception:
+            return default
+
+
+def _clean_editor_records(records, text_fields=(), number_fields=None):
+    number_fields = number_fields or {}
+    cleaned = []
+    for item in records or []:
+        if not isinstance(item, dict):
+            continue
+        next_item = dict(item)
+        for field in text_fields:
+            next_item[field] = _clean_text_value(next_item.get(field))
+        for field, default in number_fields.items():
+            next_item[field] = _clean_number_value(next_item.get(field), default)
+        cleaned.append(next_item)
+    return cleaned
 
 
 def _clean_text_fields(items, fields):
@@ -78,16 +111,32 @@ def normalize_persisted_data(persisted):
         "id", "name", "description", "category", "status", "priority",
         "owner", "start_date", "due_date", "created_at", "updated_at",
     ])
+    data["projects"] = [p for p in data["projects"] if p.get("name")]
+    data["project_sections"] = _clean_text_fields(data.get("project_sections", []), [
+        "id", "project", "name", "title", "description", "created_at", "updated_at",
+    ])
+    data["project_steps"] = _clean_text_fields(data.get("project_steps", []), [
+        "id", "project", "section", "name", "title", "status", "created_at", "updated_at",
+    ])
     data["tasks"] = _clean_text_fields(data.get("tasks", []), [
         "id", "title", "description", "project", "status", "priority",
         "due_date", "created_at", "updated_at",
     ])
+    data["tasks"] = [t for t in data["tasks"] if t.get("title")]
+    data["note_concept_links"] = _clean_text_fields(data.get("note_concept_links", []), [
+        "id", "note_id", "concept", "project", "created_at", "updated_at",
+    ])
     data["entities"] = _clean_text_fields(data.get("entities", []), [
         "id", "type", "name", "description", "created_at", "updated_at",
     ])
+    data["entities"] = [e for e in data["entities"] if e.get("name") or e.get("id")]
     data["relations"] = _clean_text_fields(data.get("relations", []), [
         "id", "source_id", "target_id", "source_name", "target_name",
-        "type", "relation", "created_at", "updated_at",
+        "source_type", "target_type", "type", "relation", "relation_type",
+        "created_at", "updated_at",
+    ])
+    data["folders"] = _clean_text_fields(data.get("folders", []), [
+        "id", "name", "type", "parent", "created_at", "updated_at",
     ])
     data["pkm_custom_concepts"] = [
         {**c, "name": _clean_text_value(c.get("name")), "folder": _clean_text_value(c.get("folder")),
@@ -96,6 +145,28 @@ def normalize_persisted_data(persisted):
         for c in data.get("pkm_custom_concepts", [])
         if c
     ]
+    data["pkm_custom_concepts"] = [
+        c for c in data["pkm_custom_concepts"]
+        if (_clean_text_value(c.get("name")) if isinstance(c, dict) else _clean_text_value(c))
+    ]
+    data["hidden_concepts"] = [_clean_text_value(c) for c in data.get("hidden_concepts", []) if _clean_text_value(c)]
+    data["merge_dismissed"] = [_clean_text_value(c) for c in data.get("merge_dismissed", []) if _clean_text_value(c)]
+    data["excluded_concepts_log"] = _clean_text_fields(data.get("excluded_concepts_log", []), [
+        "name", "reason", "created_at",
+    ])
+    data["pkm_concept_folders"] = {
+        _clean_text_value(k): (_clean_text_value(v) or "내 개념")
+        for k, v in (data.get("pkm_concept_folders", {}) or {}).items()
+        if _clean_text_value(k)
+    }
+    _custom_options = {}
+    for k, vals in (data.get("custom_select_options", {}) or {}).items():
+        key = _clean_text_value(k)
+        if not key:
+            continue
+        val_list = vals if isinstance(vals, (list, tuple, set)) else [vals]
+        _custom_options[key] = [_clean_text_value(v) for v in val_list if _clean_text_value(v)]
+    data["custom_select_options"] = _custom_options
     return data
 
 def _flash(msg: str, icon: str = "✅"):
@@ -568,6 +639,7 @@ def save_persisted_data():
         "relations": st.session_state.get("relations", []),
         "folders": st.session_state.get("folders", []),
     }
+    data = normalize_persisted_data(data)
     try:
         with DATA_FILE.open("w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -9308,7 +9380,11 @@ if menu == "데이터 관리":
             )
             if st.button("💾 프로젝트 저장", key="dm_save_proj", type="primary"):
                 _new_projs = _edited_proj.rename(columns={"프로젝트명":"name","상태":"status","우선순위":"priority","설명":"description"}).to_dict("records")
-                _new_projs = [p for p in _new_projs if str(p.get("name","")).strip() and p.get("name") != "(없음)"]
+                _new_projs = _clean_editor_records(
+                    _new_projs,
+                    text_fields=("id", "name", "status", "priority", "description"),
+                )
+                _new_projs = [p for p in _new_projs if p.get("name") and p.get("name") != "(없음)"]
                 for _np in _new_projs:
                     if not any(p.get("id") == _np.get("id") for p in _dm_projs):
                         import uuid as _uuid2
@@ -9336,10 +9412,10 @@ if menu == "데이터 관리":
             if st.button("💾 메모 저장", key="dm_save_note", type="primary"):
                 for _i, _row in _edited_note.iterrows():
                     if _i < len(_dm_notes):
-                        _dm_notes[_i]["title"]   = _row["제목"]
-                        _dm_notes[_i]["project"] = _row["프로젝트"]
-                        _dm_notes[_i]["section"] = _row["섹션"]
-                        _dm_notes[_i]["step"]    = _row["단계"]
+                        _dm_notes[_i]["title"]   = _clean_text_value(_row["제목"])
+                        _dm_notes[_i]["project"] = _clean_text_value(_row["프로젝트"])
+                        _dm_notes[_i]["section"] = _clean_text_value(_row["섹션"])
+                        _dm_notes[_i]["step"]    = _clean_text_value(_row["단계"])
                 st.session_state["archive_notes"] = _dm_notes
                 save_persisted_data(); _flash("저장 완료!"); st.rerun()
 
@@ -9370,7 +9446,11 @@ if menu == "데이터 관리":
                 })
             if st.button("💾 작업 저장", key="dm_save_task", type="primary"):
                 _new_tasks = _edited_task.rename(columns={"작업명":"title","프로젝트":"project","상태":"status","우선순위":"priority","마감일":"due_date"}).to_dict("records")
-                _new_tasks = [t for t in _new_tasks if str(t.get("title","")).strip() and t.get("title") != "(없음)"]
+                _new_tasks = _clean_editor_records(
+                    _new_tasks,
+                    text_fields=("id", "title", "project", "status", "priority", "due_date"),
+                )
+                _new_tasks = [t for t in _new_tasks if t.get("title") and t.get("title") != "(없음)"]
                 st.session_state["tasks"] = _new_tasks
                 save_persisted_data(); _flash("저장 완료!"); st.rerun()
 
@@ -9412,17 +9492,21 @@ if menu == "데이터 관리":
                     }
                 )
                 if st.button("💾 내 개념 저장", key="dm_save_mycon", type="primary"):
+                    _edited_my_records = _clean_editor_records(
+                        _edited_my.to_dict("records"),
+                        text_fields=("개념명", "폴더", "설명"),
+                    )
                     _existing_ai = [c for c in st.session_state.get("pkm_custom_concepts",[])
-                                    if c.get("name","") not in [r.get("개념명","") for r in _edited_my.to_dict("records")]
+                                    if c.get("name","") not in [r.get("개념명","") for r in _edited_my_records]
                                     and any(x.get("name")==c.get("name") for x in _dm_concepts if not x.get("is_custom"))]
                     _new_my = []
                     _new_fds2 = dict(st.session_state.get("pkm_concept_folders", {}))
-                    for _r in _edited_my.to_dict("records"):
-                        _nm = str(_r.get("개념명","")).strip()
+                    for _r in _edited_my_records:
+                        _nm = _clean_text_value(_r.get("개념명"))
                         if _nm:
-                            _fold = str(_r.get("폴더","내 개념")).strip() or "내 개념"
+                            _fold = _clean_text_value(_r.get("폴더")) or "내 개념"
                             _new_fds2[_nm] = _fold
-                            _new_my.append({"name":_nm,"folder":_fold,"description":_r.get("설명",""),"created_at":""})
+                            _new_my.append({"name":_nm,"folder":_fold,"description":_clean_text_value(_r.get("설명")),"created_at":""})
                     # AI에서 이미 등록된 개념은 유지
                     _keep_ai = [c for c in st.session_state.get("pkm_custom_concepts",[])
                                 if c.get("name") not in [x["name"] for x in _new_my]]
@@ -9464,10 +9548,10 @@ if menu == "데이터 관리":
                             _new_fds3 = dict(st.session_state.get("pkm_concept_folders",{}))
                             _added = 0
                             for _, _ar in _sel_ai.iterrows():
-                                _anm = str(_ar["개념명"]).strip()
-                                _afold = str(_ar["폴더"]).strip() or "내 개념"
+                                _anm = _clean_text_value(_ar["개념명"])
+                                _afold = _clean_text_value(_ar["폴더"]) or "내 개념"
                                 if _anm and _anm not in _existing_names:
-                                    _existing_custom.append({"name":_anm,"folder":_afold,"description":_ar.get("설명",""),"created_at":""})
+                                    _existing_custom.append({"name":_anm,"folder":_afold,"description":_clean_text_value(_ar.get("설명")),"created_at":""})
                                     _new_fds3[_anm] = _afold
                                     _added += 1
                                 elif _anm in _existing_names:
@@ -9489,10 +9573,11 @@ if menu == "데이터 관리":
                             _ex_names2 = [c.get("name") if isinstance(c,dict) else str(c) for c in _existing_c2]
                             _fds4 = dict(st.session_state.get("pkm_concept_folders",{}))
                             for _ac2 in _ai_cons:
-                                _an2 = _ac2.get("name","")
+                                _an2 = _clean_text_value(_ac2.get("name"))
                                 if _an2 and _an2 not in _ex_names2:
-                                    _existing_c2.append({"name":_an2,"folder":_ac2.get("folder","내 개념"),"description":"","created_at":""})
-                                    _fds4[_an2] = _ac2.get("folder","내 개념")
+                                    _fold2 = _clean_text_value(_ac2.get("folder")) or "내 개념"
+                                    _existing_c2.append({"name":_an2,"folder":_fold2,"description":"","created_at":""})
+                                    _fds4[_an2] = _fold2
                             st.session_state["pkm_custom_concepts"] = _existing_c2
                             st.session_state["pkm_concept_folders"] = _fds4
                             save_persisted_data(); _flash("전체 등록 완료!"); st.rerun()
@@ -9518,12 +9603,12 @@ if menu == "데이터 관리":
                 if st.button("💾 전체 개념 저장", key="dm_save_all_con", type="primary"):
                     _new_all = []
                     _fds5 = dict(st.session_state.get("pkm_concept_folders",{}))
-                    for _r5 in _edited_all.to_dict("records"):
-                        _nm5 = str(_r5.get("개념명","")).strip()
+                    for _r5 in _clean_editor_records(_edited_all.to_dict("records"), text_fields=("개념명", "폴더", "설명", "출처")):
+                        _nm5 = _clean_text_value(_r5.get("개념명"))
                         if _nm5:
-                            _f5 = str(_r5.get("폴더","자동")).strip() or "자동"
+                            _f5 = _clean_text_value(_r5.get("폴더")) or "자동"
                             _fds5[_nm5] = _f5
-                            _new_all.append({"name":_nm5,"folder":_f5,"description":_r5.get("설명",""),"created_at":""})
+                            _new_all.append({"name":_nm5,"folder":_f5,"description":_clean_text_value(_r5.get("설명")),"created_at":""})
                     # 삭제된 것들은 hidden 처리
                     _prev_names = {c.get("name") for c in _dm_concepts}
                     _new_names  = {r["name"] for r in _new_all}

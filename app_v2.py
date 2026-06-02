@@ -12453,7 +12453,8 @@ if menu == "가이드북":
 </div>
 """, unsafe_allow_html=True)
 
-    _g1, _g6, _g2, _g3, _g4, _g5 = st.tabs([
+    _g0, _g1, _g6, _g2, _g3, _g4, _g5 = st.tabs([
+        "🗺 사용 흐름·활용 레벨",
         "🚀 TrustLens란",
         "🏠 홈·검색·AI",
         "🔍 분석·저장하기",
@@ -12461,6 +12462,65 @@ if menu == "가이드북":
         "🧠 지식맵·개념",
         "🔗 데이터 관리",
     ])
+
+    # ─── 탭 0: 사용 흐름 · 활용 레벨 (처음 온 사람을 위한 길잡이) ───
+    with _g0:
+        st.markdown("### 🗺 추천 사용 흐름")
+        st.markdown(
+            "<div style='background:#eff6ff;border-radius:12px;padding:14px 18px;font-size:1.02em;line-height:2;'>"
+            "✍️ <b>입력</b> &nbsp;→&nbsp; 📅 <b>Daily Note</b> &nbsp;→&nbsp; 📚 <b>지식 아카이브</b> &nbsp;→&nbsp; "
+            "🧠 <b>개념</b> &nbsp;→&nbsp; 🕸 <b>관계</b> &nbsp;→&nbsp; 📁 <b>프로젝트</b> &nbsp;→&nbsp; "
+            "🤖 <b>AI</b> &nbsp;→&nbsp; 📈 <b>성장</b>"
+            "</div>", unsafe_allow_html=True)
+        st.caption("생각을 적고 → 다시 떠올리고 → 연결하고 → 탐색하고 → AI로 확장하는 흐름이에요.")
+        st.divider()
+
+        st.markdown("### 🌱 초급 — 일단 하루 한 줄부터")
+        _lv1, _lv2, _lv3 = st.columns(3)
+        with _lv1:
+            st.markdown("**🌱 처음 시작하기 (5분)**")
+            st.markdown("1. 홈에서 **오늘 한 줄** 작성\n2. 📅 Daily Note에서 생각 확장\n3. 자동 생성된 개념 확인\n4. 저장")
+            st.caption("🎯 목표: 오늘 생각 하나 남기기")
+        with _lv2:
+            st.markdown("**🌿 매일 쓰기**")
+            st.markdown("홈 한 줄 → Daily Note → 회상 레일 참고 → 미니 캘린더에서 다시 보기")
+            st.caption("🎯 목표: 생각을 꾸준히 쌓기")
+        with _lv3:
+            st.markdown("**🌳 Second Brain 활용**")
+            st.markdown("Daily Note → 지식 아카이브 → 관련 메모 추천 → 개념 연결 → 프로젝트 연결")
+            st.caption("🎯 목표: 생각을 지식으로 연결하기")
+        st.divider()
+
+        st.markdown("### 🚀 중급 — 사용 유형별 활용법")
+        _md1, _md2, _md3 = st.columns(3)
+        with _md1:
+            st.markdown("**📁 프로젝트형**")
+            st.markdown("메모 → 개념 → 작업 → 프로젝트 → 프로젝트 맵")
+            st.caption("추천 메뉴: 📁 프로젝트 · 🗺 프로젝트 맵 · 📅 캘린더")
+        with _md2:
+            st.markdown("**📖 공부형**")
+            st.markdown("Daily Note → 개념 → TF-IDF → 관련 메모 → 지식 AI")
+            st.caption("추천 메뉴: 🧠 개념 · 📈 성장 · 🤖 지식 AI")
+        with _md3:
+            st.markdown("**🔬 연구형**")
+            st.markdown("노트 → 브레인스토밍 → 연구노트 → 프로젝트")
+            st.caption("추천 메뉴: 🤖 브레인스토밍 · 🧠 지식 페이지 · 🗺 프로젝트 맵")
+        st.divider()
+
+        st.markdown("### 🧙 고급 — 지식을 다듬고 분석하기")
+        _hi1, _hi2, _hi3 = st.columns(3)
+        with _hi1:
+            st.markdown("**🧹 개념 품질 관리**")
+            st.markdown("품질 게이트 → 별칭 → 병합 → TF-IDF")
+            st.caption("개념이 깔끔할수록 추천·맵·AI가 똑똑해져요.")
+        with _hi2:
+            st.markdown("**🕸 지식 구조 분석**")
+            st.markdown("관계맵 → 프로젝트맵 → 타임라인")
+            st.caption("내 지식이 어떻게 연결돼 있는지 파악해요.")
+        with _hi3:
+            st.markdown("**🤖 AI 활용**")
+            st.markdown("지식 AI → 브레인스토밍 → 패턴 분석")
+            st.caption("쌓인 지식을 근거로 AI가 답하고 확장해요.")
 
     # ─── 탭 1: TrustLens란 ───────────────────────────────────
     with _g1:
@@ -13426,7 +13486,26 @@ if menu == "패치 노트":
 
     # ─── 패치 노트 탭 ───────────────────────────────────────
     with _tab_changelog:
-        st.caption(f"현재 버전: **{_CHANGELOG[0]['version']} {_CHANGELOG[0]['codename']}** · 총 {len(_CHANGELOG)}개 메이저 버전")
+        # 🎉 사용자 버전 — 무엇이 좋아졌는지 쉬운 말로 먼저
+        st.markdown("### 🎉 최근 추가된 기능")
+        _user_news = [
+            ("✍️ 홈 한 줄 입력", "앱을 열자마자 오늘 생각을 바로 적을 수 있어요."),
+            ("📅 데일리 노트 + 미니 캘린더", "날짜별로 기록하고, 언제 무엇을 적었는지 한눈에 봐요."),
+            ("🧭 회상 레일", "뭘 적을지 막힐 때 최근 메모·개념·프로젝트를 떠올려줘요."),
+            ("🗺 프로젝트 맵", "프로젝트와 연결된 메모·작업·개념을 한눈에 봐요."),
+            ("🔗 개념 별칭 / ⭐ TF-IDF", "같은 개념을 묶고, 이 프로젝트에 특화된 중요 개념을 골라줘요."),
+            ("🧠 지식 아카이브 개편", "메모를 카드로 훑고, 관련 메모를 따라가며 탐험해요."),
+            ("⚙️ 설정 Control Center", "테마·세계관·기능을 한 곳에서 켜고 꺼요."),
+            ("🔎 지식 AI 근거 정리", "질문과 무관한 자료를 빼고, 관련 지식만 근거로 답해요."),
+        ]
+        _un1, _un2 = st.columns(2)
+        for _ui, (_t, _d) in enumerate(_user_news):
+            with (_un1 if _ui % 2 == 0 else _un2):
+                st.markdown(f"**{_t}**<br><span style='color:#475569;font-size:0.9em'>{_d}</span>",
+                            unsafe_allow_html=True)
+        st.divider()
+        st.markdown("### 🛠 개발 상세 (버전별 패치 노트)")
+        st.caption(f"현재 버전: **{_CHANGELOG[0]['version']} {_CHANGELOG[0]['codename']}** · 총 {len(_CHANGELOG)}개 메이저 버전 · 각 버전의 ‘개발 상세’를 펼치면 기능·버그·인프라까지 보여요.")
         for _i, _v in enumerate(_CHANGELOG):
             _is_latest = _i == 0
             _border = "#2563eb" if _is_latest else "#cbd5e1"

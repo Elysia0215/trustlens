@@ -15120,7 +15120,11 @@ def render_home_universe():
             _fig, use_container_width=True,
             config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False}
         )
-        st.caption("🛰️ 아래 **행성 버튼**으로 선택하면 위성이 펼쳐져요. 🌌 전체를 누르면 가운데 내 지식이 활성화돼요.")
+        st.caption(
+            "🛰️ 아래 **행성 버튼**으로 선택하면 위성이 펼쳐져요. "
+            "🌌 **전체**를 누르면 가운데 내 지식이 활성화되고, "
+            "그 안의 **🌎🚀 지구 발사대**에서 아직 프로젝트에 안 들어간 지식을 행성으로 보낼 수 있어요."
+        )
     except Exception:
         for _pl in _planets:
             st.markdown(f"🪐 **{_pl['name']}** · 📝 {_pl['memos']} 🧠 {_pl['concepts']} ✅ {_pl['tasks']}")
@@ -15301,6 +15305,83 @@ def render_home_universe():
                 st.caption("아직 없어요.")
         render_action_buttons("project", target_name=_sel_planet, project=_sel_planet,
                               key_prefix=f"univ_act_{_sel_planet}")
+        # 🚀 이 행성의 위성을 다른 행성으로 이동 (행성↔행성 재배치)
+        _other_planets = [n for n in _univ_names if n and n != _sel_planet]
+        if _other_planets and (_pn or _ptk or _pcs):
+            if st.checkbox(
+                "🚀 이 행성의 지식을 다른 행성으로 보내기",
+                key=f"univ_move_toggle_{_sel_planet}",
+                help="선택한 메모·작업·개념의 프로젝트를 다른 행성으로 옮겨요.",
+            ):
+                st.caption(f"🛸 '{_sel_planet}' 행성의 위성을 다른 프로젝트 행성으로 이동해요.")
+                _mv_dest = st.selectbox(
+                    "목적 행성",
+                    _other_planets,
+                    key=f"univ_move_dest_{_sel_planet}",
+                    help="선택한 지식들이 이동할 프로젝트 행성이에요.",
+                )
+                _mt_memo, _mt_task, _mt_concept = st.tabs(["🌙 메모", "✅ 작업", "🧠 개념"])
+                with _mt_memo:
+                    _mv_note_ids = [n.get("id") for n in _pn if n.get("id")]
+                    _mv_note_lookup = {n.get("id"): n for n in _pn if n.get("id")}
+                    _mv_sel_notes = st.multiselect(
+                        "보낼 메모",
+                        _mv_note_ids,
+                        key=f"univ_move_notes_{_sel_planet}",
+                        format_func=lambda _nid: _clean_text_value(
+                            _mv_note_lookup.get(_nid, {}).get("title")
+                        ).strip() or "제목 없음",
+                    )
+                with _mt_task:
+                    _mv_task_ids = [t.get("id") for t in _ptk if t.get("id")]
+                    _mv_task_lookup = {t.get("id"): t for t in _ptk if t.get("id")}
+                    _mv_sel_tasks = st.multiselect(
+                        "보낼 작업",
+                        _mv_task_ids,
+                        key=f"univ_move_tasks_{_sel_planet}",
+                        format_func=lambda _tid: _clean_text_value(
+                            _mv_task_lookup.get(_tid, {}).get("title")
+                        ).strip() or "제목 없음",
+                    )
+                with _mt_concept:
+                    _mv_sel_concepts = st.multiselect(
+                        "보낼 개념",
+                        list(_pcs),
+                        key=f"univ_move_concepts_{_sel_planet}",
+                    )
+                _mv_total = len(_mv_sel_notes) + len(_mv_sel_tasks) + len(_mv_sel_concepts)
+                if st.button(
+                    f"🚀 '{_mv_dest}'(으)로 보내기 ({_mv_total}개)",
+                    key=f"univ_move_go_{_sel_planet}",
+                    use_container_width=True,
+                    disabled=_mv_total == 0,
+                    help="선택한 항목의 프로젝트 값을 목적 행성으로 바꿔요.",
+                ):
+                    _mv_now = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    for _n in st.session_state.get("archive_notes", []):
+                        if _n.get("id") in _mv_sel_notes:
+                            _n["project"] = _mv_dest
+                            _n["updated_at"] = _mv_now
+                    for _t in st.session_state.get("tasks", []):
+                        if _t.get("id") in _mv_sel_tasks:
+                            _t["project"] = _mv_dest
+                            _t["updated_at"] = _mv_now
+                    for _lk in st.session_state.get("note_concept_links", []):
+                        _cn = _clean_text_value(_lk.get("concept")).strip()
+                        if _cn in _mv_sel_concepts or _lk.get("note_id") in _mv_sel_notes:
+                            _lk["project"] = _mv_dest
+                            _lk["updated_at"] = _mv_now
+                    for _c in st.session_state.get("pkm_custom_concepts", []):
+                        if isinstance(_c, dict) and _clean_text_value(_c.get("name")).strip() in _mv_sel_concepts:
+                            _c["project"] = _mv_dest
+                            _c["updated_at"] = _mv_now
+                    save_persisted_data()
+                    _flash(f"🚀 {_mv_total}개를 '{_sel_planet}' → '{_mv_dest}'(으)로 이동했어요!")
+                    for _k in (f"univ_move_notes_{_sel_planet}",
+                               f"univ_move_tasks_{_sel_planet}",
+                               f"univ_move_concepts_{_sel_planet}"):
+                        st.session_state.pop(_k, None)
+                    st.rerun()
     else:
         _all_note_ids = {n.get("id") for n in _notes}
         _all_concepts = {

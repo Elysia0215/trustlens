@@ -11989,6 +11989,114 @@ if menu == "패턴 분석":
         st.info("아직 저장된 데이터가 없어요. 분석 결과를 저장하면 여기서 패턴을 볼 수 있어요.")
         st.stop()
 
+    # ═══════════ 🧠 내 사고 리포트 (통계가 아니라 인사이트) ═══════════
+    from collections import Counter as _RCounter, defaultdict as _Rdd
+    _r_now = datetime.now()
+
+    def _r_days(ds):
+        try:
+            return (_r_now - datetime.strptime(str(ds)[:10], "%Y-%m-%d")).days
+        except Exception:
+            return 9999
+
+    _links_by_note_r = _Rdd(list)
+    for _l in st.session_state.get("note_concept_links", []):
+        if _l.get("note_id") and _l.get("concept"):
+            _links_by_note_r[_l["note_id"]].append(_l["concept"])
+
+    def _note_cons_r(n):
+        out = set()
+        for c in (n.get("concepts", []) or []) + _links_by_note_r.get(n.get("id"), []):
+            cc = canonical_concept(c)
+            if cc:
+                out.add(cc)
+        return out
+
+    def _top_topics(days, k=5):
+        c = _RCounter()
+        for n in _pt_notes:
+            if _r_days(n.get("saved_at") or n.get("created_at")) <= days:
+                for cc in _note_cons_r(n):
+                    c[cc] += 1
+        return c.most_common(k)
+
+    _topics7 = _top_topics(7)
+    _topics = _topics7 if _topics7 else _top_topics(30)
+    _win = 7 if _topics7 else 30
+    _pair = _RCounter()
+    for _n in _pt_notes:
+        _cs = sorted(_note_cons_r(_n))
+        for _i in range(len(_cs)):
+            for _j in range(_i + 1, len(_cs)):
+                _pair[(_cs[_i], _cs[_j])] += 1
+    _top_pairs = _pair.most_common(3)
+    _recent_cc, _old_cc = set(), set()
+    for _n in _pt_notes:
+        _d = _r_days(_n.get("saved_at") or _n.get("created_at"))
+        for _cc in _note_cons_r(_n):
+            (_recent_cc if _d <= 7 else _old_cc).add(_cc)
+    _emerging = sorted(_recent_cc - _old_cc)[:5]
+    _low = [n for n in _pt_notes if isinstance(n.get("score"), (int, float)) and 0 < n.get("score") < 50]
+
+    st.markdown("### 🧠 내 사고 리포트")
+    st.caption("숫자가 아니라 '내가 요즘 무엇을 생각하고 있는지'를 보여줘요.")
+    _rc1, _rc2 = st.columns(2)
+    with _rc1:
+        with st.container(border=True):
+            st.markdown(f"**🔥 최근 {_win}일 핵심 주제**")
+            if _topics:
+                for _ti, (_t, _c) in enumerate(_topics, 1):
+                    st.markdown(f"{_ti}. **{_t}** · {_c}회")
+            else:
+                st.caption("최근 기록이 적어요. 메모를 더 쌓아보세요.")
+    with _rc2:
+        with st.container(border=True):
+            st.markdown("**🔗 자주 함께 등장한 개념**")
+            if _top_pairs:
+                for (_a, _b), _c in _top_pairs:
+                    st.markdown(f"- {_a} ↔ {_b} · {_c}회")
+            else:
+                st.caption("아직 함께 등장한 개념이 적어요.")
+    _rc3, _rc4 = st.columns(2)
+    with _rc3:
+        with st.container(border=True):
+            st.markdown("**✨ 새롭게 떠오르는 개념** (최근 7일 신규)")
+            st.markdown(" ".join(f"`{c}`" for c in _emerging) if _emerging else "_최근 신규 개념이 없어요._")
+    with _rc4:
+        with st.container(border=True):
+            st.markdown("**⚠️ 검증이 필요한 메모**")
+            if _low:
+                st.markdown(f"신뢰도 50점 미만 **{len(_low)}개**")
+                for _n in _low[:3]:
+                    st.caption(f"· {_n.get('title', '제목 없음')} ({_n.get('score')}점)")
+            else:
+                st.caption("낮은 신뢰도 메모가 없어요. 👍")
+    with st.container(border=True):
+        st.markdown("**🚀 추천 다음 행동**")
+        _recs = []
+        if _top_pairs:
+            (_pa, _pb), _ = _top_pairs[0]
+            _recs.append(f"자주 함께 나오는 **{_pa} · {_pb}** 를 한 프로젝트나 개념 그룹으로 묶어보세요.")
+        if _topics:
+            _recs.append(f"핵심 주제 **{_topics[0][0]}** 관련 메모를 하나의 학습 노트로 정리해보세요.")
+        if _low:
+            _recs.append(f"신뢰도 낮은 메모 **{len(_low)}개**를 다시 검토해보세요.")
+        if not _recs:
+            _recs.append("메모를 더 쌓으면 맞춤 추천이 나와요.")
+        for _r in _recs:
+            st.markdown(f"- {_r}")
+        _rb1, _rb2 = st.columns(2)
+        with _rb1:
+            if st.button("🧠 개념 보러가기", key="rep_goto_map", use_container_width=True):
+                st.query_params["page"] = "map"
+                st.rerun()
+        with _rb2:
+            if st.button("📚 아카이브 보러가기", key="rep_goto_arch", use_container_width=True):
+                st.query_params["page"] = "archive"
+                st.rerun()
+    st.divider()
+    st.caption("아래는 상세 통계예요.")
+
     _pt_tab1, _pt_tab2, _pt_tab3, _pt_tab4 = st.tabs(["📊 전체 통계", "🏷️ 태그·개념 분포", "⏰ 시간 분석", "🤖 AI 인사이트"])
 
     # ─── 탭 1: 전체 통계 ─────────────────────────────────────

@@ -7463,6 +7463,8 @@ def render_project_page():
                 "analysis": ("📊", "분석결과", "#8b5cf6"),
             }
             _TYPE_ORDER = ["project", "task", "note", "research", "analysis"]
+            # 캘린더 셀 표시 우선순위 (메모/노트가 가장 중요 — '그날 무슨 생각을 했나')
+            _CAL_PRIORITY = {"note": 0, "research": 1, "task": 2, "project": 3, "analysis": 4}
 
             # ── 이번 달 KPI 요약 ──
             _month_prefix = f"{_cy:04d}-{_cm:02d}-"
@@ -7488,7 +7490,7 @@ def render_project_page():
             _cal_obj = _cal_mod.Calendar(firstweekday=0)  # 월요일 시작
             _sel_date_key = f"cal_seldate_{proj_id}"
             _sel_d = st.session_state.get(_sel_date_key)
-            _CARD_H = 96
+            _CARD_H = 108
             for _week in _cal_obj.monthdayscalendar(_cy, _cm):
                 _day_cols = st.columns(7, gap="small")
                 for _di, _day in enumerate(_week):
@@ -7518,20 +7520,27 @@ def render_project_page():
                         # 제목 미리보기 (숫자 대신 제목 — 캘린더를 '기억 지도'로)
                         def _esc(_s):
                             return str(_s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                        # 우선순위 정렬 (메모 > 연구 > 작업 > 프로젝트 > 분석)
+                        _evs_sorted = sorted(_evs, key=lambda e: _CAL_PRIORITY.get(e[2], 9))
+                        _PREVIEW_N = 3
                         _title_html = ""
-                        for _icon, _t2, _ty in _evs[:2]:
+                        for _icon, _t2, _ty in _evs_sorted[:_PREVIEW_N]:
                             _col = _TYPE_META.get(_ty, ("", "", "#64748b"))[2]
-                            _tt = (_t2[:11] + "…") if len(str(_t2)) > 12 else _t2
+                            _name = str(_t2).strip() or _TYPE_META.get(_ty, ("", "항목", ""))[1]
+                            _tt = (_name[:9] + "…") if len(_name) > 10 else _name
                             _title_html += (f"<div style='font-size:0.68rem;color:{_col};white-space:nowrap;"
                                             f"overflow:hidden;text-overflow:ellipsis;max-width:100%'>{_icon} {_esc(_tt)}</div>")
-                        if len(_evs) > 2:
-                            _title_html += f"<div style='font-size:0.66rem;color:#94a3b8'>+{len(_evs) - 2}</div>"
+                        if len(_evs) > _PREVIEW_N:
+                            _title_html += f"<div style='font-size:0.66rem;color:#94a3b8'>+{len(_evs) - _PREVIEW_N}</div>"
+                        # 총 개수 보조 배지 (날짜 옆)
+                        _cnt_badge = (f"<span style='font-size:0.62rem;color:#94a3b8;margin-left:4px'>·{len(_evs)}</span>"
+                                      if _evs else "")
                         _border = "2px solid #2563eb" if _is_sel else "1px solid #e2e8f0"
                         _bg = "#eff6ff" if _is_today else "#ffffff"
                         st.markdown(
                             f"<div style='border:{_border};border-radius:10px;background:{_bg};"
                             f"padding:6px 7px;min-height:{_CARD_H}px;overflow:hidden;'>"
-                            f"<div style='margin-bottom:3px'>{_num_html}</div>"
+                            f"<div style='margin-bottom:3px'>{_num_html}{_cnt_badge}</div>"
                             f"<div style='line-height:1.45'>{_title_html or '&nbsp;'}</div>"
                             f"</div>",
                             unsafe_allow_html=True)

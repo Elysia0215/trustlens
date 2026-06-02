@@ -33,6 +33,71 @@ def load_persisted_data():
     except Exception:
         return {}
 
+
+def _clean_text_value(value):
+    """JSON에 숫자/None이 섞여도 화면 표시용 문자열 필드는 안전하게 다룬다."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    return str(value)
+
+
+def _clean_text_fields(items, fields):
+    cleaned = []
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        next_item = dict(item)
+        for field in fields:
+            if field in next_item:
+                next_item[field] = _clean_text_value(next_item.get(field))
+        if "tags" in next_item:
+            tags = next_item.get("tags") or []
+            next_item["tags"] = [_clean_text_value(tag).strip() for tag in tags if _clean_text_value(tag).strip()]
+        cleaned.append(next_item)
+    return cleaned
+
+
+def normalize_persisted_data(persisted):
+    """오래된/깨진 JSON 값 때문에 앱 시작 렌더링이 죽지 않도록 표시 필드 정규화."""
+    if not isinstance(persisted, dict):
+        return {}
+    data = dict(persisted)
+    data["archive_notes"] = _clean_text_fields(data.get("archive_notes", []), [
+        "id", "title", "note", "memo", "full_text", "original_text", "saved_at",
+        "updated_at", "project", "section", "source", "url",
+    ])
+    data["saved_analyses"] = _clean_text_fields(data.get("saved_analyses", []), [
+        "id", "title", "summary", "saved_at", "updated_at", "url", "final_url",
+    ])
+    data["search_history"] = _clean_text_fields(data.get("search_history", []), [
+        "title", "url", "saved_at", "created_at",
+    ])
+    data["projects"] = _clean_text_fields(data.get("projects", []), [
+        "id", "name", "description", "category", "status", "priority",
+        "owner", "start_date", "due_date", "created_at", "updated_at",
+    ])
+    data["tasks"] = _clean_text_fields(data.get("tasks", []), [
+        "id", "title", "description", "project", "status", "priority",
+        "due_date", "created_at", "updated_at",
+    ])
+    data["entities"] = _clean_text_fields(data.get("entities", []), [
+        "id", "type", "name", "description", "created_at", "updated_at",
+    ])
+    data["relations"] = _clean_text_fields(data.get("relations", []), [
+        "id", "source_id", "target_id", "source_name", "target_name",
+        "type", "relation", "created_at", "updated_at",
+    ])
+    data["pkm_custom_concepts"] = [
+        {**c, "name": _clean_text_value(c.get("name")), "folder": _clean_text_value(c.get("folder")),
+         "description": _clean_text_value(c.get("description"))}
+        if isinstance(c, dict) else _clean_text_value(c)
+        for c in data.get("pkm_custom_concepts", [])
+        if c
+    ]
+    return data
+
 def _flash(msg: str, icon: str = "✅"):
     """rerun 후에도 보이는 알림 큐에 메시지 추가.
     _flash() 직후 st.rerun()을 하면 메시지가 화면에 그려지기 전에
@@ -1345,7 +1410,7 @@ button[data-testid="collapsedControl"],
 # Session State
 # -----------------------------
 def init_state():
-    persisted = load_persisted_data()
+    persisted = normalize_persisted_data(load_persisted_data())
     defaults = {
         "last_result": None,
         "last_final_url": None,

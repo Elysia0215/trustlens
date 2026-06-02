@@ -6643,7 +6643,7 @@ def render_project_page():
                     f"개념 연결 작업 {_hub_task_w_con}/{len(_hub_tasks)}")
 
         # 탭: 메모/분석결과 | 섹션 | 캘린더 | 타임라인
-        dt1, dt2, dt3, dt4 = st.tabs(["📄 연결된 자료", "📂 섹션 관리", "📅 캘린더", "📊 타임라인"])
+        dt1, dt2, dt3, dt4, dt5 = st.tabs(["📄 연결된 자료", "📂 섹션 관리", "📅 캘린더", "📊 타임라인", "🗺️ 관계맵"])
 
         # 이 프로젝트의 메모 + 분석결과
         _proj_notes = [n for n in st.session_state.get("archive_notes", []) if n.get("project") == sel_proj_name]
@@ -7291,6 +7291,110 @@ def render_project_page():
                         st.info("날짜 파싱 가능한 항목이 없어요.")
                 except Exception as e:
                     st.warning(f"타임라인 그리기 오류: {e}")
+
+        with dt5:
+            # ── E-3. 프로젝트 관계맵 (MVP: 트리/카드형) ──────────────
+            st.markdown("### 🗺️ 프로젝트 관계맵")
+            st.caption("이 프로젝트의 작업·자료·개념이 어떻게 연결돼 있는지 한눈에 봐요.")
+
+            from collections import defaultdict as _ddict
+            _today_map = datetime.now()
+
+            def _recency_w(ds, half=30):
+                """최근성 가중치 0~1 (1=오늘). 날짜 불명 → 0.5 중립."""
+                if not ds:
+                    return 0.5
+                try:
+                    _d = datetime.strptime(str(ds)[:10], "%Y-%m-%d")
+                    _days = max(0.0, (_today_map - _d).total_seconds() / 86400.0)
+                    return 0.5 ** (_days / max(1, half))
+                except Exception:
+                    return 0.5
+
+            # 프로젝트 범위 개념 빈도 + 최근성 (메모 concepts + 링크 + 작업 개념)
+            _map_freq, _map_w = _ddict(int), _ddict(float)
+            _pn_ids = {n.get("id") for n in _proj_notes if n.get("id")}
+            for _mn in _proj_notes:
+                for _mc in (_mn.get("concepts", []) or []):
+                    if _mc:
+                        _map_freq[_mc] += 1
+                        _map_w[_mc] += _recency_w(_mn.get("saved_at") or _mn.get("created_at"))
+            for _lk in st.session_state.get("note_concept_links", []):
+                if _lk.get("note_id") in _pn_ids and _lk.get("concept"):
+                    _map_freq[_lk["concept"]] += 1
+                    _map_w[_lk["concept"]] += _recency_w(_lk.get("linked_at"))
+            for _mt in _proj_tasks:
+                for _mc in (_mt.get("linked_concepts", []) or []):
+                    if _mc:
+                        _map_freq[_mc] += 1
+                        _map_w[_mc] += _recency_w(_mt.get("updated_at") or _mt.get("created_at"))
+            _map_concepts = sorted(_map_freq.items(), key=lambda kv: kv[1], reverse=True)
+
+            # 상단 요약 (프로젝트 = 중심 노드)
+            _doc_n = len(_proj_notes) + len(_proj_analyses)
+            st.markdown(
+                f"<div style='text-align:center;padding:10px;border:2px solid #6366f1;border-radius:12px;background:#eef2ff;margin-bottom:10px'>"
+                f"<span style='font-size:1.2em;font-weight:800;color:#4338ca'>📁 {sel_proj_name}</span><br>"
+                f"<span style='color:#64748b;font-size:0.9em'>✅ 작업 {len(_proj_tasks)} · 📄 자료 {_doc_n} · 🧠 개념 {len(_map_concepts)}</span>"
+                f"</div>", unsafe_allow_html=True)
+
+            # 🧠 핵심 개념 (크기=빈도, 색=최근성)
+            st.markdown("#### 🧠 핵심 개념")
+            if _map_concepts:
+                _mx = _map_concepts[0][1] or 1
+                _chips = ""
+                for _c, _f in _map_concepts[:30]:
+                    _rec = _map_w[_c] / _f if _f else 0.0
+                    _sz = 0.85 + (_f / _mx) * 0.95           # 0.85~1.8em (노드 크기=빈도)
+                    if _rec >= 0.65:
+                        _bg, _fg = "#fee2e2", "#b91c1c"      # 최근 (강조)
+                    elif _rec >= 0.4:
+                        _bg, _fg = "#fef3c7", "#b45309"      # 중간
+                    else:
+                        _bg, _fg = "#e2e8f0", "#475569"      # 오래됨
+                    _chips += (
+                        f"<span style='display:inline-block;margin:3px;padding:3px 11px;border-radius:14px;"
+                        f"background:{_bg};color:{_fg};font-size:{_sz:.2f}em;font-weight:700'>"
+                        f"{_c} <span style='opacity:.65;font-size:.65em'>{_f}</span></span>")
+                st.markdown(_chips, unsafe_allow_html=True)
+                st.caption("크기 = 등장 빈도 · 색 = 최근성 (🔴 최근 · 🟡 중간 · ⚪ 오래됨)")
+            else:
+                st.info("이 프로젝트에 연결된 개념이 아직 없어요.")
+
+            st.markdown("#### ✅ 작업 → 연결된 자료·개념")
+            if not _proj_tasks:
+                st.info("연결된 작업이 없어요. 작업을 만들고 메모·개념을 연결해보세요.")
+            else:
+                _notes_by_id = {n.get("id"): n for n in st.session_state.get("archive_notes", [])}
+                for _mt in _proj_tasks:
+                    _nids = [i for i in (_mt.get("linked_note_ids", []) or [])]
+                    _cons = [c for c in (_mt.get("linked_concepts", []) or []) if c]
+                    _strength = len(_nids) + len(_cons)        # 연결 강도(선 굵기 대용)
+                    _bar = min(100, _strength * 20)
+                    with st.container(border=True):
+                        _tc1, _tc2 = st.columns([4, 1])
+                        with _tc1:
+                            st.markdown(
+                                f"**✅ {_mt.get('title','(제목 없음)')}** "
+                                f"<span style='color:#94a3b8;font-size:0.82em'>· {_mt.get('status','')}</span>",
+                                unsafe_allow_html=True)
+                        with _tc2:
+                            st.markdown(
+                                f"<div style='margin-top:6px;background:#e7edf7;border-radius:6px;height:7px'>"
+                                f"<div style='width:{_bar}%;background:#6366f1;height:7px;border-radius:6px'></div></div>"
+                                f"<div style='text-align:right;font-size:0.7em;color:#94a3b8'>연결 {_strength}</div>",
+                                unsafe_allow_html=True)
+                        if _nids:
+                            _titles = [_notes_by_id.get(i, {}).get("title", "(삭제된 메모)") for i in _nids]
+                            st.markdown(
+                                "&nbsp;&nbsp;📄 " + " · ".join(f"`{t}`" for t in _titles),
+                                unsafe_allow_html=True)
+                        if _cons:
+                            st.markdown(
+                                "&nbsp;&nbsp;🧠 " + " ".join(f"`{c}`" for c in _cons),
+                                unsafe_allow_html=True)
+                        if not _nids and not _cons:
+                            st.caption("아직 연결된 메모·개념이 없어요.")
 
 
 # ─────────────────────────────────────────

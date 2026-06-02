@@ -12935,6 +12935,34 @@ if menu == "가이드북":
 </div>
 """, unsafe_allow_html=True)
 
+    # ── 한 문장 정의 (자체 용어가 많아 처음 온 사람이 큰 그림부터 잡게) ──
+    st.markdown(
+        "<div style='background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;"
+        "padding:16px 20px;margin-bottom:18px;font-size:1.05em;line-height:1.7;color:#0c4a6e;'>"
+        "🪐 <b>TrustLens는</b> <b>‘프로젝트 &gt; 연구노트 &gt; 메모’</b> 구조 위에 "
+        "<b>‘개념 · 태그 · 관계’</b> 그래프를 덧씌운 <b>지식 관리 시스템</b>입니다."
+        "</div>",
+        unsafe_allow_html=True)
+
+    # ── 🚀 5분 시작하기 (자체 용어 입문 + 첫 동선) ──
+    st.markdown("#### 🚀 TrustLens 시작하기 (5분)")
+    _quickstart = [
+        ("1️⃣", "메모 작성", "✍️ 홈 한 줄이나 📅 데일리 노트에 떠오른 걸 적어요. 이게 가장 작은 지식 단위예요."),
+        ("2️⃣", "개념 연결", "메모에서 🧠 핵심 개념·🏷️ 태그가 자동 추출돼요. 같은 개념끼리 메모가 이어져요."),
+        ("3️⃣", "관계 생성", "🔗 연구노트↔메모, 작업↔개념처럼 엔티티 사이를 잇는 선(관계)을 만들어요."),
+        ("4️⃣", "프로젝트 배치", "📁 메모·작업·개념을 프로젝트에 묶어요. 프로젝트가 곧 🪐 ‘행성’이 돼요."),
+        ("5️⃣", "지식 우주 확장", "🪐 내 지식 우주에서 행성이 커지는 걸 보고, 🚀 발사대로 흩어진 지식을 정리해요."),
+    ]
+    for _qi, _qt, _qd in _quickstart:
+        st.markdown(
+            f"<div style='display:flex;align-items:flex-start;gap:12px;margin-bottom:8px;'>"
+            f"<div style='font-size:1.3rem;min-width:30px;'>{_qi}</div>"
+            f"<div><b style='color:#1e293b'>{_qt}</b>"
+            f"<div style='color:#64748b;font-size:0.9em;margin-top:1px'>{_qd}</div></div></div>",
+            unsafe_allow_html=True)
+    st.caption("💡 헷갈리는 용어(행성·발사대·개념·연구노트·관계)는 아래 탭과 FAQ에서 더 자세히 풀어놨어요.")
+    st.divider()
+
     _g0, _g1, _g6, _g2, _g3, _g4, _g5 = st.tabs([
         "🗺 사용 흐름·활용 레벨",
         "🚀 TrustLens란",

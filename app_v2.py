@@ -14625,6 +14625,71 @@ def render_home_mini_knowledge_graph(theme_key):
     st.plotly_chart(_fig, use_container_width=True, config={"displayModeBar": False})
 
 
+def render_home_universe():
+    """🪐 내 지식 우주 — 프로젝트=행성(메모·개념·작업 수에 비례한 크기). 홈 축약판."""
+    _projs = [p for p in st.session_state.get("projects", []) if p.get("name")]
+    if not _projs:
+        return
+    _notes = st.session_state.get("archive_notes", [])
+    _tasks = st.session_state.get("tasks", [])
+    _links = st.session_state.get("note_concept_links", [])
+    _planets = []
+    for _p in _projs:
+        _nm = _p.get("name")
+        _pn = [n for n in _notes if n.get("project") == _nm]
+        _pn_ids = {n.get("id") for n in _pn}
+        _cc = len({l.get("concept") for l in _links if l.get("note_id") in _pn_ids and l.get("concept")})
+        _tk = sum(1 for t in _tasks if t.get("project") == _nm)
+        _size = len(_pn) + _cc + _tk
+        _planets.append({"name": _nm, "memos": len(_pn), "concepts": _cc, "tasks": _tk, "size": _size})
+    _planets.sort(key=lambda x: x["size"], reverse=True)
+    _planets = _planets[:8]
+
+    st.markdown(
+        "<div style='font-weight:800;font-size:1.05rem;'>🪐 내 지식 우주</div>"
+        "<div style='color:#64748b;font-size:13px;'>프로젝트가 행성이에요. 메모·개념·작업이 쌓일수록 행성이 커져요.</div>",
+        unsafe_allow_html=True)
+    try:
+        import plotly.graph_objects as _ugo
+        import math as _umath
+        _fig = _ugo.Figure()
+        _n = len(_planets)
+        _xs, _ys, _sizes, _texts, _hov = [], [], [], [], []
+        for _i, _pl in enumerate(_planets):
+            _ang = 2 * _umath.pi * _i / max(1, _n)
+            _xs.append(_umath.cos(_ang)); _ys.append(_umath.sin(_ang))
+            _sizes.append(22 + min(60, _pl["size"] * 3))
+            _texts.append(f"🪐 {_pl['name']}")
+            _hov.append(f"{_pl['name']}<br>📝 {_pl['memos']} · 🧠 {_pl['concepts']} · ✅ {_pl['tasks']}")
+        # 중심 항성
+        _fig.add_trace(_ugo.Scatter(x=[0], y=[0], mode="markers+text", text=["🌎 내 지식"],
+                                    textposition="bottom center", marker=dict(size=30, color="#fbbf24"),
+                                    hoverinfo="skip", showlegend=False))
+        _fig.add_trace(_ugo.Scatter(
+            x=_xs, y=_ys, mode="markers+text", text=_texts, textposition="top center",
+            marker=dict(size=_sizes, color="#6366f1", opacity=0.85, line=dict(width=1, color="#fff")),
+            hovertext=_hov, hoverinfo="text", showlegend=False))
+        _fig.update_layout(height=300, margin=dict(l=10, r=10, t=10, b=10),
+                           xaxis=dict(visible=False, range=[-1.6, 1.6]),
+                           yaxis=dict(visible=False, range=[-1.6, 1.6]),
+                           plot_bgcolor="#0f172a", paper_bgcolor="#0f172a",
+                           font=dict(color="#e2e8f0"))
+        st.plotly_chart(_fig, use_container_width=True, config={"displayModeBar": False})
+    except Exception:
+        for _pl in _planets:
+            st.markdown(f"🪐 **{_pl['name']}** · 📝 {_pl['memos']} 🧠 {_pl['concepts']} ✅ {_pl['tasks']}")
+    # 행성 바로가기 (클릭 이동)
+    _uc = st.columns(min(4, len(_planets)) or 1)
+    for _i, _pl in enumerate(_planets[:4]):
+        with _uc[_i]:
+            if st.button(f"🪐 {_pl['name'][:10]}", key=f"home_univ_{_i}", use_container_width=True):
+                st.session_state["ep_jump_entity"] = _pl["name"]
+                st.query_params["page"] = "projects"
+                st.rerun()
+
+
+render_home_universe()
+st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 render_home_mini_knowledge_graph(_brain_theme_key)
 st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 

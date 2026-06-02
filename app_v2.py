@@ -1340,6 +1340,7 @@ section[data-testid="stSidebar"] .stMarkdown {
 /* 📘 가이드북 — 그룹 헤더(summary)와 동일한 모양의 메인급 독립 메뉴 */
 section[data-testid="stSidebar"] .tl-nav-item.tl-nav-standalone {
     padding: 10px 16px;
+    margin: 2px 0;          /* 그룹 헤더(summary)처럼 좌우 마진 0 → 좌측 정렬 일치 */
     gap: 8px;
     letter-spacing: 0.2px;
     border-radius: 8px;

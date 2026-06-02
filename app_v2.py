@@ -323,6 +323,44 @@ def _backfill_db_fields():
                      "updated_by": "local_user", "vector_id": None, "embedding_status": "skipped"})
 
 
+# ── ⚙️ 설정 Control Center 기본값 ──────────────────────────────
+APP_SETTINGS_DEFAULTS = {
+    # 🎨 화면
+    "ui_density": "보통",          # 여유 / 보통 / 촘촘
+    "ui_font_scale": "보통",       # 작게 / 보통 / 크게
+    "ui_animations": True,
+    # ✨ 인터페이스
+    "ui_toasts": True,
+    "ui_auto_expand": False,
+    # 🤖 루미 페르소나
+    "lumi_persona": "친구형",      # 친구형 / 분석가형 / 코치형 / 철학자형
+    "lumi_guide_level": "보통",    # 적게 / 보통 / 자세히
+    # 🧠 Second Brain 기능 토글
+    "feat_auto_concepts": True,
+    "feat_tfidf": True,
+    "feat_related_notes": True,
+    "feat_quality_gate": True,
+    # 🔔 알림
+    "notif_due": True,
+    "notif_task_done": True,
+    "notif_project_summary": True,
+    # 📊 실험실 (베타 플래그)
+    "beta_project_map": True,
+    "beta_tfidf": True,
+    "beta_alias": True,
+    "beta_semantic_merge": False,
+    "beta_philosophy": False,
+}
+
+
+def get_setting(key, default=None):
+    """app_settings 단일 진입점. 기본값은 APP_SETTINGS_DEFAULTS에서 보강."""
+    _s = st.session_state.get("app_settings", {}) or {}
+    if key in _s:
+        return _s[key]
+    return APP_SETTINGS_DEFAULTS.get(key, default)
+
+
 def save_persisted_data():
     _backfill_db_fields()
     data = {
@@ -354,6 +392,7 @@ def save_persisted_data():
         "saved_searches": st.session_state.get("saved_searches", []),
         "brain_theme": st.session_state.get("brain_theme", "default"),
         "lumi_avatar": st.session_state.get("lumi_avatar", "sparkle"),
+        "app_settings": st.session_state.get("app_settings", {}),
         "brain_last_level": st.session_state.get("brain_last_level", 1),
         "brain_growth_state": st.session_state.get("brain_growth_state", {}),
         "nav_group_states": {k: v for k, v in st.session_state.items() if k.startswith("nav_grp_open_")},
@@ -1104,6 +1143,7 @@ button[data-testid="collapsedControl"],
 
     # 하단 독립 고정 메뉴 (관리 기능이 아닌 온보딩/도움말)
     _NAV_BOTTOM = [
+        ("settings",  "⚙️", "설정"),
         ("guide",     "📘", "가이드북"),
         ("changelog", "🆕", "패치 노트"),
     ]
@@ -1191,6 +1231,7 @@ button[data-testid="collapsedControl"],
         "entity":   "엔터티 상세",
         "guide":    "가이드북",
         "changelog": "패치 노트",
+        "settings": "설정",
     }
     menu = _PAGE_TO_MENU.get(_cur_page, "분석 시작하기")
     st.session_state["menu"] = menu
@@ -1236,6 +1277,7 @@ def init_state():
         "saved_searches": persisted.get("saved_searches", []),
         "brain_theme": persisted.get("brain_theme", "default"),
         "lumi_avatar": persisted.get("lumi_avatar", "sparkle"),
+        "app_settings": {**APP_SETTINGS_DEFAULTS, **(persisted.get("app_settings", {}) or {})},
         "brain_last_level": persisted.get("brain_last_level", 1),
         "brain_growth_state": persisted.get("brain_growth_state", {
             "last_level": 1, "unlocked_rewards": [], "last_checked_at": ""
@@ -4649,7 +4691,7 @@ def render_knowledge_map_page():
             st.caption("메모·작업·분석에 연결된 횟수예요. 프로젝트 맵에서 노드 크기로 활용할 예정이에요.")
 
     # ── ⭐ TF-IDF 중요 개념 Top N (전체에서 흔하지 않은 특화 개념) ──
-    _tfidf_rank = concept_tfidf(top_n=10)
+    _tfidf_rank = concept_tfidf(top_n=10) if get_setting("feat_tfidf") else []
     if _tfidf_rank:
         with st.expander(f"⭐ TF-IDF 중요 개념 Top {len(_tfidf_rank)}", expanded=False):
             _max_tfidf = _tfidf_rank[0][1]["tfidf"] or 1
@@ -7592,8 +7634,9 @@ def render_project_page():
                 # 🧠 핵심 개념 (빈도 기준 / 중요도(TF-IDF) 기준 토글)
                 st.markdown("#### 🧠 핵심 개념 Top N")
                 if _map_concepts:
+                    _rank_opts = ["빈도순", "중요도순 (TF-IDF)"] if get_setting("feat_tfidf") else ["빈도순"]
                     _rank_mode = st.radio(
-                        "정렬 기준", ["빈도순", "중요도순 (TF-IDF)"],
+                        "정렬 기준", _rank_opts,
                         horizontal=True, key=f"map_rank_{sel_proj_name}",
                         help="빈도순: 자주 등장한 개념 / 중요도순: 전체에선 흔치 않지만 이 프로젝트에 특화된 개념")
 
@@ -8677,7 +8720,7 @@ if menu == "지식 아카이브":
                 st.caption(f"· {_t.get('title', '')} ({_t.get('status', '')})")
 
         # 🪢 관련 메모 추천 (공유 개념 기반)
-        if _cons:
+        if _cons and get_setting("feat_related_notes"):
             _conset = set(_cons)
             _related = []
             for _on in _all_notes:
@@ -11901,6 +11944,110 @@ if menu == "패턴 분석":
                     st.rerun()
             st.markdown(st.session_state["pt_ai_result"])
 
+    st.stop()
+
+
+if menu == "설정":
+    # ══════════════════════════════════════════════════════════
+    # ⚙️ TrustLens Control Center (설정 통합 허브)
+    # ══════════════════════════════════════════════════════════
+    st.markdown("""
+<div style="background:linear-gradient(135deg,#0f172a,#1e3a8a 60%,#3b82f6);
+     border-radius:16px;padding:26px 30px 22px;margin-bottom:20px;color:white;">
+    <div style="font-size:1.9rem;font-weight:900;margin-bottom:4px;">⚙️ Control Center</div>
+    <div style="opacity:0.9;line-height:1.6;">
+        TrustLens의 모든 설정을 한 곳에서. 화면·세계관·루미·Second Brain 기능·알림·실험실을 켜고 끌 수 있어요.
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+    _settings = st.session_state.setdefault("app_settings", dict(APP_SETTINGS_DEFAULTS))
+
+    def _set(key, val):
+        _settings[key] = val
+
+    def _seg(label, key, options, help=None):
+        _cur = get_setting(key)
+        _idx = options.index(_cur) if _cur in options else 0
+        _v = st.radio(label, options, index=_idx, horizontal=True, key=f"set_{key}", help=help)
+        _set(key, _v)
+
+    def _tog(label, key, help=None):
+        _v = st.toggle(label, value=bool(get_setting(key)), key=f"set_{key}", help=help)
+        _set(key, _v)
+
+    _scr, _world, _lumi, _sb, _notif, _lab = st.tabs(
+        ["🎨 화면", "🌌 세계관", "🤖 루미", "🧠 Second Brain", "🔔 알림", "📊 실험실"])
+
+    with _scr:
+        st.markdown("#### 🎨 화면")
+        _seg("카드 밀도", "ui_density", ["여유", "보통", "촘촘"])
+        _seg("글자 크기", "ui_font_scale", ["작게", "보통", "크게"])
+        _tog("✨ 애니메이션", "ui_animations", help="성장 연출·전환 애니메이션")
+        st.caption("라이트/다크 등 색 테마는 우측 상단 ⋮ → Settings(Streamlit) 또는 .streamlit/config.toml에서 바꿔요.")
+
+    with _world:
+        st.markdown("#### 🌌 세계관")
+        _theme_keys = list(_BRAIN_THEMES.keys())
+        _theme_names = [_BRAIN_THEMES[k]["name"] for k in _theme_keys]
+        _cur_theme = st.session_state.get("brain_theme", "default")
+        _ti = _theme_keys.index(_cur_theme) if _cur_theme in _theme_keys else 0
+        _sel_theme_name = st.radio("세계관 선택", _theme_names, index=_ti, key="set_world_theme")
+        _sel_theme = _theme_keys[_theme_names.index(_sel_theme_name)]
+        if _sel_theme != _cur_theme:
+            st.session_state["brain_theme"] = _sel_theme
+            save_persisted_data()
+            st.rerun()
+        _cfg = get_brain_theme_config(_sel_theme)
+        st.caption("미리보기 — 같은 데이터, 다른 세계관 용어:")
+        st.markdown(" · ".join(f"{_e} {_n}" for _e, _n in _cfg["elements"]))
+
+    with _lumi:
+        st.markdown("#### 🤖 루미")
+        _seg("말투(페르소나)", "lumi_persona", ["친구형", "분석가형", "코치형", "철학자형"],
+             help="철학자형은 향후 철학 프로파일 리포트(v4.x)와 연결돼요.")
+        _seg("안내 수준", "lumi_guide_level", ["적게", "보통", "자세히"])
+        st.caption("루미 아바타는 홈 대시보드 우측 패널에서도 바꿀 수 있어요.")
+
+    with _sb:
+        st.markdown("#### 🧠 Second Brain 기능")
+        st.caption("끄면 해당 기능이 화면에서 숨겨지거나 동작하지 않아요. (저장된 데이터는 그대로)")
+        _tog("자동 개념 추출", "feat_auto_concepts")
+        _tog("개념 품질 게이트", "feat_quality_gate")
+        _tog("⭐ TF-IDF 중요 개념 강조", "feat_tfidf")
+        _tog("🪢 관련 메모 추천", "feat_related_notes")
+
+    with _notif:
+        st.markdown("#### 🔔 알림")
+        _tog("마감일 알림", "notif_due")
+        _tog("작업 완료 토스트", "notif_task_done")
+        _tog("프로젝트 요약 표시", "notif_project_summary")
+        _tog("✨ 토스트 메시지", "ui_toasts")
+
+    with _lab:
+        st.markdown("#### 📊 실험실 (베타)")
+        st.caption("실험 중인 기능이에요. 켜면 사용할 수 있고, 안정화되면 정식 기능으로 승격돼요.")
+        _tog("🗺️ 프로젝트 맵", "beta_project_map")
+        _tog("⭐ TF-IDF 강조", "beta_tfidf")
+        _tog("🔗 별칭 시스템", "beta_alias")
+        _tog("🧬 의미 병합 (예정)", "beta_semantic_merge")
+        _tog("🧠 철학 프로파일 (예정)", "beta_philosophy")
+
+    st.divider()
+    _sc1, _sc2 = st.columns([1, 1])
+    with _sc1:
+        if st.button("💾 설정 저장", type="primary", use_container_width=True):
+            st.session_state["app_settings"] = _settings
+            save_persisted_data()
+            _flash("설정을 저장했어요.")
+            st.rerun()
+    with _sc2:
+        if st.button("↩️ 기본값으로 복원", use_container_width=True):
+            st.session_state["app_settings"] = dict(APP_SETTINGS_DEFAULTS)
+            save_persisted_data()
+            _flash("설정을 기본값으로 되돌렸어요.")
+            st.rerun()
+    st.caption("변경 후 **설정 저장**을 눌러야 다음 실행에도 유지돼요. (세계관은 즉시 적용)")
     st.stop()
 
 

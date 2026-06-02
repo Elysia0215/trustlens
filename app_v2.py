@@ -7455,31 +7455,32 @@ def render_project_page():
 
             # ── 이벤트 수집: {YYYY-MM-DD: [(icon, title, type)]} ──
             _events = {}
-            def _add_event(_raw_date, _icon, _title, _etype):
+            def _add_event(_raw_date, _icon, _title, _etype, _ref=None):
                 _d = normalize_date_str(_raw_date)
                 if not _d:
                     return
-                _events.setdefault(_d, []).append((_icon, _title, _etype))
+                _events.setdefault(_d, []).append((_icon, _title, _etype, _ref))
             # 프로젝트 시작/마감
             if sel_proj_obj.get("created_at"):
-                _add_event(sel_proj_obj["created_at"][:10], "📁", f"{sel_proj_name} 시작", "project")
+                _add_event(sel_proj_obj["created_at"][:10], "📁", f"{sel_proj_name} 시작", "project", ("project", sel_proj_name))
             if sel_proj_obj.get("due_date"):
-                _add_event(sel_proj_obj["due_date"], "🏁", f"{sel_proj_name} 마감", "project")
+                _add_event(sel_proj_obj["due_date"], "🏁", f"{sel_proj_name} 마감", "project", ("project", sel_proj_name))
             # 작업 마감일
             for _t in _proj_tasks:
                 if _t.get("due_date"):
-                    _add_event(_t["due_date"], "✅", _t.get("title", "작업"), "task")
+                    _add_event(_t["due_date"], "✅", _t.get("title", "작업"), "task", None)
             # 메모 / 연구노트 저장일
             for _n in _proj_notes:
                 if _n.get("saved_at"):
                     _is_research = ("연구노트" in str(_n.get("title", ""))
                                     or "연구노트" in [str(x) for x in _n.get("tags", [])])
                     _add_event(_n["saved_at"][:10], "🔬" if _is_research else "📝",
-                               _n.get("title", "메모"), "research" if _is_research else "note")
+                               _n.get("title", "메모"), "research" if _is_research else "note",
+                               ("note", _n.get("id")))
             # 분석결과 저장일
             for _a in _proj_analyses:
                 if _a.get("saved_at"):
-                    _add_event(_a["saved_at"][:10], "📊", _a.get("title", "분석결과"), "analysis")
+                    _add_event(_a["saved_at"][:10], "📊", _a.get("title", "분석결과"), "analysis", None)
 
             # ── 월 상태 ──
             _ym_key = f"cal_ym_{proj_id}"
@@ -7523,7 +7524,7 @@ def render_project_page():
             _month_counts = {k: 0 for k in _TYPE_META}
             for _dk, _evlist in _events.items():
                 if _dk.startswith(_month_prefix):
-                    for _icon, _t2, _ty in _evlist:
+                    for _icon, _t2, _ty, _ref in _evlist:
                         if _ty in _month_counts:
                             _month_counts[_ty] += 1
             _kpi_cols = st.columns(len(_TYPE_ORDER))
@@ -7559,7 +7560,7 @@ def render_project_page():
                         _is_sel = (_dstr == _sel_d)
                         # 유형별 개수 집계 (순서 고정)
                         _tcnt = {}
-                        for _icon, _t2, _ty in _evs:
+                        for _icon, _t2, _ty, _ref in _evs:
                             _tcnt[_ty] = _tcnt.get(_ty, 0) + 1
                         # 날짜 숫자 (HTML — 마크다운 ** 누출 방지)
                         if _is_today:
@@ -7576,7 +7577,7 @@ def render_project_page():
                         _evs_sorted = sorted(_evs, key=lambda e: _CAL_PRIORITY.get(e[2], 9))
                         _PREVIEW_N = 3
                         _title_html = ""
-                        for _icon, _t2, _ty in _evs_sorted[:_PREVIEW_N]:
+                        for _icon, _t2, _ty, _ref in _evs_sorted[:_PREVIEW_N]:
                             _col = _TYPE_META.get(_ty, ("", "", "#64748b"))[2]
                             _name = str(_t2).strip() or _TYPE_META.get(_ty, ("", "항목", ""))[1]
                             _tt = (_name[:9] + "…") if len(_name) > 10 else _name
@@ -7603,19 +7604,46 @@ def render_project_page():
                         else:
                             st.markdown("<div style='height:38px'></div>", unsafe_allow_html=True)
 
-            # ── 선택 날짜 상세 (유형별 묶음) ──
+            # ── 선택 날짜 상세 (탐색 허브: 제목 클릭 이동 + 개념칩) ──
             if _sel_d and _sel_d in _events:
                 st.divider()
                 _sevs = _events[_sel_d]
                 st.markdown(f"#### 📌 {_sel_d} · 일정 {len(_sevs)}개")
+                _notes_by_id_cal = {n.get("id"): n for n in st.session_state.get("archive_notes", [])}
                 for _ty in _TYPE_ORDER:
-                    _group = [(_i, _t2) for _i, _t2, _yt in _sevs if _yt == _ty]
+                    _group = [(_i2, _t2, _ref2) for _i2, _t2, _yt, _ref2 in _sevs if _yt == _ty]
                     if not _group:
                         continue
                     _ic, _lb, _col = _TYPE_META[_ty]
                     st.markdown(f"<b style='color:{_col}'>{_ic} {_lb} ({len(_group)})</b>", unsafe_allow_html=True)
-                    for _i, _t2 in _group:
-                        st.markdown(f"&nbsp;&nbsp;{_i} {_t2}")
+                    for _gi, (_i2, _t2, _ref2) in enumerate(_group):
+                        _kind = _ref2[0] if _ref2 else None
+                        _rid = _ref2[1] if _ref2 else None
+                        if _kind == "note" and _rid:
+                            _bc1, _bc2 = st.columns([5, 1])
+                            with _bc1:
+                                st.markdown(f"&nbsp;&nbsp;{_i2} {_t2}")
+                                _note_obj = _notes_by_id_cal.get(_rid, {})
+                                _ncs = [c for c in (_note_obj.get("concepts", []) or []) if c]
+                                if _ncs:
+                                    st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;" + " ".join(f"`{c}`" for c in _ncs[:6]),
+                                                unsafe_allow_html=True)
+                            with _bc2:
+                                if st.button("열기", key=f"cal_open_note_{_rid}_{_gi}", use_container_width=True):
+                                    st.session_state["archive_open_note_id"] = _rid
+                                    st.query_params["page"] = "archive"
+                                    st.rerun()
+                        elif _kind == "project" and _rid:
+                            _bc1, _bc2 = st.columns([5, 1])
+                            with _bc1:
+                                st.markdown(f"&nbsp;&nbsp;{_i2} {_t2}")
+                            with _bc2:
+                                if st.button("열기", key=f"cal_open_proj_{_gi}", use_container_width=True):
+                                    st.session_state["ep_jump_entity"] = _rid
+                                    st.query_params["page"] = "projects"
+                                    st.rerun()
+                        else:
+                            st.markdown(f"&nbsp;&nbsp;{_i2} {_t2}")
             elif _events:
                 st.caption("📅 날짜 아래 **열기** 버튼을 누르면 그 날의 상세 일정을 볼 수 있어요.")
 
@@ -7625,7 +7653,7 @@ def render_project_page():
                 with st.expander("📋 리스트로 보기", expanded=False):
                     for _dk in sorted(_events.keys()):
                         st.markdown(f"**📅 {_dk}**")
-                        for _icon, _t2, _ty in _events[_dk]:
+                        for _icon, _t2, _ty, _ref in _events[_dk]:
                             st.markdown(f"&nbsp;&nbsp;{_icon} {_t2}")
             else:
                 st.info("이 프로젝트에 표시할 일정(작업 마감일·저장일 등)이 없어요.")

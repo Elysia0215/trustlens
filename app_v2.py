@@ -15039,12 +15039,24 @@ def render_home_universe():
     _notes = st.session_state.get("archive_notes", [])
     _tasks = st.session_state.get("tasks", [])
     _links = st.session_state.get("note_concept_links", [])
+    _concepts = st.session_state.get("pkm_custom_concepts", [])
     _planets = []
     for _p in _projs:
         _nm = _clean_text_value(_p.get("name")).strip()
         _pn = [n for n in _notes if _clean_text_value(n.get("project")).strip() == _nm]
         _pn_ids = {n.get("id") for n in _pn}
-        _cc = len({l.get("concept") for l in _links if l.get("note_id") in _pn_ids and l.get("concept")})
+        _cc = len({
+            _clean_text_value(l.get("concept")).strip() for l in _links
+            if (
+                l.get("note_id") in _pn_ids
+                or _clean_text_value(l.get("project")).strip() == _nm
+            ) and _clean_text_value(l.get("concept")).strip()
+        } | {
+            _clean_text_value(c.get("name")).strip() for c in _concepts
+            if isinstance(c, dict)
+            and _clean_text_value(c.get("project")).strip() == _nm
+            and _clean_text_value(c.get("name")).strip()
+        })
         _tg = len({str(t).replace("#", "").strip() for n in _pn
                    for t in (n.get("tags", []) or []) if str(t).strip()})
         _tk = sum(1 for t in _tasks if _clean_text_value(t.get("project")).strip() == _nm)
@@ -15138,13 +15150,23 @@ def render_home_universe():
     _sel_obj = next((p for p in _planets if p["name"] == _sel_planet), None)
     if _sel_obj:
         _sel_planet = _sel_obj["name"]
-        _pn = [n for n in _notes if n.get("project") == _sel_planet]
+        _pn = [n for n in _notes if _clean_text_value(n.get("project")).strip() == _sel_planet]
         _pn_ids = {n.get("id") for n in _pn}
-        _pcs = sorted({l.get("concept") for l in _links
-                       if l.get("note_id") in _pn_ids and l.get("concept")})
+        _pcs = sorted({
+            _clean_text_value(l.get("concept")).strip() for l in _links
+            if (
+                l.get("note_id") in _pn_ids
+                or _clean_text_value(l.get("project")).strip() == _sel_planet
+            ) and _clean_text_value(l.get("concept")).strip()
+        } | {
+            _clean_text_value(c.get("name")).strip() for c in _concepts
+            if isinstance(c, dict)
+            and _clean_text_value(c.get("project")).strip() == _sel_planet
+            and _clean_text_value(c.get("name")).strip()
+        })
         _ptags = sorted({str(t).replace("#", "").strip() for n in _pn
                          for t in (n.get("tags", []) or []) if str(t).strip()})
-        _ptk = [t for t in _tasks if t.get("project") == _sel_planet]
+        _ptk = [t for t in _tasks if _clean_text_value(t.get("project")).strip() == _sel_planet]
         st.markdown(f"**🪐 {_sel_planet} 위성**")
         st.caption("선택한 행성의 위성을 펼쳐봤어요.")
         # 위성 4카드
@@ -15269,8 +15291,13 @@ def render_home_universe():
                               key_prefix=f"univ_act_{_sel_planet}")
     else:
         _all_note_ids = {n.get("id") for n in _notes}
-        _all_concepts = {l.get("concept") for l in _links
-                         if l.get("note_id") in _all_note_ids and l.get("concept")}
+        _all_concepts = {
+            _clean_text_value(l.get("concept")).strip() for l in _links
+            if l.get("note_id") in _all_note_ids and _clean_text_value(l.get("concept")).strip()
+        } | {
+            _clean_text_value(c.get("name")).strip() for c in _concepts
+            if isinstance(c, dict) and _clean_text_value(c.get("name")).strip()
+        }
         _all_tags = {str(t).replace("#", "").strip() for n in _notes
                      for t in (n.get("tags", []) or []) if str(t).strip()}
         st.markdown("**🌌 전체 지식 우주**")
@@ -15291,6 +15318,180 @@ def render_home_universe():
             st.markdown(
                 f"- 🪐 {_pl['name']} · 메모 {_pl['memos']} · 개념 {_pl['concepts']} · 작업 {_pl['tasks']}"
             )
+        import html as _launch_html
+        _valid_projects = set(_univ_names)
+        _note_project_by_id = {
+            n.get("id"): _clean_text_value(n.get("project")).strip()
+            for n in _notes
+        }
+
+        def _needs_launch(_project):
+            _pname = _clean_text_value(_project).strip()
+            return not _pname or _pname not in _valid_projects
+
+        def _launch_esc(_v):
+            return _launch_html.escape(_clean_text_value(_v).strip() or "미지정")
+
+        _loose_notes = [
+            n for n in _notes if isinstance(n, dict) and _needs_launch(n.get("project"))
+        ]
+        _loose_tasks = [
+            t for t in _tasks if isinstance(t, dict) and _needs_launch(t.get("project"))
+        ]
+        _loose_link_concepts = {
+            _clean_text_value(l.get("concept")).strip() for l in _links
+            if _clean_text_value(l.get("concept")).strip()
+            and _needs_launch(l.get("project"))
+            and _needs_launch(_note_project_by_id.get(l.get("note_id")))
+        }
+        _loose_custom_concepts = {
+            _clean_text_value(c.get("name")).strip() for c in _concepts
+            if isinstance(c, dict)
+            and _clean_text_value(c.get("name")).strip()
+            and _needs_launch(c.get("project"))
+        }
+        _loose_concepts = sorted(_loose_link_concepts | _loose_custom_concepts)
+        _loose_tags = sorted({
+            _clean_text_value(t).replace("#", "").strip()
+            for n in _loose_notes
+            for t in (n.get("tags", []) or [])
+            if _clean_text_value(t).strip()
+        })
+        _sections = st.session_state.get("project_sections", [])
+        _steps = st.session_state.get("project_steps", [])
+        _loose_sections = [
+            (_idx, s) for _idx, s in enumerate(_sections)
+            if isinstance(s, dict) and _needs_launch(s.get("project"))
+        ]
+        _loose_steps = [
+            (_idx, s) for _idx, s in enumerate(_steps)
+            if isinstance(s, dict) and _needs_launch(s.get("project"))
+        ]
+        _launch_total = (
+            len(_loose_notes) + len(_loose_tasks) + len(_loose_concepts)
+            + len(_loose_sections) + len(_loose_steps)
+        )
+        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+        st.markdown(
+            "<div style='padding:16px 18px;border-radius:16px;"
+            "background:linear-gradient(135deg,#111827,#1f2937 55%,#312e81);"
+            "color:#e5e7eb;border:1px solid rgba(165,180,252,0.45);'>"
+            "<div style='font-size:20px;font-weight:950;'>🌎🚀 지구 발사대</div>"
+            "<div style='font-size:13px;color:#c7d2fe;margin-top:5px;'>"
+            "아직 행성에 배정되지 않은 지식을 모아 목적 행성으로 발사해요.</div></div>",
+            unsafe_allow_html=True)
+        _lc1, _lc2, _lc3, _lc4, _lc5 = st.columns(5)
+        _launch_counts = [
+            (_lc1, "🌙", "대기 메모", len(_loose_notes)),
+            (_lc2, "🧠", "대기 개념", len(_loose_concepts)),
+            (_lc3, "🏷️", "동승 태그", len(_loose_tags)),
+            (_lc4, "✅", "대기 작업", len(_loose_tasks)),
+            (_lc5, "🧩", "섹션/단계", len(_loose_sections) + len(_loose_steps)),
+        ]
+        for _col, _em, _name, _count in _launch_counts:
+            with _col:
+                with st.container(border=True):
+                    st.markdown(
+                        f"<div style='text-align:center'><div style='font-size:1.25em'>{_em}</div>"
+                        f"<b>{_name}</b><br><span style='color:#7c3aed;font-weight:900'>{_count}개</span></div>",
+                        unsafe_allow_html=True)
+        if _launch_total == 0:
+            st.success("발사 대기 중인 지식이 없어요. 모든 지식이 행성 궤도에 올라가 있어요.")
+        else:
+            _dest = st.selectbox("목적 행성", _univ_names, key="univ_launch_dest")
+            _tab_memo, _tab_task, _tab_concept, _tab_section = st.tabs(
+                ["🌙 메모", "✅ 작업", "🧠 개념", "🧩 섹션"]
+            )
+            with _tab_memo:
+                _note_ids = [n.get("id") for n in _loose_notes if n.get("id")]
+                _note_lookup = {n.get("id"): n for n in _loose_notes if n.get("id")}
+                _sel_note_ids = st.multiselect(
+                    "발사할 메모",
+                    _note_ids,
+                    key="univ_launch_notes",
+                    format_func=lambda _nid: _clean_text_value(
+                        _note_lookup.get(_nid, {}).get("title")
+                    ).strip() or "제목 없음",
+                )
+                if _loose_tags:
+                    st.caption("태그는 메모 로켓에 함께 실려 이동해요: " + ", ".join(f"#{t}" for t in _loose_tags[:10]))
+            with _tab_task:
+                _task_ids = [t.get("id") for t in _loose_tasks if t.get("id")]
+                _task_lookup = {t.get("id"): t for t in _loose_tasks if t.get("id")}
+                _sel_task_ids = st.multiselect(
+                    "발사할 작업",
+                    _task_ids,
+                    key="univ_launch_tasks",
+                    format_func=lambda _tid: _clean_text_value(
+                        _task_lookup.get(_tid, {}).get("title")
+                    ).strip() or "제목 없음",
+                )
+            with _tab_concept:
+                _sel_concepts = st.multiselect(
+                    "발사할 개념",
+                    _loose_concepts,
+                    key="univ_launch_concepts",
+                )
+            with _tab_section:
+                _section_options = [f"section:{_idx}" for _idx, _ in _loose_sections] + [
+                    f"step:{_idx}" for _idx, _ in _loose_steps
+                ]
+                _section_lookup = {
+                    f"section:{_idx}": s for _idx, s in _loose_sections
+                } | {
+                    f"step:{_idx}": s for _idx, s in _loose_steps
+                }
+                _sel_section_keys = st.multiselect(
+                    "발사할 프로젝트 섹션/단계",
+                    _section_options,
+                    key="univ_launch_sections",
+                    format_func=lambda _key: (
+                        ("섹션 · " if _key.startswith("section:") else "단계 · ")
+                        + (_clean_text_value(_section_lookup.get(_key, {}).get("name")).strip()
+                           or _clean_text_value(_section_lookup.get(_key, {}).get("title")).strip()
+                           or "이름 없음")
+                    ),
+                )
+            _selected_total = (
+                len(_sel_note_ids) + len(_sel_task_ids) + len(_sel_concepts) + len(_sel_section_keys)
+            )
+            if st.button(
+                f"🚀 선택 항목 발사 ({_selected_total}개)",
+                key="univ_launch_selected",
+                use_container_width=True,
+                disabled=_selected_total == 0,
+            ):
+                _now = datetime.now().strftime("%Y-%m-%d %H:%M")
+                for _n in st.session_state.get("archive_notes", []):
+                    if _n.get("id") in _sel_note_ids:
+                        _n["project"] = _dest
+                        _n["updated_at"] = _now
+                for _t in st.session_state.get("tasks", []):
+                    if _t.get("id") in _sel_task_ids:
+                        _t["project"] = _dest
+                        _t["updated_at"] = _now
+                for _lk in st.session_state.get("note_concept_links", []):
+                    _concept_name = _clean_text_value(_lk.get("concept")).strip()
+                    if _concept_name in _sel_concepts or _lk.get("note_id") in _sel_note_ids:
+                        _lk["project"] = _dest
+                        _lk["updated_at"] = _now
+                for _c in st.session_state.get("pkm_custom_concepts", []):
+                    if isinstance(_c, dict) and _clean_text_value(_c.get("name")).strip() in _sel_concepts:
+                        _c["project"] = _dest
+                        _c["updated_at"] = _now
+                for _key in _sel_section_keys:
+                    _kind, _idx_text = _key.split(":", 1)
+                    _idx = int(_idx_text)
+                    if _kind == "section" and _idx < len(st.session_state.get("project_sections", [])):
+                        st.session_state["project_sections"][_idx]["project"] = _dest
+                        st.session_state["project_sections"][_idx]["updated_at"] = _now
+                    if _kind == "step" and _idx < len(st.session_state.get("project_steps", [])):
+                        st.session_state["project_steps"][_idx]["project"] = _dest
+                        st.session_state["project_steps"][_idx]["updated_at"] = _now
+                save_persisted_data()
+                _flash(f"🚀 {_selected_total}개 지식을 '{_dest}' 행성으로 발사했어요.")
+                st.session_state["home_univ_pick"] = _dest
+                st.rerun()
 
 
 render_home_universe()

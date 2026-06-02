@@ -10239,7 +10239,7 @@ if menu == "데이터 관리":
                     "ID": e.get("id",""),
                     "타입": e.get("type",""),
                     "이름": e.get("name",""),
-                    "설명": e.get("description","")[:50] if e.get("description") else "",
+                    "설명": str(e.get("description", ""))[:50] if e.get("description") is not None else "",
                     "생성일": e.get("created_at",""),
                 } for e in _ents_show]
                 st.dataframe(_pd5.DataFrame(_ent_rows), use_container_width=True, height=320)

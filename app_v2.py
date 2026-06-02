@@ -15527,7 +15527,13 @@ def render_home_universe():
                 st.rerun()
 
 
-render_home_universe()
+try:
+    render_home_universe()
+except Exception as _univ_err:
+    import traceback as _univ_tb
+    st.error("🪐 내 지식 우주/지구 발사대 렌더 중 오류가 났어요. 아래 상세를 확인하세요.")
+    st.exception(_univ_err)
+    st.code(_univ_tb.format_exc())
 st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 # 뇌지도는 우주맵과 역할이 겹쳐 홈에선 접어둠 (필요할 때만 펼침)
 with st.expander("🧠 전체 지식 뇌지도 (펼치기)", expanded=False):

@@ -6177,6 +6177,56 @@ def render_project_page():
     if sel_proj_obj:
         proj_id = sel_proj_obj["id"]
 
+        # ── E-1. 프로젝트 허브 요약 대시보드 ──────────────────────
+        _hub_notes = [n for n in st.session_state.get("archive_notes", []) if n.get("project") == sel_proj_name]
+        _hub_analyses = [a for a in st.session_state.get("saved_analyses", []) if a.get("project") == sel_proj_name]
+        _hub_tasks = [t for t in st.session_state.get("tasks", []) if t.get("project") == sel_proj_name]
+        _hub_done = sum(1 for t in _hub_tasks if t.get("status") == "완료")
+        # 개념: 이 프로젝트 메모에 연결된 고유 개념 수
+        _hub_note_ids = {n.get("id") for n in _hub_notes if n.get("id")}
+        _hub_concepts = {lk.get("concept") for lk in st.session_state.get("note_concept_links", [])
+                         if lk.get("note_id") in _hub_note_ids and lk.get("concept")}
+        _hub_doc_cnt = len(_hub_notes) + len(_hub_analyses)
+        _hub_prog = sel_proj_obj.get("progress", 0) or 0
+
+        # D-Day 계산
+        _hub_dday_str = ""
+        _hub_due = sel_proj_obj.get("due_date")
+        if _hub_due:
+            try:
+                from datetime import date as _date_cls
+                _due_d = datetime.strptime(normalize_date_str(_hub_due), "%Y-%m-%d").date()
+                _delta = (_due_d - _date_cls.today()).days
+                if _delta > 0:
+                    _hub_dday_str = f"D-{_delta}"
+                elif _delta == 0:
+                    _hub_dday_str = "D-DAY"
+                else:
+                    _hub_dday_str = f"D+{abs(_delta)}"
+            except Exception:
+                _hub_dday_str = ""
+
+        with st.container(border=True):
+            _hc_top1, _hc_top2 = st.columns([3, 1])
+            with _hc_top1:
+                st.markdown(f"### 📁 {sel_proj_name}")
+                _cat = sel_proj_obj.get("category", "")
+                _sts = sel_proj_obj.get("status", "")
+                st.caption(f"{_cat}{' · ' if _cat and _sts else ''}{_sts}")
+            with _hc_top2:
+                if _hub_dday_str:
+                    _dd_color = "#dc2626" if _hub_dday_str.startswith("D+") else "#2563eb"
+                    st.markdown(
+                        f"<div style='text-align:right;'><span style='font-size:1.6em;font-weight:800;color:{_dd_color};'>{_hub_dday_str}</span>"
+                        f"<br><span style='font-size:0.8em;color:#64748b;'>📅 {normalize_date_str(_hub_due)}</span></div>",
+                        unsafe_allow_html=True)
+            st.progress(_hub_prog / 100, text=f"진행률 {_hub_prog}%")
+            _hm1, _hm2, _hm3, _hm4 = st.columns(4)
+            _hm1.metric("📄 자료", f"{_hub_doc_cnt}개")
+            _hm2.metric("🧠 개념", f"{len(_hub_concepts)}개")
+            _hm3.metric("✅ 작업", f"{len(_hub_tasks)}개")
+            _hm4.metric("🎉 완료", f"{_hub_done}개")
+
         # 탭: 메모/분석결과 | 섹션 | 캘린더 | 타임라인
         dt1, dt2, dt3, dt4 = st.tabs(["📄 연결된 자료", "📂 섹션 관리", "📅 캘린더", "📊 타임라인"])
 

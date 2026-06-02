@@ -1405,6 +1405,32 @@ st.markdown(
 # -----------------------------
 # Basic Helpers
 # -----------------------------
+def multiselect_with_all(label, options, key, format_func=None, help=None, hint=None):
+    """기존 항목을 추가·이동·연결·삭제할 때 쓰는 multiselect.
+    '전체 선택 / 선택 해제' 버튼을 함께 제공해 한 번에 또는 개별로 선택 가능.
+    options 변동으로 인한 stale 세션값은 자동 정리."""
+    options = list(options)
+    # stale 세션값 정리 (옵션에 없는 값 제거 → multiselect 에러 방지)
+    if key in st.session_state:
+        st.session_state[key] = [v for v in st.session_state[key] if v in options]
+    if options:
+        _msa1, _msa2 = st.columns(2)
+        with _msa1:
+            if st.button(f"☑️ 전체 선택 ({len(options)})", key=f"{key}__all_btn", use_container_width=True):
+                st.session_state[key] = list(options)
+                st.rerun()
+        with _msa2:
+            if st.button("⬜ 선택 해제", key=f"{key}__none_btn", use_container_width=True):
+                st.session_state[key] = []
+                st.rerun()
+    _kw = {"key": key}
+    if format_func is not None:
+        _kw["format_func"] = format_func
+    if help is not None:
+        _kw["help"] = help
+    return st.multiselect(label, options, **_kw)
+
+
 def normalize_date_str(value) -> str:
     """다양한 날짜 입력(2026.06.16 / 2026/6/16 / 2026년 6월 16일 / date객체)을 'YYYY-MM-DD'로 통일.
     파싱 불가하면 빈 문자열 반환 (캘린더/타임라인에서 안전하게 무시)."""
@@ -6952,14 +6978,14 @@ if menu == "새 엔터티":
             for n in st.session_state.get("archive_notes", [])
             for t in n.get("tags", []) if str(t).strip()
         })
-        _wm_sel_tags = st.multiselect("태그 (기존에서 선택)", _wm_existing_tags, key="wz_m_tags_sel",
+        _wm_sel_tags = multiselect_with_all("태그 (기존에서 선택)", _wm_existing_tags, key="wz_m_tags_sel",
                                       help="이미 쓰던 태그를 골라 쓰면 중복이 안 생겨요")
         _wm_new_tags = st.text_input("새 태그 추가 (쉼표 구분)", key="wz_m_tags_new",
                                      placeholder="목록에 없는 태그만. 예: 여행, 맛집")
         _wm_note = st.text_area("메모 내용 *", key="wz_m_note", height=180, placeholder="자유롭게 작성하세요...")
         # 개념 자동 연결 선택
         _wm_all_cons = [c.get("name") if isinstance(c,dict) else str(c) for c in st.session_state.get("pkm_custom_concepts",[]) if c]
-        _wm_link_cons = st.multiselect("연결할 개념 (선택)", _wm_all_cons, key="wz_m_cons")
+        _wm_link_cons = multiselect_with_all("연결할 개념 (선택)", _wm_all_cons, key="wz_m_cons")
         if st.button("✅ 메모 만들기", key="wz_m_save", type="primary", use_container_width=True):
             if _wm_title.strip() and _wm_note.strip():
                 _tags = list(dict.fromkeys(
@@ -8342,13 +8368,13 @@ if menu == "데이터 관리":
                     _qm_sec = st.text_input("섹션명 직접 입력", key="qm_s_sec_custom",
                         label_visibility="collapsed", placeholder="섹션명") if _qm_sec_sel == "✏️ 직접 입력" else _qm_sec_sel
                     # 태그: 기존 목록 멀티셀렉트 + 추가 직접 입력
-                    _qm_tag_sel = st.multiselect("🏷️ 태그 선택", _all_existing_tags, key="qm_s_tag_sel")
+                    _qm_tag_sel = multiselect_with_all("🏷️ 태그 선택", _all_existing_tags, key="qm_s_tag_sel")
                     _qm_tag_extra = st.text_input("태그 추가 (쉼표 구분)", key="qm_s_tag_extra",
                         placeholder="새 태그 입력 (예: ESG, 정책)")
                     # 개념 연결
-                    _qm_con_sel = st.multiselect("🧠 개념 연결", _all_con_names_qm, key="qm_s_con_sel")
+                    _qm_con_sel = multiselect_with_all("🧠 개념 연결", _all_con_names_qm, key="qm_s_con_sel")
                     # 연결 작업
-                    _qm_task_sel = st.multiselect("✅ 관련 작업", _all_task_titles_qm, key="qm_s_task_sel")
+                    _qm_task_sel = multiselect_with_all("✅ 관련 작업", _all_task_titles_qm, key="qm_s_task_sel")
                     _qm_score = st.slider("신뢰도 점수", 0, 100, 70, 5, key="qm_s_score")
 
                 if st.button("💾 메모 저장", key="qm_s_save", type="primary", use_container_width=True):
@@ -8399,7 +8425,7 @@ if menu == "데이터 관리":
                     _qai_sec = st.text_input("섹션 직접 입력", key="qm_ai_sec_custom",
                         label_visibility="collapsed", placeholder="섹션명") if _qai_sec_sel == "✏️ 직접 입력" else _qai_sec_sel
                 with _qai_c2:
-                    _qai_task_sel = st.multiselect("✅ 관련 작업 연결", _all_task_titles_qm, key="qm_ai_task_sel")
+                    _qai_task_sel = multiselect_with_all("✅ 관련 작업 연결", _all_task_titles_qm, key="qm_ai_task_sel")
 
                 if st.button("🤖 AI 분석 시작", key="qm_ai_run", type="primary", use_container_width=True):
                     if not _qai_body.strip():
@@ -8522,7 +8548,7 @@ if menu == "데이터 관리":
         elif _qa_type == "🔗 개념 병합":
             _qa1, _qa2 = st.columns(2)
             with _qa1:
-                _mg_src = st.multiselect("병합할 개념 (원본들)", [c.get("name") for c in _dm_concepts], key="dm_mg_src")
+                _mg_src = multiselect_with_all("병합할 개념 (원본들)", [c.get("name") for c in _dm_concepts], key="dm_mg_src")
             with _qa2:
                 _mg_tgt = st.selectbox("합칠 대상 개념", [c.get("name") for c in _dm_concepts], key="dm_mg_tgt")
             if _mg_src and _mg_tgt and st.button("🔗 병합 실행", type="primary", key="dm_do_merge"):
@@ -8537,7 +8563,7 @@ if menu == "데이터 관리":
         elif _qa_type == "📦 개념 폴더 이동":
             _qa1, _qa2 = st.columns(2)
             with _qa1:
-                _mv_cons = st.multiselect("이동할 개념들", [c.get("name") for c in _dm_concepts], key="dm_mv_cons")
+                _mv_cons = multiselect_with_all("이동할 개념들", [c.get("name") for c in _dm_concepts], key="dm_mv_cons")
             with _qa2:
                 _mv_fold = st.text_input("이동할 폴더명", key="dm_mv_fold")
             if _mv_cons and _mv_fold and st.button("📦 이동 실행", type="primary", key="dm_do_mv"):
@@ -8552,7 +8578,7 @@ if menu == "데이터 관리":
         elif _qa_type == "📁 메모 프로젝트 이동":
             _qa1, _qa2 = st.columns(2)
             with _qa1:
-                _mv_notes = st.multiselect("이동할 메모", [n.get("title","제목 없음") for n in _dm_notes], key="dm_mv_notes")
+                _mv_notes = multiselect_with_all("이동할 메모", [n.get("title","제목 없음") for n in _dm_notes], key="dm_mv_notes")
             with _qa2:
                 _mv_proj = st.selectbox("이동할 프로젝트", _proj_names or ["(없음)"], key="dm_mv_proj")
             if _mv_notes and st.button("📁 이동 실행", type="primary", key="dm_do_mv_note"):
@@ -8565,12 +8591,12 @@ if menu == "데이터 관리":
             st.warning("⚠️ 삭제는 되돌릴 수 없어요.")
             _del_ent = st.radio("삭제할 엔티티", ["프로젝트", "개념", "작업", "태그"], horizontal=True, key="dm_del_ent")
             if _del_ent == "프로젝트":
-                _del_sel = st.multiselect("삭제할 프로젝트", _proj_names, key="dm_del_proj_sel")
+                _del_sel = multiselect_with_all("삭제할 프로젝트", _proj_names, key="dm_del_proj_sel")
                 if _del_sel and st.button("🗑️ 삭제 실행", type="primary", key="dm_do_del_proj"):
                     st.session_state["projects"] = [p for p in _dm_projs if p.get("name") not in _del_sel]
                     save_persisted_data(); _flash("삭제 완료!"); st.rerun()
             elif _del_ent == "개념":
-                _del_sel = st.multiselect("삭제할 개념", [c.get("name") for c in _dm_concepts], key="dm_del_con_sel")
+                _del_sel = multiselect_with_all("삭제할 개념", [c.get("name") for c in _dm_concepts], key="dm_del_con_sel")
                 if _del_sel and st.button("🗑️ 삭제 실행", type="primary", key="dm_do_del_con"):
                     st.session_state["pkm_custom_concepts"] = [c for c in st.session_state.get("pkm_custom_concepts",[]) if (c.get("name") if isinstance(c,dict) else str(c)) not in _del_sel]
                     _h2 = list(set(st.session_state.get("hidden_concepts",[])) | set(_del_sel))
@@ -8578,12 +8604,12 @@ if menu == "데이터 관리":
                     st.session_state["note_concept_links"] = [l for l in _dm_links if l.get("concept") not in _del_sel]
                     save_persisted_data(); _flash("삭제 완료!"); st.rerun()
             elif _del_ent == "작업":
-                _del_sel = st.multiselect("삭제할 작업", [t.get("title","") for t in _dm_tasks], key="dm_del_task_sel")
+                _del_sel = multiselect_with_all("삭제할 작업", [t.get("title","") for t in _dm_tasks], key="dm_del_task_sel")
                 if _del_sel and st.button("🗑️ 삭제 실행", type="primary", key="dm_do_del_task"):
                     st.session_state["tasks"] = [t for t in _dm_tasks if t.get("title","") not in _del_sel]
                     save_persisted_data(); _flash("삭제 완료!"); st.rerun()
             else:
-                _del_sel = st.multiselect("삭제할 태그", [t["name"] for t in _dm_tags], key="dm_del_tag_sel")
+                _del_sel = multiselect_with_all("삭제할 태그", [t["name"] for t in _dm_tags], key="dm_del_tag_sel")
                 if _del_sel and st.button("🗑️ 삭제 실행", type="primary", key="dm_do_del_tag"):
                     for _n4 in st.session_state.get("archive_notes",[]):
                         _n4["tags"] = [t for t in _n4.get("tags",[]) if str(t).replace("#","").strip() not in _del_sel]
@@ -8620,7 +8646,7 @@ if menu == "데이터 관리":
                 st.caption(f"총 {len(_ents_show)}개 엔터티")
 
                 with st.expander("🗑️ 엔터티 삭제 (선택)", expanded=False):
-                    _del_ent_names = st.multiselect("삭제할 엔터티 이름", [e.get("name","") for e in _ents_show],
+                    _del_ent_names = multiselect_with_all("삭제할 엔터티 이름", [e.get("name","") for e in _ents_show],
                         key="dm_ent5_del_sel")
                     if _del_ent_names and st.button("🗑️ 삭제 실행", key="dm_ent5_del_run", type="primary"):
                         st.session_state["entities"] = [
@@ -8649,7 +8675,7 @@ if menu == "데이터 관리":
                 with st.expander("🗑️ 관계 삭제", expanded=False):
                     _rel_labels = [f"{r.get('source_name','')} →[{r.get('relation_type','')}]→ {r.get('target_name','')}"
                                    for r in _relations_all]
-                    _del_rels = st.multiselect("삭제할 관계", _rel_labels, key="dm_rel5_del_sel")
+                    _del_rels = multiselect_with_all("삭제할 관계", _rel_labels, key="dm_rel5_del_sel")
                     if _del_rels and st.button("🗑️ 관계 삭제 실행", key="dm_rel5_del_run", type="primary"):
                         _del_idxs = {_rel_labels.index(l) for l in _del_rels if l in _rel_labels}
                         st.session_state["relations"] = [

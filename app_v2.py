@@ -5124,40 +5124,27 @@ def render_knowledge_map_page():
                         if _km_adv_cur else "🔬 고급 기능 6개 더 보기 (노션보드·태그맵·지식페이지·브레인스토밍·프로젝트맵·타임라인)")
     _km_adv = st.toggle(_km_toggle_label, value=False, key="km_adv_view")
     if not _km_adv:
+        # 기본 4뷰 — 짧은 카드 (긴 설명 X, '무엇을 볼까?'만)
         _basic_catalog = [
-            ("📚", "노트", "내가 저장한 메모를 둘러봐요"),
-            ("🧠", "개념", "반복 등장하는 핵심 개념을 찾아봐요"),
-            ("🕸", "관계", "메모와 개념이 어떻게 연결되는지 봐요"),
-            ("📈", "성장", "시간이 지나며 무엇을 배우고 있는지 봐요"),
+            ("📚", "노트", "메모 보기"),
+            ("🧠", "개념", "핵심 개념 찾기"),
+            ("🕸", "관계", "연결 구조 보기"),
+            ("📈", "성장", "학습 흐름 보기"),
         ]
         _bc_cols = st.columns(4)
         for _bi, (_em, _nm, _desc) in enumerate(_basic_catalog):
             with _bc_cols[_bi]:
-                st.markdown(
-                    f"<div style='font-size:0.88em'><b>{_em} {_nm}</b><br>"
-                    f"<span style='color:#64748b'>{_desc}</span></div>",
-                    unsafe_allow_html=True)
-        st.caption("➕ 노션 보드·태그맵·지식 페이지·브레인스토밍·프로젝트맵·타임라인은 위 **🔬 고급 기능 6개 더 보기**를 켜면 나와요.")
-    if _km_adv:
-        # 고급 기능 카탈로그 — 기능명만으론 모르니 '한 줄 설명 + 언제 쓰는지'
-        _adv_catalog = [
-            ("🧩", "노션 보드", "노트를 카드로 정리", "대분류별로 한눈에 훑고 싶을 때"),
-            ("🕸️", "태그맵", "태그 중심으로 연결 탐색", "비슷한 주제 메모를 묶어 보고 싶을 때"),
-            ("🧠", "지식 페이지", "위키처럼 개념 단위로 읽기", "한 개념을 깊게 파고들 때"),
-            ("🤖", "브레인스토밍", "AI가 아이디어 확장", "막혔거나 다음 행동이 필요할 때"),
-            ("🗺️", "프로젝트맵", "프로젝트·작업·개념 관계 시각화", "프로젝트가 커져 연결을 보고 싶을 때"),
-            ("🕰️", "타임라인", "시간순으로 지식 흐름 보기", "언제 뭘 했는지 되짚을 때"),
-        ]
-        with st.container(border=True):
-            st.markdown("**🔬 고급 기능 6개** — 아래 탭에서 골라 쓰세요.")
-            _cat_cols = st.columns(3)
-            for _ci, (_em, _nm, _desc, _when) in enumerate(_adv_catalog):
-                with _cat_cols[_ci % 3]:
+                with st.container(border=True):
                     st.markdown(
-                        f"<div style='font-size:0.9em'><b>{_em} {_nm}</b><br>"
-                        f"<span style='color:#475569'>{_desc}</span><br>"
-                        f"<span style='color:#94a3b8;font-size:0.85em'>추천: {_when}</span></div>",
+                        f"<div style='text-align:center'>"
+                        f"<div style='font-size:1.4em'>{_em}</div>"
+                        f"<b>{_nm}</b><br>"
+                        f"<span style='color:#64748b;font-size:0.8em'>{_desc}</span></div>",
                         unsafe_allow_html=True)
+        st.caption("➕ 고급 6개(노션보드·태그맵·지식페이지·브레인스토밍·프로젝트맵·타임라인)는 위 **🔬 고급 기능 6개 더 보기**를 켜면 나와요.")
+    if _km_adv:
+        # ON: 탭이 이미 보여주므로 카탈로그 중복 제거 — 한 줄 안내만 (도구 성격 명시)
+        st.caption("🔬 **고급 도구 6개**가 뒤 탭에 추가됐어요 — 🧩 노션보드 · 🕸️ 태그맵 · 🧠 지식페이지 · 🤖 브레인스토밍 · 🗺️ 프로젝트맵 · 🕰️ 타임라인. (기본 4개는 '무엇을 볼까', 고급은 '어떻게 볼까')")
     if not _km_adv:
         # 기본 모드: 5번째 이후(고급) 탭 버튼만 숨김 — 탭/본문은 그대로 생성(기능 삭제 없음)
         st.markdown(

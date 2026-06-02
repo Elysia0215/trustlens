@@ -1408,7 +1408,7 @@ button[data-testid="collapsedControl"],
             ("new",       "➕", "빠른 작성"),
         ]),
         ("📝", "지식", "#a78bfa", [        # 보라
-            ("archive",   "📚", "지식 아카이브"),
+            ("archive",   "📚", "지식 라이브러리"),
             ("map",       "🕸️", "지식 맵"),
             ("tags",      "🏷️", "태그 관리"),
         ]),
@@ -1506,7 +1506,7 @@ button[data-testid="collapsedControl"],
         "new":      "새 엔터티",
         "result":   "분석 결과",
         "criteria": "신뢰도 근거",
-        "archive":  "지식 아카이브",
+        "archive":  "지식 라이브러리",
         "map":      "지식 맵",
         "tags":     "태그 관리",
         "projects": "프로젝트",
@@ -9096,7 +9096,7 @@ if menu == "태그 관리":
                     st.rerun()
     st.stop()
 
-if menu == "지식 아카이브":
+if menu == "지식 라이브러리":
     _NOTE_TYPE_META = {
         "study": ("📘", "공부자료"), "review": ("⭐", "후기/리뷰"),
         "policy": ("📜", "정책"), "info": ("📰", "정보"),
@@ -9279,8 +9279,9 @@ if menu == "지식 아카이브":
         st.stop()
 
     # ════════════════ 카드 목록 모드 ════════════════
-    st.markdown("## 🗂️ 지식 아카이브")
-    st.caption("저장한 메모를 카드로 훑어보고, 카드를 열면 한 줄 핵심·핵심 개념·연결된 지식·관련 메모를 한 화면에서 봐요.")
+    st.markdown("## 📚 지식 라이브러리")
+    st.caption("쌓인 메모·연구노트를 한 곳에서 둘러보는 곳이에요. "
+               "전체·📁프로젝트별·📅날짜별·🏷태그별·🧠개념별로 탐색하고, 카드를 열면 한 줄 핵심·개념·연결·관련 메모를 봐요.")
     if st.session_state.get("archive_deleted"):
         st.success("저장된 메모를 삭제했어요.")
         st.session_state["archive_deleted"] = False
@@ -9314,36 +9315,96 @@ if menu == "지식 아카이브":
         st.stop()
 
     st.caption(f"총 {len(notes_to_show)}개")
-    # 최신순 정렬
-    notes_to_show = sorted(notes_to_show, key=lambda n: str(n.get("saved_at", "")), reverse=True)
 
-    _cards_per_row = 2
-    for _row_start in range(0, len(notes_to_show), _cards_per_row):
-        _row_notes = notes_to_show[_row_start:_row_start + _cards_per_row]
-        _cols = st.columns(_cards_per_row)
-        for _col, item in zip(_cols, _row_notes):
-            with _col:
-                with st.container(border=True):
-                    _icon, _label = _note_meta(item)
-                    _star = "⭐ " if item.get("favorite") else ""
-                    st.markdown(f"{_star}{_icon} **{item.get('title', '제목 없음')}**")
-                    _crumb = _crumb_of(item)
-                    st.caption(
-                        f"{_label} · 📅 {str(item.get('saved_at', ''))[:10]}"
-                        + (f" · 📁 {_crumb}" if _crumb else ""))
-                    _one = _note_one_line(item)
-                    if _one:
-                        st.markdown(f"<div style='color:#475569;font-size:0.9em;min-height:38px'>{_one}</div>",
-                                    unsafe_allow_html=True)
-                    _cons = _note_concepts(item)
-                    if _cons:
-                        st.markdown(
-                            " ".join(f"`{c}`" for c in _cons[:5])
-                            + (f" +{len(_cons) - 5}" if len(_cons) > 5 else ""))
-                    if st.button("📖 열기", key=f"archive_open_{item.get('id', _row_start)}",
-                                 use_container_width=True):
-                        st.session_state["archive_open_note_id"] = item.get("id")
-                        st.rerun()
+    # 카드 렌더 헬퍼 (탐색 축마다 재사용)
+    def _render_note_cards(_notes, _kp=""):
+        _notes = sorted(_notes, key=lambda n: str(n.get("saved_at", "")), reverse=True)
+        _cards_per_row = 2
+        for _row_start in range(0, len(_notes), _cards_per_row):
+            _row_notes = _notes[_row_start:_row_start + _cards_per_row]
+            _cols = st.columns(_cards_per_row)
+            for _col, item in zip(_cols, _row_notes):
+                with _col:
+                    with st.container(border=True):
+                        _icon, _label = _note_meta(item)
+                        _star = "⭐ " if item.get("favorite") else ""
+                        st.markdown(f"{_star}{_icon} **{item.get('title', '제목 없음')}**")
+                        _crumb = _crumb_of(item)
+                        st.caption(
+                            f"{_label} · 📅 {str(item.get('saved_at', ''))[:10]}"
+                            + (f" · 📁 {_crumb}" if _crumb else ""))
+                        _one = _note_one_line(item)
+                        if _one:
+                            st.markdown(f"<div style='color:#475569;font-size:0.9em;min-height:38px'>{_one}</div>",
+                                        unsafe_allow_html=True)
+                        _cons = _note_concepts(item)
+                        if _cons:
+                            st.markdown(
+                                " ".join(f"`{c}`" for c in _cons[:5])
+                                + (f" +{len(_cons) - 5}" if len(_cons) > 5 else ""))
+                        if st.button("📖 열기", key=f"libcard_{_kp}_{item.get('id', _row_start)}_{_row_start}",
+                                     use_container_width=True):
+                            st.session_state["archive_open_note_id"] = item.get("id")
+                            st.rerun()
+
+    # ── 탐색 축 (읽기 허브의 핵심) ──
+    _lib_axis = st.radio(
+        "탐색 축", ["▶ 전체", "📁 프로젝트별", "📅 날짜별", "🏷 태그별", "🧠 개념별"],
+        horizontal=True, key="lib_axis", label_visibility="collapsed",
+    )
+    if _lib_axis == "▶ 전체":
+        _render_note_cards(notes_to_show, "all")
+
+    elif _lib_axis == "📁 프로젝트별":
+        _by_proj = {}
+        for _n in notes_to_show:
+            _pk = _clean_text_value(_n.get("project")).strip() or "미배정"
+            _by_proj.setdefault(_pk, []).append(_n)
+        # 메모 많은 프로젝트 먼저, 미배정은 맨 뒤
+        _proj_order = sorted(_by_proj.keys(), key=lambda k: (k == "미배정", -len(_by_proj[k])))
+        for _pk in _proj_order:
+            st.markdown(f"#### 🪐 {_pk} · {len(_by_proj[_pk])}개")
+            _render_note_cards(_by_proj[_pk], f"proj_{_pk}")
+            st.divider()
+
+    elif _lib_axis == "📅 날짜별":
+        _by_month = {}
+        for _n in notes_to_show:
+            _mk = str(_n.get("saved_at", ""))[:7] or "날짜 없음"
+            _by_month.setdefault(_mk, []).append(_n)
+        for _mk in sorted(_by_month.keys(), reverse=True):
+            st.markdown(f"#### 📅 {_mk} · {len(_by_month[_mk])}개")
+            _render_note_cards(_by_month[_mk], f"month_{_mk}")
+            st.divider()
+
+    elif _lib_axis == "🏷 태그별":
+        _all_tags = sorted({
+            str(t).replace("#", "").strip()
+            for _n in notes_to_show for t in (_n.get("tags", []) or [])
+            if str(t).strip()
+        })
+        if not _all_tags:
+            st.info("아직 태그가 달린 메모가 없어요.")
+        else:
+            _pick_tag = st.selectbox("🏷 태그 선택", _all_tags, key="lib_tag_pick")
+            _tag_notes = [
+                _n for _n in notes_to_show
+                if _pick_tag in [str(t).replace("#", "").strip() for t in (_n.get("tags", []) or [])]
+            ]
+            st.caption(f"#{_pick_tag} · {len(_tag_notes)}개")
+            _render_note_cards(_tag_notes, f"tag_{_pick_tag}")
+
+    elif _lib_axis == "🧠 개념별":
+        _all_cons = sorted({
+            _c for _n in notes_to_show for _c in _note_concepts(_n) if str(_c).strip()
+        })
+        if not _all_cons:
+            st.info("아직 개념이 연결된 메모가 없어요.")
+        else:
+            _pick_con = st.selectbox("🧠 개념 선택", _all_cons, key="lib_con_pick")
+            _con_notes = [_n for _n in notes_to_show if _pick_con in _note_concepts(_n)]
+            st.caption(f"🧠 {_pick_con} · {len(_con_notes)}개")
+            _render_note_cards(_con_notes, f"con_{_pick_con}")
     st.stop()
 
 if menu == "프로젝트":

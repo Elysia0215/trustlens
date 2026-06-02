@@ -14712,7 +14712,7 @@ def render_home_universe():
         st.markdown(
             "- 🌎 **중심** = 내 지식 전체 (항성)\n"
             "- 🪐 **행성** = 프로젝트 · **크기 = 메모+개념+작업 수** (쌓일수록 커져요)\n"
-            "- 🛰️ **행성 선택** → 🌙 위성(메모·개념·태그·작업)이 펼쳐져요\n"
+            "- 🛰️ **행성 더블클릭**(또는 아래 목록 선택) → 🌙 위성(메모·개념·태그·작업)이 펼쳐져요\n"
             "- 📝 메모는 클릭하면 상세로, 📁 버튼으로 프로젝트로 이동해요\n"
             "- 마우스를 행성에 올리면 📝/🧠/✅ 개수가 보여요")
     try:
@@ -14764,7 +14764,7 @@ def render_home_universe():
             st.session_state["_univ_last_click"] = _clicked
             st.session_state["home_univ_sel"] = _clicked
             st.rerun()  # 즉시 다시 그려 지도 강조 + 위성 펼침 (단일 클릭 반영)
-        st.caption("🛰️ 행성을 클릭하거나 아래에서 골라 위성을 펼쳐요.")
+        st.caption("🛰️ 행성을 **더블클릭**(또는 아래 목록에서 선택)하면 위성이 펼쳐져요.")
     except Exception:
         for _pl in _planets:
             st.markdown(f"🪐 **{_pl['name']}** · 📝 {_pl['memos']} 🧠 {_pl['concepts']} ✅ {_pl['tasks']}")

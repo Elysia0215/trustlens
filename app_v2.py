@@ -12107,58 +12107,70 @@ _dm2.metric(_home_lbl["today_tasks"], len(_dash_today_tasks))
 _dm3.metric(_home_lbl["open_tasks"], len(_dash_open_tasks))
 _dm4.metric(_home_lbl["total_memos"], len(_dash_notes))
 
-_dash_c1, _dash_c2, _dash_c3 = st.columns(3)
+# ── 최근 활동: 텍스트가 흩어지지 않게 테두리 카드 2열 그리드로 묶음 ──
+st.markdown("#### 🗂️ 최근 활동")
 
-with _dash_c1:
-    st.markdown(f"##### {_home_lbl['recent_projects']}")
-    if _dash_active_proj:
-        for _p in _dash_active_proj[:5]:
-            _pri = _p.get("priority", "")
-            _pri_badge = f" · {_pri}" if _pri else ""
-            st.markdown(f"- {_home_lbl['proj_icon']} **{_p.get('name','')}**{_pri_badge}")
-    else:
-        st.caption("진행중인 프로젝트가 없어요.")
+# 각 영역 데이터 준비
+_recent_proj = _dash_active_proj[:5]
+_recent_tasks = sorted(_dash_open_tasks, key=lambda t: str(t.get("created_at", "")), reverse=True)
+_recent_notes = sorted(_dash_notes, key=lambda n: str(n.get("saved_at", "")), reverse=True)
+_research = [n for n in _dash_notes if "연구노트" in str(n.get("title", "")) or "연구노트" in [str(t) for t in n.get("tags", [])]]
+_research = sorted(_research, key=lambda n: str(n.get("saved_at", "")), reverse=True)
+_recent_con = [c for c in _dash_concepts if isinstance(c, dict) and c.get("created_at")]
+_recent_con = sorted(_recent_con, key=lambda c: str(c.get("created_at", "")), reverse=True)
 
-with _dash_c2:
-    st.markdown(f"##### {_home_lbl['recent_tasks']}")
-    _recent_tasks = sorted(_dash_open_tasks, key=lambda t: str(t.get("created_at", "")), reverse=True)
-    if _recent_tasks:
-        for _t in _recent_tasks[:6]:
-            _due = str(_t.get("due_date", ""))[:10]
-            _due_str = f" · ~{_due}" if _due else ""
-            st.markdown(f"- {_home_lbl['task_icon']} {_t.get('title','')}{_due_str}")
-    else:
-        st.caption("미완료 작업이 없어요.")
+def _proj_lines():
+    out = []
+    for _p in _recent_proj:
+        _pri = _p.get("priority", "")
+        _badge = f" · {_pri}" if _pri else ""
+        out.append(f"- {_home_lbl['proj_icon']} **{_p.get('name','')}**{_badge}")
+    return out
 
-with _dash_c3:
-    st.markdown(f"##### {_home_lbl['recent_memos']}")
-    _recent_notes = sorted(_dash_notes, key=lambda n: str(n.get("saved_at", "")), reverse=True)
-    if _recent_notes:
-        for _n in _recent_notes[:6]:
-            st.markdown(f"- {_home_lbl['memo_icon']} {_n.get('title','제목 없음')}")
-    else:
-        st.caption("저장된 메모가 없어요.")
+def _task_lines():
+    out = []
+    for _t in _recent_tasks[:6]:
+        _due = str(_t.get("due_date", ""))[:10]
+        _due_str = f" · ~{_due}" if _due else ""
+        out.append(f"- {_home_lbl['task_icon']} {_t.get('title','')}{_due_str}")
+    return out
 
-# 최근 연구노트 + 최근 개념
-_dash_d1, _dash_d2 = st.columns(2)
-with _dash_d1:
-    st.markdown(f"##### {_home_lbl['recent_research']}")
-    _research = [n for n in _dash_notes if "연구노트" in str(n.get("title", "")) or "연구노트" in [str(t) for t in n.get("tags", [])]]
-    _research = sorted(_research, key=lambda n: str(n.get("saved_at", "")), reverse=True)
-    if _research:
-        for _r in _research[:4]:
-            st.markdown(f"- {_home_lbl['research_icon']} {_r.get('title','')}")
-    else:
-        st.caption("아직 연구노트가 없어요. (AI 브레인스토밍 → AI 연구노트)")
-with _dash_d2:
-    st.markdown(f"##### {_home_lbl['recent_concepts']}")
-    _recent_con = [c for c in _dash_concepts if isinstance(c, dict) and c.get("created_at")]
-    _recent_con = sorted(_recent_con, key=lambda c: str(c.get("created_at", "")), reverse=True)
-    if _recent_con:
-        for _c in _recent_con[:4]:
-            st.markdown(f"- {_home_lbl['concept_icon']} {_c.get('name','')}")
-    else:
-        st.caption("아직 추가한 개념이 없어요.")
+# 카드 스펙: (제목, 전체개수, 목록 markdown 라인, 비었을 때 안내)
+_recent_cards = [
+    (_home_lbl["recent_memos"], len(_dash_notes),
+     [f"- {_home_lbl['memo_icon']} {_n.get('title','제목 없음')}" for _n in _recent_notes[:5]],
+     "저장된 메모가 없어요."),
+    (_home_lbl["recent_concepts"], len(_recent_con),
+     [f"- {_home_lbl['concept_icon']} {_c.get('name','')}" for _c in _recent_con[:5]],
+     "아직 추가한 개념이 없어요."),
+    (_home_lbl["recent_research"], len(_research),
+     [f"- {_home_lbl['research_icon']} {_r.get('title','')}" for _r in _research[:5]],
+     "아직 연구노트가 없어요. (AI 브레인스토밍 → AI 연구노트)"),
+    (_home_lbl["recent_tasks"], len(_dash_open_tasks), _task_lines(),
+     "미완료 작업이 없어요."),
+    (_home_lbl["recent_projects"], len(_dash_active_proj), _proj_lines(),
+     "진행중인 프로젝트가 없어요."),
+]
+
+def _render_recent_card(_col, _title, _total, _lines, _empty):
+    with _col:
+        with st.container(border=True):
+            st.markdown(f"**{_title}** &nbsp;·&nbsp; <span style='color:#64748b;'>{_total}개</span>", unsafe_allow_html=True)
+            if _lines:
+                st.markdown("\n".join(_lines))
+                if _total > len(_lines):
+                    st.caption(f"+ 외 {_total - len(_lines)}개 더 있어요")
+            else:
+                st.caption(_empty)
+
+# 2열 그리드로 렌더 (홀수면 마지막 카드는 왼쪽 한 칸)
+for _ci in range(0, len(_recent_cards), 2):
+    _gc1, _gc2 = st.columns(2)
+    _t1, _n1, _l1, _e1 = _recent_cards[_ci]
+    _render_recent_card(_gc1, _t1, _n1, _l1, _e1)
+    if _ci + 1 < len(_recent_cards):
+        _t2, _n2, _l2, _e2 = _recent_cards[_ci + 1]
+        _render_recent_card(_gc2, _t2, _n2, _l2, _e2)
 
 st.divider()
 

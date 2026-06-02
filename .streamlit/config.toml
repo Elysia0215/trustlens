@@ -10,3 +10,7 @@ font = "sans serif"
 headless = false
 enableCORS = false
 enableXsrfProtection = false
+
+[client]
+# 'Oh no' 대신 실제 에러 traceback을 화면에 표시 (디버깅)
+showErrorDetails = "full"

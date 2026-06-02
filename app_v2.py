@@ -15079,9 +15079,11 @@ def render_home_universe():
         st.markdown(
             "- 🌎 **중심** = 내 지식 전체 (항성)\n"
             "- 🪐 **행성** = 프로젝트 · **크기 = 메모+개념+작업 수** (쌓일수록 커져요)\n"
-            "- 🛰️ **지도 행성이나 아래 행성 버튼**을 누르면 → 🌙 위성(메모·개념·태그·작업)이 펼쳐져요\n"
+            "- 🛰️ **아래 행성 버튼**을 누르면 → 🌙 위성(메모·개념·태그·작업)이 펼쳐져요\n"
+            "- 🌌 **전체**를 누르면 → 전체 우주 요약과 🌎🚀 지구 발사대가 보여요\n"
+            "- 🚀 **지구 발사대** = 아직 프로젝트에 속하지 않은 지식을 행성으로 보내는 정리 공간이에요\n"
             "- 📝 메모는 클릭하면 상세로, 📁 버튼으로 프로젝트로 이동해요\n"
-            "- 마우스를 행성에 올리면 📝/🧠/🏷️/✅ 개수가 보여요")
+            "- 마우스를 지도 행성에 올리면 📝/🧠/🏷️/✅ 개수가 보여요")
     try:
         import plotly.graph_objects as _ugo
         import math as _umath
@@ -15138,12 +15140,22 @@ def render_home_universe():
         with _pick_cols[_i]:
             _picked = _pl["name"] == _sel_planet
             _label = f"{'✨ ' if _picked else ''}🪐 {_pl['name'][:8]}"
-            if st.button(_label, key=f"univ_pick_{_i}", use_container_width=True):
+            if st.button(
+                _label,
+                key=f"univ_pick_{_i}",
+                use_container_width=True,
+                help="이 프로젝트 행성을 선택해서 연결된 메모·개념·태그·작업을 아래에 펼쳐요.",
+            ):
                 st.session_state["home_univ_pick"] = _pl["name"]
                 st.rerun()
     with _pick_cols[-1]:
         _all_label = f"{'✨ ' if _sel_planet is None else ''}🌌 전체"
-        if st.button(_all_label, key="univ_pick_all", use_container_width=True):
+        if st.button(
+            _all_label,
+            key="univ_pick_all",
+            use_container_width=True,
+            help="전체 우주 요약을 보고, 프로젝트에 아직 배정되지 않은 지식을 지구 발사대에서 정리해요.",
+        ):
             st.session_state["home_univ_pick"] = None
             st.rerun()
     _sel_planet = _clean_text_value(st.session_state.get("home_univ_pick")).strip()
@@ -15188,8 +15200,8 @@ def render_home_universe():
         def _univ_chip(_text, _bg="#eef2ff", _fg="#3730a3", _prefix=""):
             _label = _univ_esc(_text)
             return (
-                f"<span style='display:inline-block;margin:4px 6px 4px 0;padding:7px 10px;"
-                f"border-radius:999px;background:{_bg};color:{_fg};font-size:13px;"
+                f"<span style='display:inline-block;margin:3px 5px 3px 0;padding:4px 9px;"
+                f"border-radius:999px;background:{_bg};color:{_fg};font-size:12px;"
                 f"font-weight:800;border:1px solid rgba(99,102,241,0.18);'>{_prefix}{_label}</span>"
             )
 
@@ -15209,13 +15221,20 @@ def render_home_universe():
             "<div style='margin-top:18px;padding:14px 16px;border-radius:14px;"
             "background:linear-gradient(135deg,#0f172a,#1e293b);color:#e2e8f0;"
             "border:1px solid rgba(148,163,184,0.35);'>"
-            "<div style='font-size:18px;font-weight:900;'>🛸 위성 미션 보드</div>"
+            "<div style='font-size:18px;font-weight:900;'>🛰️ 행성 상세</div>"
             "<div style='font-size:13px;color:#cbd5e1;margin-top:4px;'>"
-            "메모를 열고, 개념 덱을 훑고, 작업 퀘스트로 바로 이어져요.</div></div>",
+            "메모·개념·태그·작업을 한눈에 보고 바로 이어가요.</div></div>",
             unsafe_allow_html=True)
+        with st.expander("ℹ️ 이 화면 설명", expanded=False):
+            st.markdown(
+                "- **최근 메모**: 이 프로젝트에 연결된 메모예요. ‘메모 열기’로 상세를 봐요.\n"
+                "- **핵심 개념**: 이 프로젝트와 자주 연결된 개념이에요.\n"
+                "- **연관 태그**: 메모에 붙은 태그를 모아 보여줘요.\n"
+                "- **실행 작업**: 이 프로젝트에 연결된 작업이에요. 작업 관리로 이어져요."
+            )
         _w1, _w2, _w3 = st.columns([1.08, 1, 1.08])
         with _w1:
-            st.markdown("**🌙 메모 로그**")
+            st.markdown("**📝 최근 메모**")
             if _pn:
                 for _wi, _wn in enumerate(_pn[:6]):
                     _title = _clean_text_value(_wn.get("title")).strip() or "제목 없음"
@@ -15241,7 +15260,7 @@ def render_home_universe():
             else:
                 st.caption("아직 없어요.")
         with _w2:
-            st.markdown("**🧠 개념 덱**")
+            st.markdown("**🧠 핵심 개념**")
             if _pcs:
                 st.markdown(
                     "<div style='line-height:2.35;'>"
@@ -15253,7 +15272,7 @@ def render_home_universe():
             else:
                 st.caption("아직 없어요.")
             if _ptags:
-                st.markdown("**🏷️ 태그 레이더**")
+                st.markdown("**🏷️ 연관 태그**")
                 st.markdown(
                     "<div style='line-height:2.35;'>"
                     + "".join(_univ_chip(_t, "#dcfce7", "#15803d", "#") for _t in _ptags[:16])
@@ -15262,7 +15281,7 @@ def render_home_universe():
                 if len(_ptags) > 16:
                     st.caption(f"외 {len(_ptags) - 16}개 태그")
         with _w3:
-            st.markdown("**✅ 퀘스트 보드**")
+            st.markdown("**✅ 실행 작업**")
             if _ptk:
                 for _ti, _wt in enumerate(_ptk[:6]):
                     _title = _clean_text_value(_wt.get("title")).strip() or "제목 없음"
@@ -15380,6 +15399,13 @@ def render_home_universe():
             "<div style='font-size:13px;color:#c7d2fe;margin-top:5px;'>"
             "아직 행성에 배정되지 않은 지식을 모아 목적 행성으로 발사해요.</div></div>",
             unsafe_allow_html=True)
+        with st.expander("ℹ️ 지구 발사대 사용법", expanded=False):
+            st.markdown(
+                "- 프로젝트가 비어 있거나 잘못 연결된 메모·작업·개념이 여기에 모여요.\n"
+                "- **목적 행성**을 고른 뒤, 탭에서 보낼 항목을 선택하세요.\n"
+                "- `🚀 선택 항목 발사`를 누르면 선택한 항목의 프로젝트가 목적 행성으로 바뀌어요.\n"
+                "- 메모를 발사하면 메모 안의 태그와 연결 개념도 같이 따라가요."
+            )
         _lc1, _lc2, _lc3, _lc4, _lc5 = st.columns(5)
         _launch_counts = [
             (_lc1, "🌙", "대기 메모", len(_loose_notes)),
@@ -15398,7 +15424,12 @@ def render_home_universe():
         if _launch_total == 0:
             st.success("발사 대기 중인 지식이 없어요. 모든 지식이 행성 궤도에 올라가 있어요.")
         else:
-            _dest = st.selectbox("목적 행성", _univ_names, key="univ_launch_dest")
+            _dest = st.selectbox(
+                "목적 행성",
+                _univ_names,
+                key="univ_launch_dest",
+                help="선택한 지식들이 이동할 프로젝트 행성이에요.",
+            )
             _tab_memo, _tab_task, _tab_concept, _tab_section = st.tabs(
                 ["🌙 메모", "✅ 작업", "🧠 개념", "🧩 섹션"]
             )
@@ -15409,6 +15440,7 @@ def render_home_universe():
                     "발사할 메모",
                     _note_ids,
                     key="univ_launch_notes",
+                    help="프로젝트가 비어 있거나 현재 행성과 연결되지 않은 메모예요.",
                     format_func=lambda _nid: _clean_text_value(
                         _note_lookup.get(_nid, {}).get("title")
                     ).strip() or "제목 없음",
@@ -15422,6 +15454,7 @@ def render_home_universe():
                     "발사할 작업",
                     _task_ids,
                     key="univ_launch_tasks",
+                    help="프로젝트가 비어 있거나 현재 행성과 연결되지 않은 작업이에요.",
                     format_func=lambda _tid: _clean_text_value(
                         _task_lookup.get(_tid, {}).get("title")
                     ).strip() or "제목 없음",
@@ -15431,6 +15464,7 @@ def render_home_universe():
                     "발사할 개념",
                     _loose_concepts,
                     key="univ_launch_concepts",
+                    help="메모나 프로젝트에 아직 안정적으로 배정되지 않은 개념이에요.",
                 )
             with _tab_section:
                 _section_options = [f"section:{_idx}" for _idx, _ in _loose_sections] + [
@@ -15445,6 +15479,7 @@ def render_home_universe():
                     "발사할 프로젝트 섹션/단계",
                     _section_options,
                     key="univ_launch_sections",
+                    help="프로젝트 섹션이나 단계 데이터가 행성과 연결되지 않았을 때 여기에서 배정해요.",
                     format_func=lambda _key: (
                         ("섹션 · " if _key.startswith("section:") else "단계 · ")
                         + (_clean_text_value(_section_lookup.get(_key, {}).get("name")).strip()
@@ -15460,6 +15495,7 @@ def render_home_universe():
                 key="univ_launch_selected",
                 use_container_width=True,
                 disabled=_selected_total == 0,
+                help="선택한 항목의 프로젝트 값을 목적 행성으로 바꿔서 우주맵에 배정해요.",
             ):
                 _now = datetime.now().strftime("%Y-%m-%d %H:%M")
                 for _n in st.session_state.get("archive_notes", []):
@@ -15489,8 +15525,12 @@ def render_home_universe():
                         st.session_state["project_steps"][_idx]["project"] = _dest
                         st.session_state["project_steps"][_idx]["updated_at"] = _now
                 save_persisted_data()
-                _flash(f"🚀 {_selected_total}개 지식을 '{_dest}' 행성으로 발사했어요.")
-                st.session_state["home_univ_pick"] = _dest
+                _flash(f"🚀 {_selected_total}개를 '{_dest}'(으)로 발사! 남은 지식을 계속 배분하세요.")
+                # 발사 후에도 발사대(전체 보기)에 머물러 남은 항목을 계속 배분
+                st.session_state["home_univ_pick"] = None
+                for _k in ("univ_launch_notes", "univ_launch_tasks",
+                           "univ_launch_concepts", "univ_launch_sections"):
+                    st.session_state.pop(_k, None)
                 st.rerun()
 
 

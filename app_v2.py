@@ -15117,7 +15117,6 @@ def render_home_universe():
         )
         st.caption("🛰️ 아래 **행성 버튼**으로 선택하면 위성이 펼쳐져요. 🌌 전체를 누르면 가운데 내 지식이 활성화돼요.")
     except Exception:
-        _map_clicked = None
         for _pl in _planets:
             st.markdown(f"🪐 **{_pl['name']}** · 📝 {_pl['memos']} 🧠 {_pl['concepts']} ✅ {_pl['tasks']}")
     # 🪐 행성 선택 — 지도 클릭과 버튼 모두 home_univ_pick 하나로 동기화

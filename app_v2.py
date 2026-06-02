@@ -340,6 +340,7 @@ def save_persisted_data():
         "active_custom_criteria_titles": st.session_state.get("active_custom_criteria_titles", []),
         "pkm_category_overrides": st.session_state.get("pkm_category_overrides", {}),
         "pkm_custom_concepts": st.session_state.get("pkm_custom_concepts", []),
+        "concept_aliases": st.session_state.get("concept_aliases", {}),
         "pkm_concept_folders": st.session_state.get("pkm_concept_folders", {}),
         "projects": st.session_state.get("projects", []),
         "project_sections": st.session_state.get("project_sections", []),
@@ -1222,6 +1223,7 @@ def init_state():
             for c in persisted.get("pkm_custom_concepts", []) if c
         ],
         "pkm_concept_folders": persisted.get("pkm_concept_folders", {}),
+        "concept_aliases": persisted.get("concept_aliases", {}),
         "projects": persisted.get("projects", []),
         "project_sections": persisted.get("project_sections", []),
         "project_steps": persisted.get("project_steps", []),
@@ -1670,23 +1672,99 @@ def filter_concepts(names):
     return out
 
 
+# ── 개념 별칭(alias) 시스템 ─────────────────────────────────────
+# concept_aliases = {대표개념: [별칭1, 별칭2, ...]} — 비파괴적. 집계 시점에만 대표로 합산.
+def _alias_key(s):
+    """별칭 매칭용 정규화 키 (정제 + 소문자)."""
+    c = clean_concept(s)
+    return (c or str(s).strip()).lower()
+
+
+def _alias_reverse_map():
+    """별칭키 -> 대표개념 매핑. concept_aliases 변경 시에만 재생성(캐시)."""
+    amap = st.session_state.get("concept_aliases", {}) or {}
+    sig = (len(amap), sum(len(v or []) for v in amap.values()))
+    cache = st.session_state.get("_alias_rev_cache")
+    if cache and cache.get("sig") == sig:
+        return cache["rev"]
+    rev = {}
+    for canon, aliases in amap.items():
+        for a in (aliases or []):
+            if a:
+                rev[_alias_key(a)] = canon
+    st.session_state["_alias_rev_cache"] = {"sig": sig, "rev": rev}
+    return rev
+
+
+def canonical_concept(name):
+    """개념명을 대표 개념으로 정규화.
+    clean_concept 적용 → 별칭이면 대표 개념, 아니면 정제된 원래 개념 반환."""
+    c = clean_concept(name)
+    if not c:
+        return c
+    return _alias_reverse_map().get(_alias_key(name), c)
+
+
+def canonical_concepts(names):
+    """리스트를 대표 개념으로 정규화 + 순서 보존 중복 제거."""
+    out, seen = [], set()
+    for n in (names or []):
+        c = canonical_concept(n)
+        if c and c not in seen:
+            seen.add(c)
+            out.append(c)
+    return out
+
+
+def add_concept_aliases(canonical, aliases):
+    """대표 개념에 별칭 등록 (비파괴적). 자기 자신/중복/빈값 제외. 등록 수 반환."""
+    canonical = (clean_concept(canonical) or str(canonical).strip())
+    if not canonical:
+        return 0
+    amap = st.session_state.setdefault("concept_aliases", {})
+    cur = amap.get(canonical, [])
+    _seen = {_alias_key(x) for x in cur}
+    added = 0
+    for a in (aliases or []):
+        a = str(a).strip()
+        if not a or _alias_key(a) == _alias_key(canonical) or _alias_key(a) in _seen:
+            continue
+        cur.append(a)
+        _seen.add(_alias_key(a))
+        added += 1
+    if cur:
+        amap[canonical] = cur
+    return added
+
+
+def remove_concept_alias(canonical, alias):
+    """특정 별칭 삭제. 별칭이 없어지면 대표 키도 제거."""
+    amap = st.session_state.get("concept_aliases", {})
+    if canonical in amap:
+        amap[canonical] = [a for a in amap[canonical] if _alias_key(a) != _alias_key(alias)]
+        if not amap[canonical]:
+            del amap[canonical]
+
+
 def concept_frequency(top_n=None):
     """개념 등장 빈도 Counter (note_concept_links + 작업 linked_concepts + 메모 concepts).
     most_common 리스트 반환 [(개념, 횟수), ...]."""
     from collections import Counter
     _c = Counter()
     for l in st.session_state.get("note_concept_links", []):
-        _cn = l.get("concept")
+        _cn = canonical_concept(l.get("concept"))
         if _cn:
             _c[_cn] += 1
     for t in st.session_state.get("tasks", []):
         for x in (t.get("linked_concepts", []) or []):
-            if x:
-                _c[x] += 1
+            _cx = canonical_concept(x)
+            if _cx:
+                _c[_cx] += 1
     for n in st.session_state.get("archive_notes", []):
         for x in (n.get("concepts", []) or []):
-            if x:
-                _c[x] += 1
+            _cx = canonical_concept(x)
+            if _cx:
+                _c[_cx] += 1
     return _c.most_common(top_n) if top_n else _c.most_common()
 
 
@@ -1762,10 +1840,13 @@ def concept_tfidf(note_filter=None, top_n=None):
     def _doc_counter(n):
         c = Counter()
         for x in (n.get("concepts", []) or []):
-            if x:
-                c[x] += 1
+            _cx = canonical_concept(x)
+            if _cx:
+                c[_cx] += 1
         for x, cnt in _links_by_note.get(n.get("id"), {}).items():
-            c[x] += cnt
+            _cx = canonical_concept(x)
+            if _cx:
+                c[_cx] += cnt
         return c
 
     # 글로벌 코퍼스 (IDF용) — concepts 없는 메모는 자동 제외
@@ -4618,6 +4699,51 @@ def render_knowledge_map_page():
                 save_persisted_data()
                 st.rerun()
 
+    # ── 🔗 별칭(alias) 관리 — 비파괴적 개념 연결 ──
+    with st.expander("🔗 개념 별칭 관리", expanded=False):
+        st.caption("같은 개념의 다른 표기를 대표 개념으로 묶어요. (예: BackPropagation·역전파 알고리즘 → 역전파) "
+                   "원본 메모는 바뀌지 않고, 검색·랭킹·관련 메모 추천·프로젝트 맵에서만 대표 개념으로 합산돼요.")
+        _alias_map = st.session_state.setdefault("concept_aliases", {})
+
+        _ac1, _ac2 = st.columns([1, 1])
+        with _ac1:
+            _new_canon = st.text_input("대표 개념", key="alias_canon", placeholder="예: 역전파")
+        with _ac2:
+            _new_aliases = st.text_input("별칭 (쉼표로 여러 개)", key="alias_inputs",
+                                         placeholder="예: BackPropagation, 역전파 알고리즘")
+        if st.button("🔗 별칭 등록", key="alias_add_btn", type="primary"):
+            if _new_canon.strip() and _new_aliases.strip():
+                _n = add_concept_aliases(
+                    _new_canon, [a for a in _new_aliases.split(",") if a.strip()])
+                st.session_state.pop("_alias_rev_cache", None)
+                save_persisted_data()
+                _flash(f"별칭 {_n}개를 '{clean_concept(_new_canon) or _new_canon.strip()}'에 등록했어요." if _n
+                       else "추가된 별칭이 없어요 (중복/자기 자신 제외).")
+                st.rerun()
+            else:
+                st.warning("대표 개념과 별칭을 모두 입력해주세요.")
+
+        if _alias_map:
+            st.markdown("**등록된 별칭**")
+            for _canon in sorted(_alias_map.keys()):
+                _aliases = _alias_map.get(_canon, [])
+                if not _aliases:
+                    continue
+                st.markdown(f"**{_canon}** <span style='color:#94a3b8'>· alias {len(_aliases)}</span>",
+                            unsafe_allow_html=True)
+                for _al in list(_aliases):
+                    _dc1, _dc2 = st.columns([5, 1])
+                    with _dc1:
+                        st.markdown(f"&nbsp;&nbsp;↳ `{_al}`", unsafe_allow_html=True)
+                    with _dc2:
+                        if st.button("삭제", key=f"alias_del_{_canon}_{_al}"):
+                            remove_concept_alias(_canon, _al)
+                            st.session_state.pop("_alias_rev_cache", None)
+                            save_persisted_data()
+                            st.rerun()
+        else:
+            st.caption("아직 등록된 별칭이 없어요.")
+
     with st.expander("✏️ 개념 수정 / 병합", expanded=False):
         _cc_list = [c if isinstance(c,dict) else {"name":str(c),"folder":"내 개념"} for c in st.session_state.get("pkm_custom_concepts",[]) if c]
         _cc_names = [c.get("name","") for c in _cc_list]
@@ -7414,15 +7540,19 @@ def render_project_page():
             _pn_ids = {n.get("id") for n in _proj_notes if n.get("id")}
             for _mn in _proj_notes:
                 for _mc in (_mn.get("concepts", []) or []):
+                    _mc = canonical_concept(_mc)
                     if _mc:
                         _map_freq[_mc] += 1
                         _map_w[_mc] += _recency_w(_mn.get("saved_at") or _mn.get("created_at"))
             for _lk in st.session_state.get("note_concept_links", []):
                 if _lk.get("note_id") in _pn_ids and _lk.get("concept"):
-                    _map_freq[_lk["concept"]] += 1
-                    _map_w[_lk["concept"]] += _recency_w(_lk.get("linked_at"))
+                    _lc = canonical_concept(_lk["concept"])
+                    if _lc:
+                        _map_freq[_lc] += 1
+                        _map_w[_lc] += _recency_w(_lk.get("linked_at"))
             for _mt in _proj_tasks:
                 for _mc in (_mt.get("linked_concepts", []) or []):
+                    _mc = canonical_concept(_mc)
                     if _mc:
                         _map_freq[_mc] += 1
                         _map_w[_mc] += _recency_w(_mt.get("updated_at") or _mt.get("created_at"))
@@ -8457,15 +8587,18 @@ if menu == "지식 아카이브":
         return _NOTE_TYPE_META.get(n.get("note_type", "unknown"), ("📝", "메모"))
 
     def _note_concepts(n):
-        """메모 concepts ∪ note_concept_links 의 개념 집합 (순서 보존)."""
+        """메모 concepts ∪ note_concept_links 의 개념 집합 (대표 개념 정규화, 순서 보존).
+        별칭은 대표 개념으로 합쳐져 관련 메모 추천·검색이 같은 개념군으로 인식됨."""
         out, seen = [], set()
-        for c in (n.get("concepts", []) or []):
-            if c and c not in seen:
-                seen.add(c); out.append(c)
         _nid = n.get("id")
+        _raw = list(n.get("concepts", []) or [])
         for lk in st.session_state.get("note_concept_links", []):
-            if lk.get("note_id") == _nid and lk.get("concept") and lk["concept"] not in seen:
-                seen.add(lk["concept"]); out.append(lk["concept"])
+            if lk.get("note_id") == _nid and lk.get("concept"):
+                _raw.append(lk["concept"])
+        for c in _raw:
+            cc = canonical_concept(c)
+            if cc and cc not in seen:
+                seen.add(cc); out.append(cc)
         return out
 
     def _note_one_line(n):
@@ -9916,6 +10049,11 @@ if menu == "데이터 관리":
                         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
                     })
                 st.session_state["pkm_custom_concepts"] = _new_cons
+
+                if alias_only:
+                    # 비파괴: 중앙 별칭 저장소에도 등록 → canonical_concept가 합산에 반영
+                    add_concept_aliases(rep, cands)
+                    st.session_state.pop("_alias_rev_cache", None)
 
                 if not alias_only:
                     # 2. note_concept_links: cands → rep (중복 제거)

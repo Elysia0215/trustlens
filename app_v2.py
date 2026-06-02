@@ -10963,19 +10963,30 @@ if menu == "엔터티 상세":
             _ep_aliases = _cdata.get("aliases", [])
             _ep_folder  = _cdata.get("folder", "")
 
-    st.markdown(f"""
-<div style="background:white;border:2px solid {_type_color};border-radius:14px;
-     padding:20px 24px 16px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,0.07);">
-  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
-    <span style="background:{_type_color};color:white;border-radius:8px;
-          padding:4px 12px;font-size:0.82rem;font-weight:700;">{_ep_type}</span>
-    {"<span style='background:#f1f5f9;border-radius:6px;padding:3px 10px;font-size:0.8rem;color:#64748b;'>" + _ep_folder + "</span>" if _ep_folder else ""}
-    {"<span style='background:#dcfce7;border-radius:6px;padding:3px 10px;font-size:0.8rem;color:#166534;'>" + _ep_status + "</span>" if _ep_status else ""}
-  </div>
-  <div style="font-size:1.7rem;font-weight:900;color:#0f172a;letter-spacing:-0.5px;">{_ep_name}</div>
-  {"<div style='color:#64748b;margin-top:6px;font-size:0.92rem;'>" + _ep_desc + "</div>" if _ep_desc else ""}
-  {"<div style='margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;'>" + "".join(f"<span style='background:#ede9fe;color:#6d28d9;border-radius:20px;padding:2px 10px;font-size:0.8rem;'>≈ {a}</span>" for a in _ep_aliases) + "</div>" if _ep_aliases else ""}
-</div>""", unsafe_allow_html=True)
+    # 칩/설명을 미리 문자열로 만들어 둠 (markdown이 4칸 들여쓰기를 코드블록으로 오인하는 문제 방지)
+    _folder_chip = (f"<span style='background:#f1f5f9;border-radius:6px;padding:3px 10px;"
+                    f"font-size:0.8rem;color:#64748b;'>{_ep_folder}</span>") if _ep_folder else ""
+    _status_chip = (f"<span style='background:#dcfce7;border-radius:6px;padding:3px 10px;"
+                    f"font-size:0.8rem;color:#166534;'>{_ep_status}</span>") if _ep_status else ""
+    _desc_html = (f"<div style='color:#64748b;margin-top:6px;font-size:0.92rem;'>{_ep_desc}</div>"
+                  if _ep_desc else "")
+    _alias_html = ""
+    if _ep_aliases:
+        _alias_html = ("<div style='margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;'>"
+                       + "".join(f"<span style='background:#ede9fe;color:#6d28d9;border-radius:20px;"
+                                 f"padding:2px 10px;font-size:0.8rem;'>≈ {a}</span>" for a in _ep_aliases)
+                       + "</div>")
+    _ep_card_html = (
+        f"<div style=\"background:white;border:2px solid {_type_color};border-radius:14px;"
+        f"padding:20px 24px 16px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,0.07);\">"
+        f"<div style=\"display:flex;align-items:center;gap:12px;margin-bottom:8px;\">"
+        f"<span style=\"background:{_type_color};color:white;border-radius:8px;"
+        f"padding:4px 12px;font-size:0.82rem;font-weight:700;\">{_ep_type}</span>"
+        f"{_folder_chip}{_status_chip}</div>"
+        f"<div style=\"font-size:1.7rem;font-weight:900;color:#0f172a;letter-spacing:-0.5px;\">{_ep_name}</div>"
+        f"{_desc_html}{_alias_html}</div>"
+    )
+    st.markdown(_ep_card_html, unsafe_allow_html=True)
 
     # ── 연결 데이터 수집 ──
     # 연결된 메모

@@ -76,6 +76,14 @@ def _clean_editor_records(records, text_fields=(), number_fields=None):
     return cleaned
 
 
+def _clean_editor_dataframe(df, text_columns=()):
+    next_df = df.copy()
+    for col in text_columns:
+        if col in next_df.columns:
+            next_df[col] = next_df[col].map(_clean_text_value)
+    return next_df
+
+
 def _clean_text_fields(items, fields):
     cleaned = []
     for item in items or []:
@@ -9358,7 +9366,7 @@ if menu == "데이터 관리":
 
         if _ent_sel == "📁 프로젝트":
             st.markdown("#### 📁 프로젝트")
-            st.caption("셀을 클릭하면 드롭다운이 펼쳐져요. 새 옵션은 아래 '옵션 관리'에서 추가하세요.")
+            st.caption("셀을 클릭하면 드롭다운이 펼쳐져요. 프로젝트명이 비어 있는 새 행은 저장할 때 자동으로 무시돼요.")
             _opt_proj_status = render_select_property_editor(
                 "프로젝트 상태", _OPT_PROJ_STATUS, key="proj_status",
                 help="프로젝트가 가질 수 있는 상태 목록")
@@ -9370,6 +9378,7 @@ if menu == "데이터 관리":
             _proj_cols = ["name","status","priority","description"]
             for _pc in _proj_cols:
                 if _pc not in _proj_df.columns: _proj_df[_pc] = ""
+            _proj_df = _clean_editor_dataframe(_proj_df, _proj_cols)
             _edited_proj = st.data_editor(
                 _proj_df[_proj_cols].rename(columns={"name":"프로젝트명","status":"상태","priority":"우선순위","description":"설명"}),
                 num_rows="dynamic", use_container_width=True, key="dm_proj_editor",
@@ -9403,7 +9412,7 @@ if menu == "데이터 관리":
                 "프로젝트", (_dm_proj_name_opts or [""]), key="note_project",
                 on_add=lambda v: create_project(v),
                 help="여기서 추가하면 실제 프로젝트로 생성되고 드롭다운에 바로 반영돼요")
-            _note_df = _pd.DataFrame(_note_rows)
+            _note_df = _clean_editor_dataframe(_pd.DataFrame(_note_rows), ["제목", "프로젝트", "섹션", "단계", "저장일"])
             _edited_note = st.data_editor(_note_df, num_rows="fixed", use_container_width=True, key="dm_note_editor",
                 column_config={
                     "점수": st.column_config.NumberColumn("점수", min_value=0, max_value=100),
@@ -9426,7 +9435,7 @@ if menu == "데이터 관리":
                            "상태": t.get("status",""), "우선순위": t.get("priority",""),
                            "마감일": t.get("due_date","")} for t in _dm_tasks]
             if not _task_rows: _task_rows = [{"작업명":"(없음)","프로젝트":"","상태":"","우선순위":"","마감일":""}]
-            st.caption("셀을 클릭하면 드롭다운이 펼쳐져요. 새 옵션은 아래 '옵션 관리'에서 추가하세요.")
+            st.caption("셀을 클릭하면 드롭다운이 펼쳐져요. 작업명이 비어 있는 새 행은 저장할 때 자동으로 무시돼요.")
             _opt_task_proj = render_select_property_editor(
                 "프로젝트", (_dm_proj_name_opts or [""]), key="task_project",
                 on_add=lambda v: create_project(v),
@@ -9437,7 +9446,7 @@ if menu == "데이터 관리":
             _opt_task_priority = render_select_property_editor(
                 "우선순위", _OPT_PRIORITY, key="priority",
                 help="모든 엔터티 공통 우선순위")
-            _task_df = _pd.DataFrame(_task_rows)
+            _task_df = _clean_editor_dataframe(_pd.DataFrame(_task_rows), ["작업명", "프로젝트", "상태", "우선순위", "마감일"])
             _edited_task = st.data_editor(_task_df, num_rows="dynamic", use_container_width=True, key="dm_task_editor",
                 column_config={
                     "프로젝트": st.column_config.SelectboxColumn("프로젝트", options=(_opt_task_proj or [""]), required=False, help="클릭하면 프로젝트 목록이 펼쳐져요"),
@@ -9483,7 +9492,7 @@ if menu == "데이터 관리":
                     "개념 폴더", _folder_opts, key="concept_folder",
                     on_add=lambda v: create_folder(v),
                     help="여기서 추가하면 폴더가 생성되고 드롭다운에 바로 반영돼요")
-                _my_con_df = _pd.DataFrame(_my_con_rows)
+                _my_con_df = _clean_editor_dataframe(_pd.DataFrame(_my_con_rows), ["개념명", "폴더", "설명"])
                 _edited_my = st.data_editor(
                     _my_con_df, num_rows="dynamic", use_container_width=True, key="dm_mycon_editor",
                     column_config={
@@ -9527,7 +9536,7 @@ if menu == "데이터 관리":
                                   "설명": "",
                                   "연결수": c.get("count",0)}
                                  for c in _ai_cons]
-                    _ai_df = _pd.DataFrame(_ai_rows)
+                    _ai_df = _clean_editor_dataframe(_pd.DataFrame(_ai_rows), ["개념명", "폴더", "설명"])
                     _edited_ai = st.data_editor(
                         _ai_df, num_rows="fixed", use_container_width=True, key="dm_aicon_editor",
                         disabled=["연결수"],
@@ -9591,7 +9600,7 @@ if menu == "데이터 관리":
                                "연결수": c.get("count",0)}
                               for c in _dm_concepts]
                 if not _all_rows: _all_rows = [{"개념명":"","폴더":"자동","설명":"","출처":"","연결수":0}]
-                _all_df = _pd.DataFrame(_all_rows)
+                _all_df = _clean_editor_dataframe(_pd.DataFrame(_all_rows), ["개념명", "폴더", "설명", "출처"])
                 _edited_all = st.data_editor(
                     _all_df, num_rows="dynamic", use_container_width=True, key="dm_allcon_editor",
                     disabled=["출처","연결수"],

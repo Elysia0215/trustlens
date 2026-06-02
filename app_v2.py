@@ -15764,6 +15764,78 @@ def render_home_universe():
                 st.rerun()
 
 
+# ── 🌍 세계 성장 — 이번 달 내 지식 세계가 얼마나 커졌나 (체감용 요약) ──
+def _wg_render():
+    _now_ym = datetime.now().strftime("%Y-%m")
+    def _ym_of(*vals):
+        for _v in vals:
+            _s = _clean_text_value(_v).strip()
+            if len(_s) >= 7:
+                return _s[:7]
+        return ""
+    _wg_specs = [
+        ("📝", "메모", st.session_state.get("archive_notes", []), ("saved_at", "created_at")),
+        ("🧠", "개념", st.session_state.get("pkm_custom_concepts", []), ("created_at",)),
+        ("🔗", "관계", st.session_state.get("relations", []), ("created_at",)),
+        ("✅", "작업", st.session_state.get("tasks", []), ("created_at",)),
+    ]
+    _wg_new = []
+    _tot_this = 0
+    _tot_before = 0
+    for _gem, _glbl, _items, _fields in _wg_specs:
+        _this = 0
+        _before = 0
+        for _it in _items:
+            if not isinstance(_it, dict):
+                continue
+            _m = _ym_of(*[_it.get(_f) for _f in _fields])
+            if not _m:
+                continue
+            if _m == _now_ym:
+                _this += 1
+            elif _m < _now_ym:
+                _before += 1
+        _wg_new.append((_gem, _glbl, _this))
+        _tot_this += _this
+        _tot_before += _before
+    _expand_pct = round(_tot_this / _tot_before * 100) if _tot_before else None
+
+    st.markdown(
+        "<div style='font-weight:800;font-size:1.05rem;margin:2px 0 8px;'>🌍 내 세계 성장</div>",
+        unsafe_allow_html=True)
+    if _tot_this == 0:
+        st.caption("이번 달 기록을 시작하면 여기서 내 세계가 커지는 게 보여요. ✍️ 위 오늘 한 줄부터!")
+        return
+    _chips = "".join(
+        f"<span style='display:inline-block;background:#eef2ff;color:#4338ca;"
+        f"border-radius:999px;padding:5px 12px;margin:3px 6px 3px 0;font-weight:800;font-size:0.92em;'>"
+        f"{_gem} {_glbl} +{_cnt}</span>"
+        for _gem, _glbl, _cnt in _wg_new if _cnt > 0
+    )
+    _pct_html = (
+        f"<div style='font-size:1.6rem;font-weight:900;color:#059669;'>+{_expand_pct}%</div>"
+        f"<div style='font-size:0.8rem;color:#64748b;'>세계 확장도</div>"
+        if _expand_pct is not None else
+        f"<div style='font-size:1.2rem;font-weight:900;color:#059669;'>첫 달 🌱</div>"
+        f"<div style='font-size:0.8rem;color:#64748b;'>세계의 시작</div>"
+    )
+    st.markdown(
+        "<div style='display:flex;align-items:center;gap:18px;background:#f8fafc;"
+        "border:1px solid #e2e8f0;border-radius:14px;padding:16px 20px;'>"
+        f"<div style='text-align:center;min-width:96px;'>{_pct_html}</div>"
+        f"<div style='flex:1;'><div style='font-size:0.85rem;color:#475569;margin-bottom:4px;'>"
+        f"이번 달({_now_ym}) 새로 쌓은 지식</div><div>{_chips or '—'}</div></div>"
+        "</div>",
+        unsafe_allow_html=True)
+    if _expand_pct is not None:
+        st.caption(f"💡 이번 달에만 지식 세계가 {_expand_pct}% 넓어졌어요. 아는 만큼 보여요.")
+
+try:
+    _wg_render()
+except Exception:
+    pass
+st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+
 try:
     render_home_universe()
 except Exception as _univ_err:

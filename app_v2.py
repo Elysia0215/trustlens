@@ -15295,6 +15295,7 @@ def render_home_universe():
                     f"🚀 '{_mv_dest}'(으)로 보내기 ({_mv_total}개)",
                     key=f"univ_move_go_{_sel_planet}",
                     use_container_width=True,
+                    type="primary",
                     disabled=_mv_total == 0,
                     help="선택한 항목의 프로젝트 값을 목적 행성으로 바꿔요.",
                 ):
@@ -15590,13 +15591,29 @@ def render_home_universe():
             _selected_total = (
                 len(_sel_note_ids) + len(_sel_task_ids) + len(_sel_concepts) + len(_sel_section_keys)
             )
+            # 🚀 전체 발사 — 대기 중인 모든 지식을 목적 행성으로 한 번에
+            if st.button(
+                f"🚀 전체 발사 ({_launch_total}개)",
+                key="univ_launch_all",
+                use_container_width=True,
+                help=f"발사 대기 중인 모든 항목을 '{_dest}'(으)로 한 번에 보내요.",
+            ):
+                _sel_note_ids = [n.get("id") for n in _loose_notes if n.get("id")]
+                _sel_task_ids = [t.get("id") for t in _loose_tasks if t.get("id")]
+                _sel_concepts = list(_loose_concepts)
+                _sel_section_keys = (
+                    [f"section:{_idx}" for _idx, _ in _loose_sections]
+                    + [f"step:{_idx}" for _idx, _ in _loose_steps]
+                )
+                st.session_state["_univ_launch_force"] = True
             if st.button(
                 f"🚀 선택 항목 발사 ({_selected_total}개)",
                 key="univ_launch_selected",
                 use_container_width=True,
+                type="primary",
                 disabled=_selected_total == 0,
                 help="선택한 항목의 프로젝트 값을 목적 행성으로 바꿔서 우주맵에 배정해요.",
-            ):
+            ) or st.session_state.pop("_univ_launch_force", False):
                 _now = datetime.now().strftime("%Y-%m-%d %H:%M")
                 for _n in st.session_state.get("archive_notes", []):
                     if _n.get("id") in _sel_note_ids:

@@ -14665,6 +14665,10 @@ def render_home_universe():
     """🪐 내 지식 우주 — 프로젝트=행성(메모·개념·작업 수에 비례한 크기). 홈 축약판."""
     _projs = [p for p in st.session_state.get("projects", []) if p.get("name")]
     if not _projs:
+        st.markdown(
+            "<div style='font-weight:800;font-size:1.05rem;'>🪐 내 지식 우주</div>",
+            unsafe_allow_html=True)
+        st.info("아직 행성이 없어요. 🪐 프로젝트를 만들면 첫 행성이 생겨요. (사이드바 📁 프로젝트)")
         return
     _notes = st.session_state.get("archive_notes", [])
     _tasks = st.session_state.get("tasks", [])
@@ -14701,7 +14705,7 @@ def render_home_universe():
         for _i, _pl in enumerate(_planets):
             _ang = 2 * _umath.pi * _i / max(1, _n)
             _xs.append(_umath.cos(_ang)); _ys.append(_umath.sin(_ang))
-            _sizes.append(22 + min(60, _pl["size"] * 3))
+            _sizes.append(max(26, min(80, 26 + _pl["size"] * 3)))  # clamp 26~80
             _texts.append(f"🪐 {_pl['name']}")
             _hov.append(f"{_pl['name']}<br>📝 {_pl['memos']} · 🧠 {_pl['concepts']} · ✅ {_pl['tasks']}")
         # 중심 항성
@@ -14770,7 +14774,7 @@ def render_home_universe():
         _uc = st.columns(min(4, len(_planets)) or 1)
         for _i, _pl in enumerate(_planets[:4]):
             with _uc[_i]:
-                if st.button(f"🪐 {_pl['name'][:10]}", key=f"home_univ_{_i}", use_container_width=True):
+                if st.button(f"🪐 {_pl['name'][:10]} 열기", key=f"home_univ_{_i}", use_container_width=True):
                     st.session_state["ep_jump_entity"] = _pl["name"]
                     st.query_params["page"] = "projects"
                     st.rerun()

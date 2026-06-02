@@ -15511,7 +15511,9 @@ def render_home_universe():
 
 render_home_universe()
 st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
-render_home_mini_knowledge_graph(_brain_theme_key)
+# 뇌지도는 우주맵과 역할이 겹쳐 홈에선 접어둠 (필요할 때만 펼침)
+with st.expander("🧠 전체 지식 뇌지도 (펼치기)", expanded=False):
+    render_home_mini_knowledge_graph(_brain_theme_key)
 st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 
 _home_lbl = get_home_theme_labels(_brain_theme_key)
@@ -15550,21 +15552,13 @@ def _task_lines():
         out.append(f"- {_home_lbl['task_icon']} {_t.get('title','')}{_due_str}")
     return out
 
-# 카드 스펙: (제목, 전체개수, 목록 markdown 라인, 비었을 때 안내)
+# 카드 스펙: 홈 간소화 — 최근 메모 + 실행 작업 2블록만 (개념·연구·프로젝트는 우주맵/각 메뉴에서)
 _recent_cards = [
     (_home_lbl["recent_memos"], len(_dash_notes),
      [f"- {_home_lbl['memo_icon']} {_n.get('title','제목 없음')}" for _n in _recent_notes[:5]],
      "저장된 메모가 없어요."),
-    (_home_lbl["recent_concepts"], len(_recent_con),
-     [f"- {_home_lbl['concept_icon']} {_c.get('name','')}" for _c in _recent_con[:5]],
-     "아직 추가한 개념이 없어요."),
-    (_home_lbl["recent_research"], len(_research),
-     [f"- {_home_lbl['research_icon']} {_r.get('title','')}" for _r in _research[:5]],
-     "아직 연구노트가 없어요. (AI 브레인스토밍 → AI 연구노트)"),
     (_home_lbl["recent_tasks"], len(_dash_open_tasks), _task_lines(),
      "미완료 작업이 없어요."),
-    (_home_lbl["recent_projects"], len(_dash_active_proj), _proj_lines(),
-     "진행중인 프로젝트가 없어요."),
 ]
 
 def _render_recent_card(_col, _title, _total, _lines, _empty):

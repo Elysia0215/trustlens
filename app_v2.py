@@ -14712,7 +14712,7 @@ def render_home_universe():
         st.markdown(
             "- 🌎 **중심** = 내 지식 전체 (항성)\n"
             "- 🪐 **행성** = 프로젝트 · **크기 = 메모+개념+작업 수** (쌓일수록 커져요)\n"
-            "- 🛰️ **행성 더블클릭**(또는 아래 목록 선택) → 🌙 위성(메모·개념·태그·작업)이 펼쳐져요\n"
+            "- 🛰️ **아래 행성 버튼**을 누르면 → 🌙 위성(메모·개념·태그·작업)이 펼쳐져요\n"
             "- 📝 메모는 클릭하면 상세로, 📁 버튼으로 프로젝트로 이동해요\n"
             "- 마우스를 행성에 올리면 📝/🧠/✅ 개수가 보여요")
     try:
@@ -14741,52 +14741,16 @@ def render_home_universe():
             marker=dict(size=_sizes, color=_colors, opacity=0.9,
                         line=dict(width=_lines, color="#fff")),
             hovertext=_hov, hoverinfo="text", showlegend=False))
+        # 지도는 보기 전용(드래그/더블클릭 줌 비활성) — 선택은 아래 버튼으로 (확실/충돌 없음)
         _fig.update_layout(height=300, margin=dict(l=10, r=10, t=10, b=10),
-                           xaxis=dict(visible=False, range=[-1.6, 1.6]),
-                           yaxis=dict(visible=False, range=[-1.6, 1.6]),
+                           dragmode=False,
+                           xaxis=dict(visible=False, fixedrange=True, range=[-1.6, 1.6]),
+                           yaxis=dict(visible=False, fixedrange=True, range=[-1.6, 1.6]),
                            plot_bgcolor="#0f172a", paper_bgcolor="#0f172a",
                            font=dict(color="#e2e8f0"))
-        # 행성 클릭(plotly on_select) → 즉시 펼침. 클릭 변화시에만 selectbox 동기화(충돌 방지)
-        _ev = st.plotly_chart(_fig, use_container_width=True, on_select="rerun",
-                              key="home_univ_chart", config={"displayModeBar": False})
-        _clicked = None
-        try:
-            _selobj = getattr(_ev, "selection", None)
-            if _selobj is None and isinstance(_ev, dict):
-                _selobj = _ev.get("selection")
-            _pts = (_selobj or {}).get("points", []) or []
-            # 1) 좌표 기반 매칭 (curve_number/키 이름에 의존 X, 중심(0,0) 제외)
-            for _pt in _pts:
-                _px, _py = _pt.get("x"), _pt.get("y")
-                if _px is None:
-                    continue
-                if abs(_px) < 0.05 and abs(_py or 0) < 0.05:
-                    continue  # 중심 항성
-                _best, _bd = None, 0.2
-                for _pp_i in range(len(_planets)):
-                    _d = abs(_xs[_pp_i] - _px) + abs(_ys[_pp_i] - (_py or 0))
-                    if _d < _bd:
-                        _bd, _best = _d, _pp_i
-                if _best is not None:
-                    _clicked = _planets[_best]["name"]
-                    break
-            # 2) 폴백: 인덱스 기반
-            if _clicked is None:
-                for _pt in _pts:
-                    _cn = _pt.get("curve_number", _pt.get("curveNumber"))
-                    if _cn == 0:
-                        continue
-                    _ix = _pt.get("point_number", _pt.get("point_index",
-                          _pt.get("pointNumber", _pt.get("pointIndex"))))
-                    if _ix is not None and _ix < len(_planets):
-                        _clicked = _planets[_ix]["name"]
-                        break
-        except Exception:
-            _clicked = None
-        if _clicked and st.session_state.get("home_univ_pick") != _clicked:
-            st.session_state["home_univ_pick"] = _clicked
-            st.rerun()  # 즉시 다시 그려 지도 강조 + 위성 펼침
-        st.caption("🛰️ 행성을 **더블클릭**(또는 아래 버튼으로 선택)하면 위성이 펼쳐져요.")
+        st.plotly_chart(_fig, use_container_width=True,
+                        config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False})
+        st.caption("🛰️ 아래 버튼으로 행성을 선택하면 위성이 펼쳐져요. (지도는 보기 전용)")
     except Exception:
         for _pl in _planets:
             st.markdown(f"🪐 **{_pl['name']}** · 📝 {_pl['memos']} 🧠 {_pl['concepts']} ✅ {_pl['tasks']}")

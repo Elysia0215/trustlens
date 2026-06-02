@@ -15806,18 +15806,15 @@ def _wg_render():
             if len(_s) >= 7:
                 return _s[:7]
         return ""
-    _wg_specs = [
-        ("📝", "메모", st.session_state.get("archive_notes", []), ("saved_at", "created_at")),
-        ("🧠", "개념", st.session_state.get("pkm_custom_concepts", []), ("created_at",)),
-        ("🔗", "관계", st.session_state.get("relations", []), ("created_at",)),
-        ("✅", "작업", st.session_state.get("tasks", []), ("created_at",)),
-    ]
-    _wg_new = []
-    _tot_this = 0
-    _tot_before = 0
-    for _gem, _glbl, _items, _fields in _wg_specs:
-        _this = 0
-        _before = 0
+    _notes = st.session_state.get("archive_notes", [])
+    _concepts = [c for c in st.session_state.get("pkm_custom_concepts", []) if isinstance(c, dict)]
+    _rels = st.session_state.get("relations", [])
+    _tasks = st.session_state.get("tasks", [])
+    _projs = st.session_state.get("projects", [])
+    _links = st.session_state.get("note_concept_links", [])
+
+    def _cnt_this_before(_items, _fields):
+        _this = _before = 0
         for _it in _items:
             if not isinstance(_it, dict):
                 continue
@@ -15828,40 +15825,102 @@ def _wg_render():
                 _this += 1
             elif _m < _now_ym:
                 _before += 1
-        _wg_new.append((_gem, _glbl, _this))
-        _tot_this += _this
-        _tot_before += _before
+        return _this, _before
+
+    # 동사형 라벨로 — '발견/탄생/연결/추가'
+    _new_proj, _bef_proj = _cnt_this_before(_projs, ("created_at",))
+    _new_note, _bef_note = _cnt_this_before(_notes, ("saved_at", "created_at"))
+    _new_concept, _bef_concept = _cnt_this_before(_concepts, ("created_at",))
+    _new_rel, _bef_rel = _cnt_this_before(_rels, ("created_at",))
+    _tot_this = _new_proj + _new_note + _new_concept + _new_rel
+    _tot_before = _bef_proj + _bef_note + _bef_concept + _bef_rel
     _expand_pct = round(_tot_this / _tot_before * 100) if _tot_before else None
 
     st.markdown(
-        "<div style='font-weight:800;font-size:1.05rem;margin:2px 0 8px;'>🌍 내 세계 성장</div>",
+        "<div style='font-weight:800;font-size:1.05rem;margin:2px 0 8px;'>🌍 세계 성장 리포트</div>",
         unsafe_allow_html=True)
     if _tot_this == 0:
         st.caption("이번 달 기록을 시작하면 여기서 내 세계가 커지는 게 보여요. ✍️ 위 오늘 한 줄부터!")
         return
-    _chips = "".join(
-        f"<span style='display:inline-block;background:#eef2ff;color:#4338ca;"
-        f"border-radius:999px;padding:5px 12px;margin:3px 6px 3px 0;font-weight:800;font-size:0.92em;'>"
-        f"{_gem} {_glbl} +{_cnt}</span>"
-        for _gem, _glbl, _cnt in _wg_new if _cnt > 0
+
+    # 이번 달 성장 라인 (동사형)
+    _lines_data = [
+        ("🪐", f"새로운 행성 {_new_proj}개 발견", _new_proj),
+        ("🌙", f"메모 {_new_note}개 기록", _new_note),
+        ("🧠", f"개념 {_new_concept}개 탄생", _new_concept),
+        ("🔗", f"관계 {_new_rel}개 연결", _new_rel),
+    ]
+    _grow_lines = "".join(
+        f"<div style='font-size:0.95em;color:#1e293b;margin:2px 0;'>{_em} {_txt}</div>"
+        for _em, _txt, _c in _lines_data if _c > 0
     )
     _pct_html = (
-        f"<div style='font-size:1.6rem;font-weight:900;color:#059669;'>+{_expand_pct}%</div>"
+        f"<div style='font-size:1.7rem;font-weight:900;color:#059669;'>+{_expand_pct}%</div>"
         f"<div style='font-size:0.8rem;color:#64748b;'>세계 확장도</div>"
         if _expand_pct is not None else
         f"<div style='font-size:1.2rem;font-weight:900;color:#059669;'>첫 달 🌱</div>"
         f"<div style='font-size:0.8rem;color:#64748b;'>세계의 시작</div>"
     )
     st.markdown(
-        "<div style='display:flex;align-items:center;gap:18px;background:#f8fafc;"
-        "border:1px solid #e2e8f0;border-radius:14px;padding:16px 20px;'>"
-        f"<div style='text-align:center;min-width:96px;'>{_pct_html}</div>"
-        f"<div style='flex:1;'><div style='font-size:0.85rem;color:#475569;margin-bottom:4px;'>"
-        f"이번 달({_now_ym}) 새로 쌓은 지식</div><div>{_chips or '—'}</div></div>"
+        "<div style='display:flex;align-items:center;gap:20px;background:linear-gradient(135deg,#f0f9ff,#faf5ff);"
+        "border:1px solid #e2e8f0;border-radius:14px;padding:16px 22px;'>"
+        f"<div style='text-align:center;min-width:100px;'>{_pct_html}</div>"
+        f"<div style='flex:1;'><div style='font-size:0.85rem;color:#475569;margin-bottom:6px;font-weight:700;'>"
+        f"이번 달({_now_ym}) 내 세계의 변화</div>{_grow_lines}</div>"
         "</div>",
         unsafe_allow_html=True)
-    if _expand_pct is not None:
-        st.caption(f"💡 이번 달에만 지식 세계가 {_expand_pct}% 넓어졌어요. 아는 만큼 보여요.")
+
+    # ── 인사이트: 가장 많이 성장한 영역 / 가장 많이 연결된 개념 ──
+    _proj_growth = {}
+    for _n in _notes:
+        if _ym_of(_n.get("saved_at"), _n.get("created_at")) == _now_ym:
+            _p = _clean_text_value(_n.get("project")).strip()
+            if _p:
+                _proj_growth[_p] = _proj_growth.get(_p, 0) + 1
+    for _t in _tasks:
+        if _ym_of(_t.get("created_at")) == _now_ym:
+            _p = _clean_text_value(_t.get("project")).strip()
+            if _p:
+                _proj_growth[_p] = _proj_growth.get(_p, 0) + 1
+    for _c in _concepts:
+        if _ym_of(_c.get("created_at")) == _now_ym:
+            _p = _clean_text_value(_c.get("project")).strip()
+            if _p:
+                _proj_growth[_p] = _proj_growth.get(_p, 0) + 1
+    _top_proj = max(_proj_growth.items(), key=lambda x: x[1]) if _proj_growth else None
+
+    # 이번 달 가장 많이 연결된 개념 (note_concept_links 기준)
+    _note_month = {
+        _n.get("id"): _ym_of(_n.get("saved_at"), _n.get("created_at")) for _n in _notes
+    }
+    _concept_links = {}
+    for _l in _links:
+        _cn = _clean_text_value(_l.get("concept")).strip()
+        _lm = _ym_of(_l.get("linked_at"), _l.get("created_at")) or _note_month.get(_l.get("note_id"), "")
+        if _cn and _lm == _now_ym:
+            _concept_links[_cn] = _concept_links.get(_cn, 0) + 1
+    _top_concept = max(_concept_links.items(), key=lambda x: x[1]) if _concept_links else None
+
+    if _top_proj or _top_concept:
+        _ins1, _ins2 = st.columns(2)
+        with _ins1:
+            if _top_proj:
+                st.markdown(
+                    f"<div style='font-size:0.8rem;color:#64748b;'>📈 가장 많이 성장한 영역</div>"
+                    f"<div style='font-weight:800;color:#7c3aed;'>🪐 {_top_proj[0]} "
+                    f"<span style='color:#94a3b8;font-weight:600;'>(+{_top_proj[1]})</span></div>",
+                    unsafe_allow_html=True)
+        with _ins2:
+            if _top_concept:
+                st.markdown(
+                    f"<div style='font-size:0.8rem;color:#64748b;'>🧠 가장 많이 연결된 개념</div>"
+                    f"<div style='font-weight:800;color:#0ea5e9;'>{_top_concept[0]} "
+                    f"<span style='color:#94a3b8;font-weight:600;'>({_top_concept[1]}개 연결)</span></div>",
+                    unsafe_allow_html=True)
+        if _top_concept and _top_concept[1] >= 2:
+            st.caption(f"💡 ‘{_top_concept[0]}’ 개념이 이번 달 {_top_concept[1]}개의 새로운 연결을 만들었어요. 아는 만큼 보여요.")
+        elif _expand_pct is not None:
+            st.caption(f"💡 이번 달에만 지식 세계가 {_expand_pct}% 넓어졌어요. 아는 만큼 보여요.")
 
 try:
     _wg_render()

@@ -5118,9 +5118,19 @@ def render_knowledge_map_page():
 
         st.divider()
 
-    # ── 지식맵 IA: 기본 4뷰를 앞에, 그 외(고급)는 뒤에 ──
-    # 사용자가 매일 보는 건 노트/개념/관계/성장. 본문은 그대로 두고 탭 순서·이름만 정리.
-    st.caption("🧭 **기본**: 📚 노트 · 🧠 개념 · 🕸 관계 · 📈 성장  |  그 뒤는 **고급 뷰**예요.")
+    # ── 지식맵 IA: 기본 4뷰 + 고급 토글 (기능 삭제 없이 고급 탭은 CSS로 숨김) ──
+    _km_adv = st.toggle(
+        "🔬 고급 보기 (전체 뷰)", value=False, key="km_adv_view",
+        help="기본은 노트·개념·관계·성장 4개. 켜면 노션보드·태그맵·지식페이지·브레인스토밍·프로젝트맵·타임라인도 보여요.")
+    st.caption("🧭 **기본**: 📚 내 노트 볼까? · 🧠 내 개념 볼까? · 🕸 연결 관계 볼까? · 📈 성장 흐름 볼까?")
+    if not _km_adv:
+        # 기본 모드: 5번째 이후(고급) 탭 버튼만 숨김 — 탭/본문은 그대로 생성(기능 삭제 없음)
+        st.markdown(
+            """<style>
+            div[data-testid="stTabs"] div[data-baseweb="tab-list"] > button:nth-child(n+5){display:none !important;}
+            </style>""",
+            unsafe_allow_html=True)
+    # 기본 4뷰를 앞에, 고급 6뷰는 뒤에 (본문 코드는 그대로 두고 순서·이름만 정리)
     (tab1, tab5, tab8, tab9,
      tab2, tab3, tab4, tab6, tab7, tab10) = st.tabs([
         "📚 노트", "🧠 개념", "🕸 관계", "📈 성장",

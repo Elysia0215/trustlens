@@ -14009,6 +14009,32 @@ with _th_c2:
         st.session_state["brain_theme"] = _sel_theme
         save_persisted_data(); _flash(f"테마를 «{_theme_labels[_sel_theme]}»로 바꿨어요.", "🎨"); st.rerun()
 
+# ── ✍️ 오늘 한 줄 — 홈 최상단 빠른 입력 (열자마자 기록, Daily Note 자동 생성) ──
+from datetime import date as _qc_date_cls
+_qc_today = _qc_date_cls.today().strftime("%Y-%m-%d")
+with st.container(border=True):
+    _qc_c1, _qc_c2 = st.columns([5, 1])
+    with _qc_c1:
+        _qc_text = st.text_input(
+            "오늘 한 줄", key="home_quick_capture", label_visibility="collapsed",
+            placeholder="✍️ 오늘 뭐 했어? — 예: 역전파 공부했다 / 팀플 회의 정리 (Enter 후 저장)")
+    with _qc_c2:
+        _qc_save = st.button("저장", key="home_quick_save", type="primary", use_container_width=True)
+    if _qc_save and _qc_text.strip():
+        _qc_concepts = extract_local_concepts(_qc_text, ["데일리노트", _qc_today], limit=8)
+        _qcm = create_memo(f"{_qc_today} 데일리 노트", note=_qc_text.strip(),
+                           project="기본 프로젝트", section="데일리노트",
+                           tags=["데일리노트", _qc_today], concepts=_qc_concepts)
+        _qcm["saved_at"] = f"{_qc_today} {datetime.now().strftime('%H:%M')}"
+        _qcm["note_type"] = "daily_note"
+        _qcm["one_line_summary"] = _qc_text.strip()[:120]
+        save_persisted_data()
+        st.session_state.pop("home_quick_capture", None)
+        _flash(f"오늘 노트에 저장했어요! 개념 {len(_qcm.get('concepts', []))}개 자동 연결. 📅 데일리 노트에서 이어 쓸 수 있어요.")
+        st.rerun()
+    elif _qc_save:
+        st.warning("한 줄 적어주세요.")
+
 st.markdown(
     f"""
     <div style="background:{_THM['gradient']};

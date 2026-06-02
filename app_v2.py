@@ -15513,7 +15513,8 @@ def render_home_universe():
                         f"<b>{_name}</b><br><span style='color:#7c3aed;font-weight:900'>{_count}개</span></div>",
                         unsafe_allow_html=True)
         if _launch_total == 0:
-            st.success("발사 대기 중인 지식이 없어요. 모든 지식이 행성 궤도에 올라가 있어요.")
+            st.success("🌍 모든 지식이 제자리를 찾았어요.")
+            st.caption("발사 대기 중인 메모나 개념이 없습니다.")
         else:
             _dest = st.selectbox(
                 "목적 행성",

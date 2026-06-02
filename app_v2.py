@@ -346,6 +346,7 @@ def save_persisted_data():
         "tasks": st.session_state.get("tasks", []),
         "note_concept_links": st.session_state.get("note_concept_links", []),
         "hidden_concepts": st.session_state.get("hidden_concepts", []),
+        "merge_dismissed": st.session_state.get("merge_dismissed", []),
         "custom_select_options": st.session_state.get("custom_select_options", {}),
         "saved_searches": st.session_state.get("saved_searches", []),
         "brain_theme": st.session_state.get("brain_theme", "default"),
@@ -1225,6 +1226,7 @@ def init_state():
         "tasks": persisted.get("tasks", []),
         "note_concept_links": persisted.get("note_concept_links", []),
         "hidden_concepts": persisted.get("hidden_concepts", []),
+        "merge_dismissed": persisted.get("merge_dismissed", []),
         "custom_select_options": persisted.get("custom_select_options", {}),
         "saved_searches": persisted.get("saved_searches", []),
         "brain_theme": persisted.get("brain_theme", "default"),
@@ -1553,6 +1555,69 @@ def task_concept_chips(task, limit=6):
     if len(cons) > limit:
         chips += f" +{len(cons) - limit}"
     return chips
+
+
+# ── 개념 병합 안전화 헬퍼 ───────────────────────────────────
+# 조사/어미: 긴 것부터 (짧은 것 먼저 자르면 오인식)
+_CONCEPT_JOSA = ["이네는", "에서는", "으로는", "에게서", "이라는", "라는",
+                 "에서", "으로", "에게", "한테", "이네", "들이", "들의", "들",
+                 "은", "는", "이", "가", "을", "를", "에", "로", "와", "과",
+                 "도", "만", "의", "랑", "께", "네"]
+# 너무 일반적인 단어 (병합 후보에서 🔴 비추천)
+_GENERIC_CONCEPTS = {
+    "사회", "정보", "제목", "최근", "회원", "여기", "내용", "설명", "자료",
+    "관련", "주제", "오늘", "경우", "사람", "문제", "방법", "사용", "생각",
+    "이번", "대상", "결과", "시작", "진행", "상황", "부분", "정도", "다음",
+}
+
+
+def normalize_concept_token(name):
+    """개념명에서 조사/어미를 제거한 정규화 값. (남는 길이가 2자 미만이면 원본 유지)"""
+    s = str(name).strip()
+    for _suf in _CONCEPT_JOSA:
+        if s.endswith(_suf) and len(s) - len(_suf) >= 2:
+            return s[: -len(_suf)]
+    return s
+
+
+def grade_merge_pair(a, b, ratio):
+    """병합 후보 쌍 (a, b)을 등급화. 반환: (grade, reason)
+    grade ∈ {"green","yellow","red"}. 보수적으로 동작(애매하면 낮은 등급)."""
+    a, b = str(a).strip(), str(b).strip()
+    na, nb = normalize_concept_token(a), normalize_concept_token(b)
+    # 너무 일반적인 단어
+    if a in _GENERIC_CONCEPTS or b in _GENERIC_CONCEPTS or na in _GENERIC_CONCEPTS or nb in _GENERIC_CONCEPTS:
+        return ("red", "너무 일반적인 단어라 병합 비추천")
+    if a == b:
+        return ("green", "동일한 개념")
+    # 조사/어미만 다른 경우 → 거의 같은 개념
+    if na == nb:
+        return ("green", "조사/어미 제거 후 일치")
+    # 접두/접미 포함 → 하위개념일 수 있어 검토 필요
+    if (na in nb or nb in na) and min(len(na), len(nb)) >= 2:
+        return ("yellow", "접두/접미 포함 — 하위개념일 수 있어요")
+    # 문자열 유사도
+    if ratio >= 0.9:
+        return ("green", "문자열 유사도 매우 높음")
+    if ratio >= 0.75:
+        return ("yellow", "문자열 유사도 높음")
+    return ("red", "의미 차이가 클 수 있음")
+
+
+def concept_impact_counts(cands):
+    """병합 대상 개념들이 연결된 메모/작업/관계/엔터티 수를 센다."""
+    cands_set = set(cands)
+    _note_ids = {l.get("note_id") for l in st.session_state.get("note_concept_links", [])
+                 if l.get("concept") in cands_set}
+    _notes = sum(1 for n in st.session_state.get("archive_notes", [])
+                 if n.get("id") in _note_ids
+                 or any(c in cands_set for c in (n.get("concepts", []) or [])))
+    _tasks = sum(1 for t in st.session_state.get("tasks", [])
+                 if any(c in cands_set for c in (t.get("linked_concepts", []) or [])))
+    _rels = sum(1 for r in st.session_state.get("relations", [])
+                if r.get("source_name") in cands_set or r.get("target_name") in cands_set)
+    _ents = sum(1 for e in st.session_state.get("entities", []) if e.get("name") in cands_set)
+    return {"notes": _notes, "tasks": _tasks, "rels": _rels, "ents": _ents}
 
 
 def normalize_date_str(value) -> str:
@@ -9207,133 +9272,211 @@ if menu == "데이터 관리":
             # ────────────────────────────────────────
             # 병합 실행 헬퍼 (공통) — 호출보다 먼저 정의
             # ────────────────────────────────────────
-            def _do_merge6(rep: str, cands: list):
-                """rep로 cands를 병합 + aliases 저장."""
-                # 1. pkm_custom_concepts: cands 제거 + rep에 aliases 추가
+            def _do_merge6(rep: str, cands: list, alias_only: bool = False):
+                """rep로 cands를 병합. alias_only=True면 비파괴(별칭만 기록).
+                연결 데이터(메모 concepts, 작업 linked_concepts, 관계, 엔터티,
+                폴더맵, note_concept_links)를 함께 업데이트하고 영향 수를 반환."""
+                cands = [c for c in cands if c and c != rep]
+                _cset = set(cands)
+                _impact = {"notes": 0, "tasks": 0, "rels": 0, "ents": 0}
+
+                # 1. pkm_custom_concepts: rep에 aliases 추가 (+ 완전병합 시 cands 제거)
                 _new_cons = []
                 for _c6x in st.session_state.get("pkm_custom_concepts", []):
                     _cn6x = _c6x.get("name") if isinstance(_c6x, dict) else str(_c6x)
                     if _cn6x == rep:
                         if isinstance(_c6x, dict):
-                            _aliases6 = list(set(_c6x.get("aliases", []) + cands))
-                            _c6x["aliases"] = _aliases6
+                            _c6x["aliases"] = list(dict.fromkeys((_c6x.get("aliases", []) or []) + cands))
                         _new_cons.append(_c6x)
-                    elif _cn6x not in cands:
+                    elif _cn6x in _cset and not alias_only:
+                        continue  # 완전병합: cand 개념 제거
+                    else:
                         _new_cons.append(_c6x)
-                # rep이 custom_concepts에 없으면 새로 추가
                 if not any((c.get("name") if isinstance(c, dict) else str(c)) == rep for c in _new_cons):
                     _new_cons.append({
-                        "name": rep,
-                        "folder": "",
-                        "description": "",
+                        "name": rep, "folder": "", "description": "",
                         "aliases": cands,
                         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
                     })
                 st.session_state["pkm_custom_concepts"] = _new_cons
 
-                # 2. note_concept_links: cands → rep
-                for _lk6x in st.session_state.get("note_concept_links", []):
-                    if _lk6x.get("concept") in cands:
-                        _lk6x["concept"] = rep
+                if not alias_only:
+                    # 2. note_concept_links: cands → rep (중복 제거)
+                    _seen_links = set()
+                    _new_links = []
+                    for _lk6x in st.session_state.get("note_concept_links", []):
+                        if _lk6x.get("concept") in _cset:
+                            _lk6x["concept"] = rep
+                        _sig = (_lk6x.get("note_id"), _lk6x.get("concept"))
+                        if _sig not in _seen_links:
+                            _seen_links.add(_sig)
+                            _new_links.append(_lk6x)
+                    st.session_state["note_concept_links"] = _new_links
 
-                # 3. relations: source_name / target_name cands → rep
-                for _r6x in st.session_state.get("relations", []):
-                    if _r6x.get("source_name") in cands:
-                        _r6x["source_name"] = rep
-                    if _r6x.get("target_name") in cands:
-                        _r6x["target_name"] = rep
+                    # 3. 메모 concepts 필드 업데이트
+                    for _n6x in st.session_state.get("archive_notes", []):
+                        _ncs = _n6x.get("concepts", []) or []
+                        if any(c in _cset for c in _ncs):
+                            _n6x["concepts"] = list(dict.fromkeys(
+                                [rep if c in _cset else c for c in _ncs]))
+                            _impact["notes"] += 1
 
-                # 4. entities: cands → rep (name 변경, 중복 제거)
-                _seen_ents = set()
-                _new_ents = []
-                for _e6x in st.session_state.get("entities", []):
-                    _en6x = _e6x.get("name", "")
-                    if _en6x in cands:
-                        _e6x["name"] = rep
-                    if _e6x.get("name") not in _seen_ents:
-                        _seen_ents.add(_e6x.get("name"))
-                        _new_ents.append(_e6x)
-                st.session_state["entities"] = _new_ents
+                    # 4. 작업 linked_concepts 업데이트
+                    for _t6x in st.session_state.get("tasks", []):
+                        _lcs = _t6x.get("linked_concepts", []) or []
+                        if any(c in _cset for c in _lcs):
+                            _t6x["linked_concepts"] = list(dict.fromkeys(
+                                [rep if c in _cset else c for c in _lcs]))
+                            _impact["tasks"] += 1
 
-                # 5. hidden_concepts: cands 숨기기
-                _h6 = list(set(st.session_state.get("hidden_concepts", [])) | set(cands))
-                st.session_state["hidden_concepts"] = _h6
+                    # 5. relations: source/target cands → rep
+                    for _r6x in st.session_state.get("relations", []):
+                        _changed = False
+                        if _r6x.get("source_name") in _cset:
+                            _r6x["source_name"] = rep; _changed = True
+                        if _r6x.get("target_name") in _cset:
+                            _r6x["target_name"] = rep; _changed = True
+                        if _changed:
+                            _impact["rels"] += 1
+
+                    # 6. entities: cands → rep (중복 제거)
+                    _seen_ents = set()
+                    _new_ents = []
+                    for _e6x in st.session_state.get("entities", []):
+                        if _e6x.get("name", "") in _cset:
+                            _e6x["name"] = rep
+                            _impact["ents"] += 1
+                        if _e6x.get("name") not in _seen_ents:
+                            _seen_ents.add(_e6x.get("name"))
+                            _new_ents.append(_e6x)
+                    st.session_state["entities"] = _new_ents
+
+                    # 7. pkm_concept_folders: cand 키 제거 (rep 폴더 유지)
+                    _folders = st.session_state.get("pkm_concept_folders", {})
+                    if isinstance(_folders, dict):
+                        for _ck in cands:
+                            _folders.pop(_ck, None)
+
+                    # 8. hidden_concepts: cands 숨기기
+                    st.session_state["hidden_concepts"] = list(
+                        set(st.session_state.get("hidden_concepts", [])) | _cset)
+
+                    # 메모 연결 수 재계산 (concepts 외 note_concept_links 기준 포함)
+                    _impact["notes"] = max(_impact["notes"],
+                        len({l.get("note_id") for l in _new_links if l.get("concept") == rep}))
 
                 save_persisted_data()
-                _flash(f"✅ {len(cands)}개 개념이 **{rep}**으로 병합됐어요! 별칭으로 보존: {', '.join(cands)}")
+                if alias_only:
+                    _flash(f"🔗 {rep}에 별칭 {len(cands)}개를 등록했어요 (개념은 그대로 유지).")
+                else:
+                    _flash(f"✅ {len(cands)}개 개념을 **{rep}**으로 병합했어요. "
+                           f"메모 {_impact['notes']}개·작업 {_impact['tasks']}개가 업데이트됐어요.")
                 st.rerun()
 
             # ────────────────────────────────────────
             # 자동 유사도 탐지
             # ────────────────────────────────────────
             if _mg6_mode == "🤖 자동 유사도 탐지":
-                st.markdown("**유사도 기준 설정**")
-                _mg6_thresh = st.slider("최소 유사도 (%)", 50, 95, 70, 5, key="mg6_thresh") / 100.0
+                st.info("자동으로 병합하지 않아요. 후보를 등급(🟢🟡🔴)·이유와 함께 제안하면, "
+                        "**직접 체크한 후보만** 병합돼요. 데이터 손실이 없도록 보수적으로 동작합니다.")
+                _gc1, _gc2 = st.columns([3, 2])
+                with _gc1:
+                    _mg6_thresh = st.slider("최소 문자열 유사도 (%)", 40, 95, 60, 5, key="mg6_thresh") / 100.0
+                with _gc2:
+                    _show_red = st.checkbox("🔴 비추천 후보도 표시", value=False, key="mg6_show_red")
 
-                # 유사 쌍 탐지
-                _sim_groups = {}  # base_concept → [similar_concepts with score]
-                _visited = set()
+                # 제외(다시 추천 안 함) 저장소
+                _dismissed = set(st.session_state.setdefault("merge_dismissed", []))
+
+                # 후보 쌍 탐지 (조사 정규화 + 유사도)
                 _sorted_cons = sorted(_all_con_names_full)
+                _pairs6 = []  # (a, b, ratio, grade, reason)
                 for _i6, _ca in enumerate(_sorted_cons):
-                    if _ca in _visited:
-                        continue
-                    _group = []
-                    for _cb in _sorted_cons[_i6+1:]:
-                        if _cb in _visited:
+                    for _cb in _sorted_cons[_i6 + 1:]:
+                        _pair_key = "||".join(sorted([_ca, _cb]))
+                        if _pair_key in _dismissed:
                             continue
+                        _na, _nb = normalize_concept_token(_ca), normalize_concept_token(_cb)
                         _score = _dfl.SequenceMatcher(None, _ca.lower(), _cb.lower()).ratio()
-                        if _score >= _mg6_thresh:
-                            _group.append((_cb, round(_score * 100)))
-                    if _group:
-                        _sim_groups[_ca] = _group
-                        for _cb2, _ in _group:
-                            _visited.add(_cb2)
-                    _visited.add(_ca)
+                        _norm_score = _dfl.SequenceMatcher(None, _na.lower(), _nb.lower()).ratio()
+                        _best = max(_score, _norm_score)
+                        # 조사 정규화 일치는 임계값과 무관하게 후보로
+                        if _best < _mg6_thresh and _na != _nb:
+                            continue
+                        _grade, _reason = grade_merge_pair(_ca, _cb, _best)
+                        _pairs6.append((_ca, _cb, round(_best * 100), _grade, _reason))
 
-                if not _sim_groups:
-                    st.success(f"✅ 유사도 {int(_mg6_thresh*100)}% 이상인 중복 개념이 없어요! 개념 구조가 깔끔해요.")
+                _grade_rank = {"green": 0, "yellow": 1, "red": 2}
+                _pairs6.sort(key=lambda p: (_grade_rank[p[3]], -p[2]))
+                if not _show_red:
+                    _pairs6 = [p for p in _pairs6 if p[3] != "red"]
+
+                _grade_meta = {
+                    "green": ("🟢", "추천", "#16a34a"),
+                    "yellow": ("🟡", "검토 필요", "#d97706"),
+                    "red": ("🔴", "비추천", "#dc2626"),
+                }
+
+                if not _pairs6:
+                    st.success("✅ 지금 기준으로 추천할 병합 후보가 없어요. 개념 구조가 깔끔해요.")
                 else:
-                    st.warning(f"🔍 {len(_sim_groups)}개 유사 그룹 발견")
+                    _gn = sum(1 for p in _pairs6 if p[3] == "green")
+                    _yn = sum(1 for p in _pairs6 if p[3] == "yellow")
+                    _rn = sum(1 for p in _pairs6 if p[3] == "red")
+                    st.caption(f"후보 {len(_pairs6)}개 · 🟢 {_gn} · 🟡 {_yn}" + (f" · 🔴 {_rn}" if _show_red else ""))
 
-                    for _base6, _sims6 in _sim_groups.items():
-                        _sim_names = [s[0] for s in _sims6]
-                        with st.expander(f"📌 **{_base6}** — 유사 개념 {len(_sims6)}개", expanded=True):
-                            # 유사도 표시
-                            _sc1, _sc2, _sc3 = st.columns([2, 1, 1])
-                            with _sc1:
-                                st.markdown("**유사 개념**")
-                                for _sn6, _ss6 in _sims6:
-                                    _bar_color = "#22c55e" if _ss6 >= 85 else "#f59e0b" if _ss6 >= 70 else "#94a3b8"
-                                    st.markdown(
-                                        f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">'
-                                        f'<span style="font-weight:600;min-width:120px">{_sn6}</span>'
-                                        f'<div style="flex:1;background:#e2e8f0;border-radius:4px;height:8px;">'
-                                        f'<div style="width:{_ss6}%;background:{_bar_color};height:8px;border-radius:4px;"></div>'
-                                        f'</div>'
-                                        f'<span style="color:{_bar_color};font-weight:700;min-width:38px">{_ss6}%</span>'
-                                        f'</div>',
-                                        unsafe_allow_html=True
-                                    )
-                            with _sc2:
-                                _rep_opts6 = [_base6] + _sim_names
-                                _rep6 = st.selectbox(
-                                    "대표 개념",
-                                    _rep_opts6,
-                                    key=f"mg6_rep_{_base6[:15]}"
-                                )
-                            with _sc3:
-                                _merge_cands6 = st.multiselect(
-                                    "병합할 개념 ✓",
-                                    [n for n in _rep_opts6 if n != _rep6],
-                                    default=[n for n in _sim_names],
-                                    key=f"mg6_cands_{_base6[:15]}"
-                                )
-
-                            if st.button(f"🔗 병합 실행", key=f"mg6_run_{_base6[:15]}", type="primary", use_container_width=True):
-                                if not _merge_cands6:
-                                    st.warning("병합할 개념을 선택해주세요.")
+                    for _pi, (_ca, _cb, _ss6, _grade, _reason) in enumerate(_pairs6):
+                        _gi, _gl, _gcol = _grade_meta[_grade]
+                        _pkey = "||".join(sorted([_ca, _cb]))
+                        with st.container(border=True):
+                            st.markdown(
+                                f"<span style='color:{_gcol};font-weight:700'>{_gi} {_gl}</span> "
+                                f"&nbsp; <b>{_ca}</b> &nbsp;↔&nbsp; <b>{_cb}</b> "
+                                f"&nbsp;<span style='color:#94a3b8;font-size:0.85em'>유사도 {_ss6}%</span><br>"
+                                f"<span style='color:#64748b;font-size:0.85em'>💡 {_reason}</span>",
+                                unsafe_allow_html=True)
+                            # 대표 개념 + 방식 선택
+                            _rc1, _rc2 = st.columns(2)
+                            with _rc1:
+                                _rep6 = st.radio("남길 대표 개념", [_ca, _cb],
+                                                 key=f"mg6_rep_{_pi}_{_pkey[:20]}", horizontal=True)
+                            with _rc2:
+                                _method6 = st.radio("방식", ["완전 병합", "별칭 등록", "제외"],
+                                                    key=f"mg6_method_{_pi}_{_pkey[:20]}", horizontal=True,
+                                                    help="완전 병합: 하나로 합침 · 별칭 등록: 원본 유지하고 alias 연결 · 제외: 다시 추천 안 함")
+                            _cand6 = _cb if _rep6 == _ca else _ca
+                            # 미리보기 (영향 범위)
+                            if _method6 in ("완전 병합", "별칭 등록"):
+                                _imp = concept_impact_counts([_cand6])
+                                if _method6 == "완전 병합":
+                                    st.caption(
+                                        f"🔎 **{_cand6}** → **{_rep6}** 로 병합 · "
+                                        f"연결된 메모 {_imp['notes']}개·작업 {_imp['tasks']}개·관계 {_imp['rels']}개가 이동돼요.")
                                 else:
-                                    _do_merge6(_rep6, _merge_cands6)
+                                    st.caption(f"🔎 **{_rep6}** 에 별칭 **{_cand6}** 등록 (원본 개념·연결은 그대로 유지)")
+                            else:
+                                st.caption(f"🚫 이 후보를 다시 추천하지 않아요.")
+                            _do6 = st.checkbox("이 후보 적용", value=False, key=f"mg6_apply_{_pi}_{_pkey[:20]}")
+                            if st.button("실행", key=f"mg6_run_{_pi}_{_pkey[:20]}",
+                                         type="primary", use_container_width=True, disabled=not _do6):
+                                if _method6 == "제외":
+                                    st.session_state["merge_dismissed"] = list(_dismissed | {_pkey})
+                                    save_persisted_data()
+                                    _flash(f"🚫 '{_ca} ↔ {_cb}' 후보를 제외했어요.")
+                                    st.rerun()
+                                else:
+                                    _do_merge6(_rep6, [_cand6], alias_only=(_method6 == "별칭 등록"))
+
+                    if _dismissed:
+                        st.divider()
+                        with st.expander(f"🚫 제외한 후보 {len(_dismissed)}개 (되돌리기)", expanded=False):
+                            for _dk in sorted(_dismissed):
+                                _da, _, _db = _dk.partition("||")
+                                _drc1, _drc2 = st.columns([3, 1])
+                                _drc1.markdown(f"{_da} ↔ {_db}")
+                                if _drc2.button("복원", key=f"mg6_undismiss_{_dk[:24]}"):
+                                    st.session_state["merge_dismissed"] = [x for x in _dismissed if x != _dk]
+                                    save_persisted_data(); st.rerun()
 
             # ────────────────────────────────────────
             # 수동 선택

@@ -6529,6 +6529,56 @@ def render_project_page():
                         f"📂 **{sec['name']}** — 단계 {len(steps)}개 · 메모 {_sec_note_cnt}개",
                         expanded=True
                     ):
+                        # ── 섹션 이름 변경 / 삭제 ──────────────────
+                        _sech1, _sech2, _sech3 = st.columns([3, 1, 1])
+                        with _sech1:
+                            _sec_rename = st.text_input(
+                                "섹션 이름", value=sec["name"], key=f"sec_rename_{sec['id']}",
+                                label_visibility="collapsed")
+                        with _sech2:
+                            if st.button("✏️ 이름 변경", key=f"sec_rename_btn_{sec['id']}", use_container_width=True):
+                                _new_name = _sec_rename.strip()
+                                if _new_name and _new_name != sec["name"]:
+                                    _old_name = sec["name"]
+                                    sec["name"] = _new_name
+                                    # 이 섹션에 속한 메모/분석결과의 section 값도 갱신
+                                    for _n in st.session_state.get("archive_notes", []):
+                                        if _n.get("project") == sel_proj_name and _n.get("section") == _old_name:
+                                            _n["section"] = _new_name
+                                    for _a in st.session_state.get("saved_analyses", []):
+                                        if _a.get("project") == sel_proj_name and _a.get("section") == _old_name:
+                                            _a["section"] = _new_name
+                                    save_persisted_data()
+                                    _flash(f"섹션 이름을 '{_new_name}'(으)로 바꿨어요.")
+                                    st.rerun()
+                        with _sech3:
+                            _secdel_key = f"sec_delconfirm_{sec['id']}"
+                            if st.button("🗑️ 삭제", key=f"sec_del_btn_{sec['id']}", use_container_width=True):
+                                st.session_state[_secdel_key] = True
+                            if st.session_state.get(_secdel_key):
+                                st.warning("섹션을 삭제할까요? 안의 단계도 함께 삭제되고, 연결된 자료는 '일반'으로 이동해요. (자료 자체는 삭제되지 않아요)")
+                                if st.button("✅ 삭제 확정", key=f"sec_delok_{sec['id']}", type="primary"):
+                                    # 단계 삭제
+                                    st.session_state["project_steps"] = [
+                                        s for s in all_steps_list if s.get("section_id") != sec["id"]]
+                                    # 자료 섹션 → 일반
+                                    for _n in st.session_state.get("archive_notes", []):
+                                        if _n.get("project") == sel_proj_name and _n.get("section") == sec["name"]:
+                                            _n["section"] = "일반"
+                                    for _a in st.session_state.get("saved_analyses", []):
+                                        if _a.get("project") == sel_proj_name and _a.get("section") == sec["name"]:
+                                            _a["section"] = "일반"
+                                    # 섹션 삭제
+                                    st.session_state["project_sections"] = [
+                                        s for s in st.session_state.get("project_sections", []) if s.get("id") != sec["id"]]
+                                    st.session_state.pop(_secdel_key, None)
+                                    save_persisted_data()
+                                    _flash(f"'{sec['name']}' 섹션을 삭제했어요.", icon="🗑️")
+                                    st.rerun()
+                                if st.button("취소", key=f"sec_delcancel_{sec['id']}"):
+                                    st.session_state.pop(_secdel_key, None)
+                                    st.rerun()
+                        st.divider()
                         # 단계별 메모 트리
                         if steps:
                             for stp in steps:
@@ -6584,6 +6634,46 @@ def render_project_page():
                                 save_persisted_data()
                                 _flash(f"'{_del_step}' 단계를 삭제했어요", icon="🗑️")
                                 st.rerun()
+
+                        # ── 이 섹션에 자료 바로 연결 ──────────────────
+                        _seclink_panel = f"seclink_panel_{sec['id']}"
+                        if st.button("📎 이 섹션에 자료 연결", key=f"seclink_toggle_{sec['id']}", use_container_width=True):
+                            st.session_state[_seclink_panel] = not st.session_state.get(_seclink_panel, False)
+                        if st.session_state.get(_seclink_panel):
+                          with st.container(border=True):
+                            _seclink_cands = []
+                            for _ni, _n in enumerate(st.session_state.get("archive_notes", [])):
+                                if not (_n.get("project") == sel_proj_name and _n.get("section") == sec["name"]):
+                                    _seclink_cands.append((f"n{_ni}", "📝", _n.get("title") or "제목 없음",
+                                                           _n.get("project") or "미연결", _n))
+                            for _ai, _a in enumerate(st.session_state.get("saved_analyses", [])):
+                                if not (_a.get("project") == sel_proj_name and _a.get("section") == sec["name"]):
+                                    _seclink_cands.append((f"a{_ai}", "📊", _a.get("title") or "제목 없음",
+                                                           _a.get("project") or "미연결", _a))
+                            if not _seclink_cands:
+                                st.caption("이 섹션에 연결할 다른 자료가 없어요.")
+                            else:
+                                _slq = st.text_input("🔍 검색", key=f"seclink_q_{sec['id']}",
+                                                     placeholder="제목으로 검색", label_visibility="collapsed")
+                                _slq_low = (_slq or "").strip().lower()
+                                _sl_filtered = [c for c in _seclink_cands if not _slq_low or _slq_low in c[2].lower()]
+                                with st.container(height=220, border=False):
+                                    for _uid, _icon, _title, _curp, _obj in _sl_filtered:
+                                        st.checkbox(f"{_icon} **{_title[:45]}**  ·  {_curp}",
+                                                    key=f"seclink_cb_{sec['id']}_{_uid}")
+                                _sl_selected = [c[4] for c in _seclink_cands
+                                                if st.session_state.get(f"seclink_cb_{sec['id']}_{c[0]}")]
+                                if st.button(f"🔗 이 섹션에 연결 ({len(_sl_selected)})", key=f"seclink_run_{sec['id']}",
+                                             type="primary", use_container_width=True, disabled=not _sl_selected):
+                                    for _obj in _sl_selected:
+                                        _obj["project"] = sel_proj_name
+                                        _obj["project_id"] = proj_id
+                                        _obj["section"] = sec["name"]
+                                    for c in _seclink_cands:
+                                        st.session_state.pop(f"seclink_cb_{sec['id']}_{c[0]}", None)
+                                    save_persisted_data()
+                                    _flash(f"✅ {len(_sl_selected)}개 자료를 '{sec['name']}' 섹션에 연결했어요.")
+                                    st.rerun()
 
             st.divider()
             with st.expander("➕ 섹션 추가"):

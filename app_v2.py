@@ -1285,7 +1285,7 @@ section[data-testid="stSidebar"] .stMarkdown {
 }
 .tl-nav-item .ni-icon { font-size: 15px; flex-shrink: 0; width: 22px; opacity: 0.85; }
 .tl-nav-item.active .ni-icon { opacity: 1; }
-.tl-nav-item .ni-label { font-size: 14px; }
+.tl-nav-item .ni-label { font-size: 15px; }
 .tl-nav-item .ni-soon {
     margin-left: auto; font-size: 9px; font-weight: 600;
     background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.5) !important;
@@ -1308,10 +1308,10 @@ section[data-testid="stSidebar"] .stMarkdown {
     border-radius: 8px;
     list-style: none;
     user-select: none;
-    font-size: 13px;
-    font-weight: 600;
-    color: rgba(255,255,255,0.7) !important;
-    letter-spacing: 0.3px;
+    font-size: 16px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.78) !important;
+    letter-spacing: 0.2px;
     transition: background 0.15s;
 }
 .tl-nav-group summary::-webkit-details-marker { display: none; }
@@ -1435,7 +1435,7 @@ button[data-testid="collapsedControl"],
         _nav_html_parts.append(
             f'<details class="tl-nav-group" {_open_attr}>'
             f'<summary>'
-            f'<span style="font-size:15px">{_grp_icon}</span>'
+            f'<span style="font-size:18px">{_grp_icon}</span>'
             f'<span>{_grp_name}</span>'
             f'<span class="tl-grp-arrow">▶</span>'
             f'</summary>'

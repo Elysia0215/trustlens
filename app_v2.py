@@ -1337,18 +1337,29 @@ section[data-testid="stSidebar"] .stMarkdown {
     padding: 2px 0 4px 0;
 }
 
-/* 📘 가이드북 — 메인급 독립 메뉴 (그룹 헤더처럼 크게) */
-.tl-nav-item.tl-nav-standalone {
-    font-size: 16px;
-    font-weight: 700;
+/* 📘 가이드북 — 그룹 헤더(summary)와 동일한 모양의 메인급 독립 메뉴 */
+section[data-testid="stSidebar"] .tl-nav-item.tl-nav-standalone {
     padding: 10px 16px;
-    color: rgba(255,255,255,0.82) !important;
+    gap: 8px;
+    letter-spacing: 0.2px;
+    border-radius: 8px;
 }
-.tl-nav-item.tl-nav-standalone .ni-icon { font-size: 18px; }
-.tl-nav-item.tl-nav-standalone .ni-label { font-size: 15px; font-weight: 700; }
+section[data-testid="stSidebar"] .tl-nav-item.tl-nav-standalone,
+section[data-testid="stSidebar"] .tl-nav-item.tl-nav-standalone * {
+    color: rgba(255,255,255,0.78) !important;
+}
+section[data-testid="stSidebar"] .tl-nav-item.tl-nav-standalone:hover,
+section[data-testid="stSidebar"] .tl-nav-item.tl-nav-standalone:hover * {
+    color: rgba(255,255,255,0.95) !important;
+}
+.tl-nav-item.tl-nav-standalone .ni-icon { font-size: 18px; width: auto; opacity: 1; }
+.tl-nav-item.tl-nav-standalone .ni-label { font-size: 16px; font-weight: 700; }
+section[data-testid="stSidebar"] .tl-nav-item.tl-nav-standalone.active,
+section[data-testid="stSidebar"] .tl-nav-item.tl-nav-standalone.active * {
+    color: #bfdbfe !important;
+}
 .tl-nav-item.tl-nav-standalone.active {
     background: rgba(59,130,246,0.30) !important;
-    color: #bfdbfe !important;
     border-left: 3px solid #60a5fa;
 }
 

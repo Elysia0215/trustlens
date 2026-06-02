@@ -12153,9 +12153,59 @@ if menu == "데일리 노트":
 </div>
 """, unsafe_allow_html=True)
 
+    # 미니 캘린더/월 이동에서 고른 날짜를 위젯 생성 '전에' 반영 (위젯 키 직접 수정 시 예외 방지)
+    if "_dn_pending" in st.session_state:
+        st.session_state["dn_date"] = st.session_state.pop("_dn_pending")
     _dn_sel = st.date_input("날짜 선택", value=_dn_date.today(), key="dn_date")
     _dn_str = _dn_sel.strftime("%Y-%m-%d")
     _dn_projects = [p.get("name", "") for p in st.session_state.get("projects", []) if p.get("name")]
+
+    # ── 📅 미니 캘린더 (전체 메모 기준 기억 지도) — 날짜 클릭 시 선택 ──
+    import calendar as _dn_cal_mod
+    _dn_by_date = {}
+    for _n in st.session_state.get("archive_notes", []):
+        _nd = str(_n.get("saved_at", ""))[:10]
+        if _nd:
+            _dn_by_date.setdefault(_nd, []).append(_n.get("title", "메모"))
+    with st.expander("📅 미니 캘린더 — 언제 무엇을 적었는지", expanded=True):
+        _mc1, _mc2, _mc3 = st.columns([1, 2, 1])
+        with _mc1:
+            if st.button("◀", key="dn_cal_prev", use_container_width=True):
+                _py, _pm = (_dn_sel.year - 1, 12) if _dn_sel.month == 1 else (_dn_sel.year, _dn_sel.month - 1)
+                st.session_state["_dn_pending"] = _dn_date(_py, _pm, 1)
+                st.rerun()
+        with _mc2:
+            st.markdown(f"<div style='text-align:center;font-weight:700'>{_dn_sel.year}년 {_dn_sel.month}월</div>",
+                        unsafe_allow_html=True)
+        with _mc3:
+            if st.button("▶", key="dn_cal_next", use_container_width=True):
+                _ny, _nm = (_dn_sel.year + 1, 1) if _dn_sel.month == 12 else (_dn_sel.year, _dn_sel.month + 1)
+                st.session_state["_dn_pending"] = _dn_date(_ny, _nm, 1)
+                st.rerun()
+        _wd_cols = st.columns(7)
+        for _i, _wd in enumerate(["월", "화", "수", "목", "금", "토", "일"]):
+            _wd_cols[_i].markdown(f"<div style='text-align:center;font-size:0.8em;color:#94a3b8'>{_wd}</div>",
+                                  unsafe_allow_html=True)
+        _today_dn = _dn_date.today().strftime("%Y-%m-%d")
+        for _week in _dn_cal_mod.Calendar(firstweekday=0).monthdayscalendar(_dn_sel.year, _dn_sel.month):
+            _wcols = st.columns(7)
+            for _di, _day in enumerate(_week):
+                with _wcols[_di]:
+                    if _day == 0:
+                        st.markdown("<div style='height:40px'></div>", unsafe_allow_html=True)
+                        continue
+                    _ds = f"{_dn_sel.year:04d}-{_dn_sel.month:02d}-{_day:02d}"
+                    _titles = _dn_by_date.get(_ds, [])
+                    _is_sel = (_ds == _dn_str)
+                    _is_today = (_ds == _today_dn)
+                    _mark = "🟦" if _is_sel else ("•" if _titles else "")
+                    _lbl = f"{_day}\n{_mark}" if _mark else f"{_day}"
+                    _help = " / ".join(_titles[:3]) + (f" +{len(_titles)-3}" if len(_titles) > 3 else "") if _titles else None
+                    _bt = "primary" if _is_sel else "secondary"
+                    if st.button(_lbl, key=f"dn_cal_{_ds}", use_container_width=True, help=_help, type=_bt):
+                        st.session_state["_dn_pending"] = _dn_date(_dn_sel.year, _dn_sel.month, _day)
+                        st.rerun()
+        st.caption("🟦 선택한 날 · • 메모 있는 날 (마우스를 올리면 제목이 보여요)")
 
     _dn_ctx, _dn_left, _dn_right = st.columns([1, 1.6, 1.1])
 

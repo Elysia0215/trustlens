@@ -15301,7 +15301,7 @@ def render_home_universe():
             # 대기광(글로우) — 행성 뒤 반투명 헤일로
             _halo_sizes.append(_sz * (2.2 if _is_sel else 1.7))
             _halo_colors.append(_hex_rgba(_pcolor, 0.34 if _is_sel else 0.18))
-            _texts.append(f"🪐 {_pl['name']}" + (" · 🚀 탐사중" if _is_sel else ""))
+            _texts.append(f"🪐 {_pl['name']}")  # 이름만 깔끔하게 (선택 표시는 궤도의 🚀 탐사중으로)
             _hov.append(f"{_pl['name']}<br>📝 {_pl['memos']} · 🧠 {_pl['concepts']} · 🏷 {_pl['tags']} · ✅ {_pl['tasks']}")
             _custom.append(_pl["name"])
 
@@ -15354,15 +15354,15 @@ def render_home_universe():
                 marker=dict(size=_sizes, color=_colors, opacity=0.96,
                             line=dict(width=_lines, color=_lcolors)),
                 customdata=_custom, hovertext=_hov, hoverinfo="text", showlegend=False))
-        # 5) 🚀 탐사선 — 선택 행성 '바깥 궤도'의 작은 보조 장식 (주인공은 행성)
+        # 5) 🚀 탐사중 — 선택 행성 '바깥 궤도'의 작은 보조 표시 (주인공은 행성)
         if _sel_xy is not None:
             _sx, _sy, _ssz = _sel_xy
-            # 행성 반지름보다 살짝 바깥(우상단 궤도)에 배치 — 행성을 가리지 않게
-            _orb = 0.13 + (_ssz / 80.0) * 0.18
+            # 행성 반지름보다 바깥(우하단 궤도)에 배치 — 행성 중심/이름을 가리지 않게
+            _orb = 0.18 + (_ssz / 80.0) * 0.22
             _fig.add_trace(_ugo.Scatter(
-                x=[_sx + _orb * 0.72], y=[_sy + _orb * 0.72], mode="text",
-                text=["🚀"], textposition="middle center",
-                textfont=dict(size=12),   # 작게 (장식 역할)
+                x=[_sx + _orb * 0.78], y=[_sy - _orb * 0.78], mode="text",
+                text=["🚀 탐사중"], textposition="middle right",
+                textfont=dict(size=11, color="#cbd5e1"),   # 작고 차분하게 (보조 역할)
                 hovertext=["탐사선이 이 행성을 탐험 중"], hoverinfo="text",
                 showlegend=False))
         # 클릭 선택 ON + 줌 비활성(더블클릭/드래그 줌 OFF)

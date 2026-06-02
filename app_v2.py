@@ -15259,6 +15259,8 @@ def render_home_universe():
         st.markdown(
             "- 🌎 **중심** = 내 지식 전체 (항성)\n"
             "- 🪐 **행성** = 프로젝트 · **크기 = 메모+개념+작업 수** (쌓일수록 커져요)\n"
+            "- 🚀 **탐사중** = 지금 선택한 프로젝트\n"
+            "- 🟢 **실선** = 직접 만든 관계 · 🟣 **보라 점선** = 공유 개념 연결 · 🟠 **주황 점선** = 공유 태그 연결\n"
             "- 🛰️ **아래 행성 버튼**을 누르면 → 🌙 위성(메모·개념·태그·작업)이 펼쳐져요\n"
             "- 🌌 **전체**를 누르면 → 전체 우주 요약과 🌎🚀 지구 발사대가 보여요\n"
             "- 🚀 **지구 발사대** = 아직 프로젝트에 속하지 않은 지식을 행성으로 보내는 정리 공간이에요\n"
@@ -15374,12 +15376,7 @@ def render_home_universe():
             _fig, use_container_width=True,
             config={"displayModeBar": False, "scrollZoom": False, "doubleClick": False}
         )
-        st.caption(
-            "🛰️ 아래 **행성 버튼**으로 선택하면 위성이 펼쳐져요. "
-            "🌌 **전체**를 누르면 가운데 내 지식이 활성화되고, "
-            "그 안의 **🌎🚀 지구 발사대**에서 아직 프로젝트에 안 들어간 지식을 행성으로 보낼 수 있어요."
-        )
-        # 🛸 항로 범례 + 디버그 카운트 (0이어도 표시)
+        # 🛸 항로 디버그 카운트 (0이어도 표시 — 데이터라 항상 노출)
         _r_direct = sum(1 for r in _routes if r["direct"])
         _r_concept = sum(1 for r in _routes if r["concepts"] and not r["direct"])
         _r_tag = sum(1 for r in _routes if r["tags"] and not r["concepts"] and not r["direct"])
@@ -15388,11 +15385,14 @@ def render_home_universe():
             f"🟣 공유 개념 {_r_concept} · 🟠 공유 태그 {_r_tag}"
         )
         if not _routes:
-            st.caption("아직 행성 사이 연결이 없어요. 같은 개념·태그를 쓰는 메모가 다른 프로젝트에 생기면 항로가 자동으로 그려져요.")
+            st.markdown(
+                "<div style='background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;"
+                "padding:12px 16px;color:#166534;font-size:0.9em;line-height:1.6;'>"
+                "🌱 아직 발견된 항로가 없어요.<br>"
+                "같은 개념이나 태그를 쓰는 프로젝트가 생기면 <b>JIUM이 자동으로 연결을 발견</b>해요."
+                "</div>", unsafe_allow_html=True)
         # 🛸 발견된 연결 목록
         if _routes:
-            st.caption("🛸 **항로** = 🟢 직접 관계(실선) · 🟣 공유 개념(보라 점선) · 🟠 공유 태그(주황 점선). "
-                       "직접 잇지 않아도 **원래 이어져 있던 연결**을 보여줘요.")
             with st.expander(f"🛸 발견된 항로 {len(_routes)}개 — 내 세계는 이렇게 연결돼 있어요", expanded=False):
                 for _rt in _routes[:12]:
                     _kind = ("🟢 직접 관계" if _rt["direct"]

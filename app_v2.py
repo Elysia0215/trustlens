@@ -14740,7 +14740,24 @@ def render_home_universe():
                            yaxis=dict(visible=False, range=[-1.6, 1.6]),
                            plot_bgcolor="#0f172a", paper_bgcolor="#0f172a",
                            font=dict(color="#e2e8f0"))
-        st.plotly_chart(_fig, use_container_width=True, config={"displayModeBar": False})
+        # 행성 클릭(plotly on_select) → 즉시 펼침. 클릭 변화시에만 selectbox 동기화(충돌 방지)
+        _ev = st.plotly_chart(_fig, use_container_width=True, on_select="rerun",
+                              key="home_univ_chart", config={"displayModeBar": False})
+        _clicked = None
+        try:
+            _pts = (_ev.selection or {}).get("points", []) if _ev else []
+            for _pt in _pts:
+                if _pt.get("curve_number") == 1:  # 행성 trace
+                    _ix = _pt.get("point_number", _pt.get("point_index"))
+                    if _ix is not None and _ix < len(_planets):
+                        _clicked = _planets[_ix]["name"]
+                        break
+        except Exception:
+            _clicked = None
+        if _clicked and st.session_state.get("_univ_last_click") != _clicked:
+            st.session_state["_univ_last_click"] = _clicked
+            st.session_state["home_univ_sel"] = _clicked
+        st.caption("🛰️ 행성을 클릭하거나 아래에서 골라 위성을 펼쳐요.")
     except Exception:
         for _pl in _planets:
             st.markdown(f"🪐 **{_pl['name']}** · 📝 {_pl['memos']} 🧠 {_pl['concepts']} ✅ {_pl['tasks']}")
@@ -14756,9 +14773,18 @@ def render_home_universe():
         _ptags = sorted({str(t).replace("#", "").strip() for n in _pn
                          for t in (n.get("tags", []) or []) if str(t).strip()})
         _ptk = [t for t in _tasks if t.get("project") == _sel_planet]
-        st.markdown(
-            f"**🪐 {_sel_planet}** 위성 — 🌙 메모 {len(_pn)} · 🧠 개념 {len(_pcs)} · "
-            f"🏷️ 태그 {len(_ptags)} · ✅ 작업 {len(_ptk)}")
+        st.markdown(f"**🪐 {_sel_planet}** 위성")
+        # 위성 4카드
+        _sat = [("🌙", "메모", len(_pn)), ("🧠", "개념", len(_pcs)),
+                ("🏷️", "태그", len(_ptags)), ("✅", "작업", len(_ptk))]
+        _sat_cols = st.columns(4)
+        for _si, (_sem, _snm, _scnt) in enumerate(_sat):
+            with _sat_cols[_si]:
+                with st.container(border=True):
+                    st.markdown(
+                        f"<div style='text-align:center'><div style='font-size:1.3em'>{_sem}</div>"
+                        f"<b>{_snm}</b><br><span style='color:#6366f1;font-weight:700'>{_scnt}개</span></div>",
+                        unsafe_allow_html=True)
         _w1, _w2, _w3 = st.columns(3)
         with _w1:
             st.markdown("**🌙 메모**")

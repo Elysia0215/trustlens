@@ -12093,9 +12093,50 @@ if menu == "데일리 노트":
     _dn_str = _dn_sel.strftime("%Y-%m-%d")
     _dn_projects = [p.get("name", "") for p in st.session_state.get("projects", []) if p.get("name")]
 
-    _dn_left, _dn_right = st.columns([1.4, 1])
+    _dn_ctx, _dn_left, _dn_right = st.columns([1, 1.6, 1.1])
 
-    # ── 좌측: 입력이 가장 먼저 ──
+    # ── 좌측: 최근 기억을 떠올리게 하는 컨텍스트 레일 (회상용 — 통계/관리 아님) ──
+    with _dn_ctx:
+        st.markdown("##### 🧭 최근 컨텍스트")
+        st.caption("뭘 적을지 막힐 때, 최근 기록을 떠올려요.")
+
+        _ctx_notes = sorted(st.session_state.get("archive_notes", []),
+                            key=lambda n: str(n.get("saved_at", "")), reverse=True)[:5]
+        st.markdown("**📝 최근 메모**")
+        if _ctx_notes:
+            for _cn in _ctx_notes:
+                if st.button(f"· {(_cn.get('title') or '제목 없음')[:18]}",
+                             key=f"dn_ctx_note_{_cn.get('id')}", use_container_width=True):
+                    st.session_state["archive_open_note_id"] = _cn.get("id")
+                    st.query_params["page"] = "archive"
+                    st.rerun()
+        else:
+            st.caption("아직 없어요.")
+
+        _ctx_concepts, _seen_cc = [], set()
+        for _lk in sorted(st.session_state.get("note_concept_links", []),
+                          key=lambda l: str(l.get("linked_at", "")), reverse=True):
+            _cc = canonical_concept(_lk.get("concept"))
+            if _cc and _cc not in _seen_cc:
+                _seen_cc.add(_cc); _ctx_concepts.append(_cc)
+            if len(_ctx_concepts) >= 8:
+                break
+        st.markdown("**🧠 최근 개념**")
+        st.markdown(" ".join(f"`{c}`" for c in _ctx_concepts) if _ctx_concepts else "_아직 없어요._")
+
+        _ctx_projs = sorted(st.session_state.get("projects", []),
+                            key=lambda p: str(p.get("updated_at") or p.get("created_at") or ""),
+                            reverse=True)[:5]
+        st.markdown("**📁 최근 프로젝트**")
+        st.markdown("\n".join(f"- {p.get('name', '')}" for p in _ctx_projs) if _ctx_projs else "_아직 없어요._")
+
+        _ctx_tasks = sorted(st.session_state.get("tasks", []),
+                            key=lambda t: str(t.get("updated_at") or t.get("created_at") or ""),
+                            reverse=True)[:5]
+        st.markdown("**✅ 최근 작업**")
+        st.markdown("\n".join(f"- {t.get('title', '')}" for t in _ctx_tasks) if _ctx_tasks else "_아직 없어요._")
+
+    # ── 가운데: 입력 ──
     with _dn_left:
         st.markdown(f"#### ✍️ {_dn_str} 메모 쓰기")
         _dn_title = st.text_input("제목", value=f"{_dn_str} 데일리 노트", key="dn_title")
@@ -12163,13 +12204,6 @@ if menu == "데일리 노트":
                         st.session_state["archive_open_note_id"] = _n.get("id")
                         st.query_params["page"] = "archive"
                         st.rerun()
-
-        st.markdown("#### 🧠 최근 자주 등장한 개념")
-        _dn_freq = concept_frequency(top_n=8)
-        if _dn_freq:
-            st.markdown(" ".join(f"`{c}`" for c, _ in _dn_freq))
-        else:
-            st.caption("아직 개념이 없어요.")
     st.stop()
 
 

@@ -14720,12 +14720,17 @@ def render_home_universe():
         import math as _umath
         _fig = _ugo.Figure()
         _n = len(_planets)
-        _xs, _ys, _sizes, _texts, _hov = [], [], [], [], []
+        _sel_now = st.session_state.get("home_univ_sel")  # 이전 선택(selectbox 값) — 지도에 강조
+        _xs, _ys, _sizes, _texts, _hov, _colors, _lines = [], [], [], [], [], [], []
         for _i, _pl in enumerate(_planets):
             _ang = 2 * _umath.pi * _i / max(1, _n)
             _xs.append(_umath.cos(_ang)); _ys.append(_umath.sin(_ang))
-            _sizes.append(max(26, min(80, 26 + _pl["size"] * 3)))  # clamp 26~80
-            _texts.append(f"🪐 {_pl['name']}")
+            _is_sel = (_pl["name"] == _sel_now)
+            _base = max(26, min(80, 26 + _pl["size"] * 3))  # clamp 26~80
+            _sizes.append(_base + 8 if _is_sel else _base)
+            _colors.append("#f59e0b" if _is_sel else "#6366f1")   # 선택 행성 = 주황 강조
+            _lines.append(3 if _is_sel else 1)
+            _texts.append(f"🪐 {_pl['name']}" + (" ✨" if _is_sel else ""))
             _hov.append(f"{_pl['name']}<br>📝 {_pl['memos']} · 🧠 {_pl['concepts']} · ✅ {_pl['tasks']}")
         # 중심 항성
         _fig.add_trace(_ugo.Scatter(x=[0], y=[0], mode="markers+text", text=["🌎 내 지식"],
@@ -14733,7 +14738,8 @@ def render_home_universe():
                                     hoverinfo="skip", showlegend=False))
         _fig.add_trace(_ugo.Scatter(
             x=_xs, y=_ys, mode="markers+text", text=_texts, textposition="top center",
-            marker=dict(size=_sizes, color="#6366f1", opacity=0.85, line=dict(width=1, color="#fff")),
+            marker=dict(size=_sizes, color=_colors, opacity=0.9,
+                        line=dict(width=_lines, color="#fff")),
             hovertext=_hov, hoverinfo="text", showlegend=False))
         _fig.update_layout(height=300, margin=dict(l=10, r=10, t=10, b=10),
                            xaxis=dict(visible=False, range=[-1.6, 1.6]),

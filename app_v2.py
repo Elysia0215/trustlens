@@ -15171,7 +15171,7 @@ def render_home_universe():
         _nm = _clean_text_value(_p.get("name")).strip()
         _pn = [n for n in _notes if _clean_text_value(n.get("project")).strip() == _nm]
         _pn_ids = {n.get("id") for n in _pn}
-        _cc = len({
+        _cset = {
             _clean_text_value(l.get("concept")).strip() for l in _links
             if (
                 l.get("note_id") in _pn_ids
@@ -15182,13 +15182,16 @@ def render_home_universe():
             if isinstance(c, dict)
             and _clean_text_value(c.get("project")).strip() == _nm
             and _clean_text_value(c.get("name")).strip()
-        })
-        _tg = len({str(t).replace("#", "").strip() for n in _pn
-                   for t in (n.get("tags", []) or []) if str(t).strip()})
+        }
+        _tset = {str(t).replace("#", "").strip() for n in _pn
+                 for t in (n.get("tags", []) or []) if str(t).strip()}
+        _cc = len(_cset)
+        _tg = len(_tset)
         _tk = sum(1 for t in _tasks if _clean_text_value(t.get("project")).strip() == _nm)
         _size = len(_pn) + _cc + _tk
         _planets.append({"name": _nm, "memos": len(_pn), "concepts": _cc,
-                         "tags": _tg, "tasks": _tk, "size": _size})
+                         "tags": _tg, "tasks": _tk, "size": _size,
+                         "cset": _cset, "tset": _tset})
     _planets.sort(key=lambda x: x["size"], reverse=True)
     _planets = _planets[:8]
     _univ_names = [p["name"] for p in _planets]
@@ -15196,6 +15199,27 @@ def render_home_universe():
     if _sel_planet not in _univ_names:
         _sel_planet = None
         st.session_state["home_univ_pick"] = None
+
+    # 🛸 항로 발견 — 공유 개념·태그·직접 관계로 "원래 이어져 있던" 행성쌍을 찾음
+    _relations = st.session_state.get("relations", [])
+    def _is_proj_rel(_r, _a, _b):
+        _s = _clean_text_value(_r.get("source_name")).strip()
+        _t = _clean_text_value(_r.get("target_name")).strip()
+        return {_s, _t} == {_a, _b}
+    _routes = []
+    for _ri in range(len(_planets)):
+        for _rj in range(_ri + 1, len(_planets)):
+            _pa, _pb = _planets[_ri], _planets[_rj]
+            _sc = sorted(_pa["cset"] & _pb["cset"])
+            _stg = sorted(_pa["tset"] & _pb["tset"])
+            _direct = any(_is_proj_rel(_r, _pa["name"], _pb["name"]) for _r in _relations)
+            if not (_sc or _stg or _direct):
+                continue
+            _strength = len(_sc) * 2 + len(_stg) + (3 if _direct else 0)
+            _routes.append({"i": _ri, "j": _rj, "a": _pa["name"], "b": _pb["name"],
+                            "concepts": _sc, "tags": _stg, "direct": _direct,
+                            "strength": _strength})
+    _routes.sort(key=lambda r: -r["strength"])
 
     st.markdown(
         "<div style='font-weight:800;font-size:1.05rem;'>🪐 내 지식 우주</div>"
@@ -15246,6 +15270,24 @@ def render_home_universe():
             _hov.append(f"{_pl['name']}<br>📝 {_pl['memos']} · 🧠 {_pl['concepts']} · 🏷 {_pl['tags']} · ✅ {_pl['tasks']}")
             _custom.append(_pl["name"])
 
+        # 0) 항로 — 행성 뒤에 깔리도록 가장 먼저 추가
+        for _rt in _routes:
+            _xi, _yi = _xs[_rt["i"]], _ys[_rt["i"]]
+            _xj, _yj = _xs[_rt["j"]], _ys[_rt["j"]]
+            if _rt["direct"]:
+                _dash, _lcol = "solid", _hex_rgba("#22c55e", 0.75)   # 🟢 직접 관계
+            elif _rt["concepts"]:
+                _dash, _lcol = "dash", _hex_rgba("#a855f7", 0.6)      # 🟣 공유 개념
+            else:
+                _dash, _lcol = "dot", _hex_rgba("#fb923c", 0.6)       # 🟠 공유 태그
+            _rw = min(6, 1.2 + _rt["strength"] * 0.5)
+            _rtxt = (f"{_rt['a']} ↔ {_rt['b']}<br>🟣 공유 개념 {len(_rt['concepts'])} · "
+                     f"🟠 공유 태그 {len(_rt['tags'])}" + ("<br>🟢 직접 관계 있음" if _rt['direct'] else ""))
+            _fig.add_trace(_ugo.Scatter(
+                x=[_xi, _xj], y=[_yi, _yj], mode="lines",
+                line=dict(color=_lcol, width=_rw, dash=_dash),
+                hoverinfo="text", hovertext=[_rtxt, _rtxt], showlegend=False))
+
         _center_selected = _sel_planet is None
         # 1) 중심 항성 글로우(금빛 대기광)
         _fig.add_trace(_ugo.Scatter(
@@ -15293,6 +15335,30 @@ def render_home_universe():
             "🌌 **전체**를 누르면 가운데 내 지식이 활성화되고, "
             "그 안의 **🌎🚀 지구 발사대**에서 아직 프로젝트에 안 들어간 지식을 행성으로 보낼 수 있어요."
         )
+        # 🛸 항로 범례 + 발견된 연결 목록
+        if _routes:
+            st.caption("🛸 **항로** = 🟢 직접 관계(실선) · 🟣 공유 개념(보라 점선) · 🟠 공유 태그(주황 점선). "
+                       "직접 잇지 않아도 **원래 이어져 있던 연결**을 보여줘요.")
+            with st.expander(f"🛸 발견된 항로 {len(_routes)}개 — 내 세계는 이렇게 연결돼 있어요", expanded=False):
+                for _rt in _routes[:12]:
+                    _kind = ("🟢 직접 관계" if _rt["direct"]
+                             else "🟣 공유 개념" if _rt["concepts"] else "🟠 공유 태그")
+                    _bits = []
+                    if _rt["concepts"]:
+                        _bits.append(f"🧠 개념 {len(_rt['concepts'])} ({', '.join(_rt['concepts'][:3])}{'…' if len(_rt['concepts'])>3 else ''})")
+                    if _rt["tags"]:
+                        _bits.append(f"🏷 태그 {len(_rt['tags'])}")
+                    if _rt["direct"]:
+                        _bits.append("🔗 직접 관계")
+                    st.markdown(
+                        f"<div style='padding:6px 0;border-bottom:1px solid #f1f5f9;'>"
+                        f"<b>🪐 {_univ_esc(_rt['a'])}</b> <span style='color:#94a3b8'>↔</span> "
+                        f"<b>🪐 {_univ_esc(_rt['b'])}</b> "
+                        f"<span style='color:#64748b;font-size:0.85em'>· {_kind} · 강도 {_rt['strength']}</span>"
+                        f"<div style='color:#64748b;font-size:0.82em;margin-top:2px'>{' · '.join(_bits)}</div>"
+                        "</div>", unsafe_allow_html=True)
+                if len(_routes) > 12:
+                    st.caption(f"외 {len(_routes) - 12}개 항로가 더 있어요.")
     except Exception:
         for _pl in _planets:
             st.markdown(f"🪐 **{_pl['name']}** · 📝 {_pl['memos']} 🧠 {_pl['concepts']} ✅ {_pl['tasks']}")

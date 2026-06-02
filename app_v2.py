@@ -1156,6 +1156,7 @@ button[data-testid="collapsedControl"],
     _NAV_STRUCTURE = [
         ("🏠", "홈", [
             ("home",      "🏠", "홈 대시보드"),
+            ("daily",     "📅", "데일리 노트"),
             ("search",    "🔍", "통합 검색"),
             ("new",       "➕", "새 메모·엔터티"),
         ]),
@@ -1257,6 +1258,7 @@ button[data-testid="collapsedControl"],
     # ─── query param → menu 동기화 ───
     _PAGE_TO_MENU = {
         "home":     "분석 시작하기",
+        "daily":    "데일리 노트",
         "search":   "통합 검색",
         "new":      "새 엔터티",
         "result":   "분석 결과",
@@ -12071,6 +12073,103 @@ if menu == "패턴 분석":
                     st.rerun()
             st.markdown(st.session_state["pt_ai_result"])
 
+    st.stop()
+
+
+if menu == "데일리 노트":
+    # ══════════════════════════════════════════════════════════
+    # 📅 데일리 노트 — 날짜 기반 빠른 입력 허브 (Obsidian Daily Note 스타일)
+    # ══════════════════════════════════════════════════════════
+    from datetime import date as _dn_date
+    st.markdown("""
+<div style="background:linear-gradient(135deg,#0f766e,#0ea5e9);border-radius:16px;
+     padding:24px 28px 20px;margin-bottom:18px;color:white;">
+    <div style="font-size:1.8rem;font-weight:900;margin-bottom:4px;">📅 데일리 노트</div>
+    <div style="opacity:0.92;line-height:1.5;">날짜를 고르고 오늘 생각난 걸 바로 적어요. 개념은 자동으로 뽑혀서 지식망에 연결돼요.</div>
+</div>
+""", unsafe_allow_html=True)
+
+    _dn_sel = st.date_input("날짜 선택", value=_dn_date.today(), key="dn_date")
+    _dn_str = _dn_sel.strftime("%Y-%m-%d")
+    _dn_projects = [p.get("name", "") for p in st.session_state.get("projects", []) if p.get("name")]
+
+    _dn_left, _dn_right = st.columns([1.4, 1])
+
+    # ── 좌측: 입력이 가장 먼저 ──
+    with _dn_left:
+        st.markdown(f"#### ✍️ {_dn_str} 메모 쓰기")
+        _dn_title = st.text_input("제목", value=f"{_dn_str} 데일리 노트", key="dn_title")
+        _dn_did = st.text_area("📌 오늘 한 일", key="dn_did", height=80,
+                               placeholder="오늘 한 일/공부한 것")
+        _dn_learned = st.text_area("💡 배운 것", key="dn_learned", height=80,
+                                   placeholder="새로 알게 된 것")
+        _dn_think = st.text_area("🧠 생각 / 아이디어", key="dn_think", height=80,
+                                 placeholder="떠오른 생각·아이디어")
+        _dnc1, _dnc2 = st.columns(2)
+        with _dnc1:
+            _dn_proj = st.selectbox("관련 프로젝트", ["(없음)"] + _dn_projects, key="dn_proj")
+        with _dnc2:
+            _dn_extra_tags = st.text_input("태그 추가 (쉼표)", key="dn_tags", placeholder="예: 회고, TIL")
+
+        if st.button("💾 데일리 노트 저장", type="primary", use_container_width=True, key="dn_save"):
+            _parts = []
+            if _dn_did.strip():
+                _parts.append(f"## 📌 오늘 한 일\n{_dn_did.strip()}")
+            if _dn_learned.strip():
+                _parts.append(f"## 💡 배운 것\n{_dn_learned.strip()}")
+            if _dn_think.strip():
+                _parts.append(f"## 🧠 생각 / 아이디어\n{_dn_think.strip()}")
+            _dn_body = "\n\n".join(_parts)
+            if not _dn_body.strip():
+                st.warning("내용을 한 가지 이상 입력해주세요.")
+            else:
+                _dn_tags = ["데일리노트", _dn_str] + [t.strip() for t in _dn_extra_tags.split(",") if t.strip()]
+                _dn_concepts = extract_local_concepts(_dn_body, _dn_tags, limit=8)
+                _dn_proj_val = _dn_proj if _dn_proj != "(없음)" else "기본 프로젝트"
+                _m = create_memo(_dn_title.strip() or f"{_dn_str} 데일리 노트",
+                                 note=_dn_body, project=_dn_proj_val, section="데일리노트",
+                                 tags=_dn_tags, concepts=_dn_concepts)
+                # 선택 날짜로 saved_at 고정 + 데일리 노트 메타
+                _m["saved_at"] = f"{_dn_str} {datetime.now().strftime('%H:%M')}"
+                _m["note_type"] = "daily_note"
+                _first = next((l.strip() for l in _dn_body.splitlines()
+                               if l.strip() and not l.strip().startswith("#")), "")
+                _m["one_line_summary"] = _first[:120]
+                save_persisted_data()
+                for _k in ("dn_did", "dn_learned", "dn_think", "dn_tags"):
+                    st.session_state.pop(_k, None)
+                _flash(f"{_dn_str} 데일리 노트를 저장했어요! 개념 {len(_m.get('concepts', []))}개 자동 연결.")
+                st.rerun()
+
+    # ── 우측: 이 날짜 메모 + 최근 개념 ──
+    with _dn_right:
+        st.markdown(f"#### 📌 {_dn_str}의 메모")
+        _dn_notes = [n for n in st.session_state.get("archive_notes", [])
+                     if str(n.get("saved_at", ""))[:10] == _dn_str]
+        if not _dn_notes:
+            st.caption("아직 이 날짜의 메모가 없어요. 왼쪽에서 첫 메모를 적어보세요.")
+        else:
+            for _n in _dn_notes:
+                with st.container(border=True):
+                    _icon = "📅" if _n.get("note_type") == "daily_note" else "📝"
+                    st.markdown(f"{_icon} **{_n.get('title', '제목 없음')}**")
+                    _ol = (_n.get("one_line_summary") or "").strip()
+                    if _ol:
+                        st.caption(_ol)
+                    _ncs = [c for c in (_n.get("concepts", []) or []) if c]
+                    if _ncs:
+                        st.markdown(" ".join(f"`{c}`" for c in _ncs[:5]))
+                    if st.button("📖 열기", key=f"dn_open_{_n.get('id')}", use_container_width=True):
+                        st.session_state["archive_open_note_id"] = _n.get("id")
+                        st.query_params["page"] = "archive"
+                        st.rerun()
+
+        st.markdown("#### 🧠 최근 자주 등장한 개념")
+        _dn_freq = concept_frequency(top_n=8)
+        if _dn_freq:
+            st.markdown(" ".join(f"`{c}`" for c, _ in _dn_freq))
+        else:
+            st.caption("아직 개념이 없어요.")
     st.stop()
 
 

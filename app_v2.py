@@ -14720,7 +14720,7 @@ def render_home_universe():
         import math as _umath
         _fig = _ugo.Figure()
         _n = len(_planets)
-        _sel_now = st.session_state.get("home_univ_sel")  # 이전 선택(selectbox 값) — 지도에 강조
+        _sel_now = st.session_state.get("home_univ_pick")  # 선택된 행성 — 지도에 강조
         _xs, _ys, _sizes, _texts, _hov, _colors, _lines = [], [], [], [], [], [], []
         for _i, _pl in enumerate(_planets):
             _ang = 2 * _umath.pi * _i / max(1, _n)
@@ -14783,19 +14783,28 @@ def render_home_universe():
                         break
         except Exception:
             _clicked = None
-        if _clicked and st.session_state.get("_univ_last_click") != _clicked:
-            st.session_state["_univ_last_click"] = _clicked
-            st.session_state["home_univ_sel"] = _clicked
-            st.rerun()  # 즉시 다시 그려 지도 강조 + 위성 펼침 (단일 클릭 반영)
-        st.caption("🛰️ 행성을 **더블클릭**(또는 아래 목록에서 선택)하면 위성이 펼쳐져요.")
+        if _clicked and st.session_state.get("home_univ_pick") != _clicked:
+            st.session_state["home_univ_pick"] = _clicked
+            st.rerun()  # 즉시 다시 그려 지도 강조 + 위성 펼침
+        st.caption("🛰️ 행성을 **더블클릭**(또는 아래 버튼으로 선택)하면 위성이 펼쳐져요.")
     except Exception:
         for _pl in _planets:
             st.markdown(f"🪐 **{_pl['name']}** · 📝 {_pl['memos']} 🧠 {_pl['concepts']} ✅ {_pl['tasks']}")
-    # 🪐 행성 선택 → 위성(메모·개념·태그·작업) 펼침 (V2) + 드릴다운
+    # 🪐 행성 선택 버튼 (100% 확실한 펼침 — 위젯키 충돌 없는 home_univ_pick 사용)
     _univ_names = [p["name"] for p in _planets]
-    _sel_planet = st.selectbox("🪐 행성을 골라 위성(메모·개념·태그·작업)을 펼쳐봐요",
-                               ["(우주 전체 보기)"] + _univ_names, key="home_univ_sel")
-    if _sel_planet and _sel_planet != "(우주 전체 보기)":
+    st.markdown("**🪐 행성을 골라 위성(메모·개념·태그·작업)을 펼쳐봐요**")
+    _pick_cols = st.columns(min(5, len(_planets)) + 1)
+    for _i, _pl in enumerate(_planets[:5]):
+        with _pick_cols[_i]:
+            if st.button(f"🪐 {_pl['name'][:8]}", key=f"univ_pick_{_i}", use_container_width=True):
+                st.session_state["home_univ_pick"] = _pl["name"]
+                st.rerun()
+    with _pick_cols[-1]:
+        if st.button("🌌 전체", key="univ_pick_all", use_container_width=True):
+            st.session_state["home_univ_pick"] = None
+            st.rerun()
+    _sel_planet = st.session_state.get("home_univ_pick")
+    if _sel_planet and _sel_planet in _univ_names:
         _pn = [n for n in _notes if n.get("project") == _sel_planet]
         _pn_ids = {n.get("id") for n in _pn}
         _pcs = sorted({l.get("concept") for l in _links
@@ -14845,14 +14854,7 @@ def render_home_universe():
             st.query_params["page"] = "projects"
             st.rerun()
     else:
-        # 우주 전체: 행성 바로가기 버튼
-        _uc = st.columns(min(4, len(_planets)) or 1)
-        for _i, _pl in enumerate(_planets[:4]):
-            with _uc[_i]:
-                if st.button(f"🪐 {_pl['name'][:10]} 열기", key=f"home_univ_{_i}", use_container_width=True):
-                    st.session_state["ep_jump_entity"] = _pl["name"]
-                    st.query_params["page"] = "projects"
-                    st.rerun()
+        st.caption("위 행성 버튼을 누르면 그 프로젝트의 메모·개념·태그·작업이 펼쳐져요.")
 
 
 render_home_universe()

@@ -5123,8 +5123,20 @@ def render_knowledge_map_page():
     _km_toggle_label = ("🔬 고급 뷰 표시 중 — 끄면 기본 4개만 보여요"
                         if _km_adv_cur else "🔬 고급 기능 6개 더 보기 (노션보드·태그맵·지식페이지·브레인스토밍·프로젝트맵·타임라인)")
     _km_adv = st.toggle(_km_toggle_label, value=False, key="km_adv_view")
-    st.caption("🧭 **기본**: 📚 내 노트 볼까? · 🧠 내 개념 볼까? · 🕸 연결 관계 볼까? · 📈 성장 흐름 볼까?")
     if not _km_adv:
+        _basic_catalog = [
+            ("📚", "노트", "내가 저장한 메모를 둘러봐요"),
+            ("🧠", "개념", "반복 등장하는 핵심 개념을 찾아봐요"),
+            ("🕸", "관계", "메모와 개념이 어떻게 연결되는지 봐요"),
+            ("📈", "성장", "시간이 지나며 무엇을 배우고 있는지 봐요"),
+        ]
+        _bc_cols = st.columns(4)
+        for _bi, (_em, _nm, _desc) in enumerate(_basic_catalog):
+            with _bc_cols[_bi]:
+                st.markdown(
+                    f"<div style='font-size:0.88em'><b>{_em} {_nm}</b><br>"
+                    f"<span style='color:#64748b'>{_desc}</span></div>",
+                    unsafe_allow_html=True)
         st.caption("➕ 노션 보드·태그맵·지식 페이지·브레인스토밍·프로젝트맵·타임라인은 위 **🔬 고급 기능 6개 더 보기**를 켜면 나와요.")
     if _km_adv:
         # 고급 기능 카탈로그 — 기능명만으론 모르니 '한 줄 설명 + 언제 쓰는지'

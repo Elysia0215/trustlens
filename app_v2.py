@@ -6299,72 +6299,80 @@ def render_project_page():
                     if not _cands:
                         st.caption("연결할 수 있는 다른 자료가 없어요. 새 자료를 만들어보세요.")
                     else:
-                        # 검색 + 유형 필터
-                        _fc1, _fc2 = st.columns([2, 1])
-                        with _fc1:
-                            _link_q = st.text_input("🔍 검색", key=f"dt1_linkq_{proj_id}",
-                                                    placeholder="제목으로 검색", label_visibility="collapsed")
-                        with _fc2:
-                            _link_filter = st.selectbox("유형", ["전체", "지식 메모", "분석 결과"],
-                                                        key=f"dt1_linkfilter_{proj_id}", label_visibility="collapsed")
                         _kind_label = {"note": "지식 메모", "analysis": "분석 결과"}
-                        _q_low = (_link_q or "").strip().lower()
-                        _filtered = [c for c in _cands
-                                     if (_link_filter == "전체" or _kind_label[c[1]] == _link_filter)
-                                     and (not _q_low or _q_low in c[3].lower())]
+                        # 왼쪽 70%: 후보 고르기 / 오른쪽 30%: 선택 요약 + 연결
+                        _lk_left, _lk_right = st.columns([7, 3])
 
-                        # 섹션 선택
-                        _proj_secs = [s.get("name") for s in st.session_state.get("project_sections", [])
-                                      if s.get("project_id") == proj_id and s.get("name")]
-                        _sec_opts = ["일반"] + _proj_secs
-                        _link_sec = st.selectbox("연결할 섹션", _sec_opts, key=f"dt1_linksec_{proj_id}")
+                        with _lk_left:
+                            # 검색 + 유형 필터
+                            _fc1, _fc2 = st.columns([2, 1])
+                            with _fc1:
+                                _link_q = st.text_input("🔍 검색", key=f"dt1_linkq_{proj_id}",
+                                                        placeholder="제목으로 검색", label_visibility="collapsed")
+                            with _fc2:
+                                _link_filter = st.selectbox("유형", ["전체", "지식 메모", "분석 결과"],
+                                                            key=f"dt1_linkfilter_{proj_id}", label_visibility="collapsed")
+                            _q_low = (_link_q or "").strip().lower()
+                            _filtered = [c for c in _cands
+                                         if (_link_filter == "전체" or _kind_label[c[1]] == _link_filter)
+                                         and (not _q_low or _q_low in c[3].lower())]
 
-                        # 전체 선택 / 해제
-                        _allk = f"dt1_linkall_{proj_id}"
-                        _ac1, _ac2, _ac3 = st.columns([1, 1, 2])
-                        with _ac1:
-                            if st.button("☑️ 전체 선택", key=f"dt1_linkselall_{proj_id}", use_container_width=True):
-                                for c in _filtered:
-                                    st.session_state[f"dt1_linkcb_{proj_id}_{c[0]}"] = True
-                                st.rerun()
-                        with _ac2:
-                            if st.button("⬜ 선택 해제", key=f"dt1_linkclr_{proj_id}", use_container_width=True):
-                                for c in _cands:
-                                    st.session_state[f"dt1_linkcb_{proj_id}_{c[0]}"] = False
-                                st.rerun()
+                            # 전체 선택 / 해제
+                            _ac1, _ac2 = st.columns(2)
+                            with _ac1:
+                                if st.button(f"☑️ 전체 선택 ({len(_filtered)})", key=f"dt1_linkselall_{proj_id}", use_container_width=True):
+                                    for c in _filtered:
+                                        st.session_state[f"dt1_linkcb_{proj_id}_{c[0]}"] = True
+                                    st.rerun()
+                            with _ac2:
+                                if st.button("⬜ 선택 해제", key=f"dt1_linkclr_{proj_id}", use_container_width=True):
+                                    for c in _cands:
+                                        st.session_state[f"dt1_linkcb_{proj_id}_{c[0]}"] = False
+                                    st.rerun()
 
-                        if not _filtered:
-                            st.caption("검색/필터에 맞는 자료가 없어요.")
+                            if not _filtered:
+                                st.caption("검색/필터에 맞는 자료가 없어요.")
 
-                        # 체크박스 리스트 (스크롤 컨테이너)
-                        _selected_objs = []
-                        with st.container(height=260, border=False):
-                            for _uid, _kind, _kicon, _title, _curp, _obj in _filtered:
-                                _cbkey = f"dt1_linkcb_{proj_id}_{_uid}"
-                                _checked = st.checkbox(
-                                    f"{_kicon[:2]} **{_title[:50]}**",
-                                    key=_cbkey)
-                                st.caption(f"&nbsp;&nbsp;&nbsp;&nbsp;{_kind_label[_kind]} · {_curp}")
-                                if _checked:
-                                    _selected_objs.append(_obj)
+                            # 체크박스 리스트 (스크롤 컨테이너)
+                            with st.container(height=300, border=False):
+                                for _uid, _kind, _kicon, _title, _curp, _obj in _filtered:
+                                    st.checkbox(f"{_kicon[:2]} **{_title[:50]}**",
+                                                key=f"dt1_linkcb_{proj_id}_{_uid}")
+                                    st.caption(f"&nbsp;&nbsp;&nbsp;&nbsp;{_kind_label[_kind]} · {_curp}")
 
                         # 전체 후보 중 체크된 것 집계 (필터로 안 보여도 유지)
-                        _all_selected = [c[5] for c in _cands
-                                         if st.session_state.get(f"dt1_linkcb_{proj_id}_{c[0]}")]
-                        st.markdown(f"**선택 {len(_all_selected)}개**")
-                        if st.button(f"🔗 현재 프로젝트에 연결 ({len(_all_selected)}개)", key=f"dt1_linkrun_{proj_id}",
-                                     type="primary", use_container_width=True, disabled=not _all_selected):
-                            for _obj in _all_selected:
-                                _obj["project"] = sel_proj_name
-                                _obj["project_id"] = proj_id
-                                _obj["section"] = _link_sec
-                            # 체크 상태 초기화
-                            for c in _cands:
-                                st.session_state.pop(f"dt1_linkcb_{proj_id}_{c[0]}", None)
-                            save_persisted_data()
-                            st.session_state[_proj_link_key] = False
-                            _flash(f"✅ 자료 {len(_all_selected)}개를 '{sel_proj_name}'에 연결했어요.")
-                            st.rerun()
+                        _sel_cands = [c for c in _cands
+                                      if st.session_state.get(f"dt1_linkcb_{proj_id}_{c[0]}")]
+                        _all_selected = [c[5] for c in _sel_cands]
+
+                        with _lk_right:
+                            st.markdown(f"**🧺 선택한 자료 {len(_sel_cands)}개**")
+                            if not _sel_cands:
+                                st.caption("왼쪽에서 연결할 자료를 선택해주세요.")
+                            else:
+                                for c in _sel_cands[:5]:
+                                    st.markdown(f"- {c[2][:2]} {c[3][:24]}")
+                                if len(_sel_cands) > 5:
+                                    st.caption(f"+{len(_sel_cands) - 5}개 더")
+                            st.divider()
+                            # 섹션 선택
+                            _proj_secs = [s.get("name") for s in st.session_state.get("project_sections", [])
+                                          if s.get("project_id") == proj_id and s.get("name")]
+                            _sec_opts = ["일반"] + _proj_secs
+                            _link_sec = st.selectbox("연결할 섹션", _sec_opts, key=f"dt1_linksec_{proj_id}")
+                            st.caption(f"📁 {sel_proj_name}")
+                            if st.button(f"🔗 연결 ({len(_all_selected)})", key=f"dt1_linkrun_{proj_id}",
+                                         type="primary", use_container_width=True, disabled=not _all_selected):
+                                for _obj in _all_selected:
+                                    _obj["project"] = sel_proj_name
+                                    _obj["project_id"] = proj_id
+                                    _obj["section"] = _link_sec
+                                for c in _cands:
+                                    st.session_state.pop(f"dt1_linkcb_{proj_id}_{c[0]}", None)
+                                save_persisted_data()
+                                st.session_state[_proj_link_key] = False
+                                _flash(f"✅ {len(_all_selected)}개 자료를 '{sel_proj_name}'에 연결했어요.")
+                                st.rerun()
 
             _note_view = st.radio("보기", ["📋 테이블", "🗂️ 카드"], horizontal=True, key="proj_note_view")
 
@@ -6400,15 +6408,27 @@ def render_project_page():
                             _tag_str = " ".join([f"#{t}" for t in it["tags"][:3]])
                             if _tag_str:
                                 st.caption(_tag_str)
+                            _unlink_key = f"dt1_unlinkconfirm_{proj_id}_{i}"
                             if st.button("🔗 연결 해제", key=f"dt1_unlink_{proj_id}_{i}",
                                          help="이 프로젝트와의 연결만 해제해요 (자료는 삭제되지 않아요)"):
-                                _obj = it["raw"]
-                                _obj["project"] = "기본 프로젝트"
-                                _obj["project_id"] = ""
-                                _obj["section"] = ""
-                                save_persisted_data()
-                                _flash("연결을 해제했어요. 자료는 '기본 프로젝트'로 이동했어요.")
-                                st.rerun()
+                                st.session_state[_unlink_key] = True
+                            if st.session_state.get(_unlink_key):
+                                st.warning("이 자료를 현재 프로젝트에서 연결 해제할까요? 자료 자체는 삭제되지 않습니다.")
+                                _ulc1, _ulc2 = st.columns(2)
+                                with _ulc1:
+                                    if st.button("✅ 연결 해제", key=f"dt1_unlinkok_{proj_id}_{i}", type="primary", use_container_width=True):
+                                        _obj = it["raw"]
+                                        _obj["project"] = "기본 프로젝트"
+                                        _obj["project_id"] = ""
+                                        _obj["section"] = ""
+                                        st.session_state.pop(_unlink_key, None)
+                                        save_persisted_data()
+                                        _flash("연결을 해제했어요. 자료는 '기본 프로젝트'로 이동했어요.")
+                                        st.rerun()
+                                with _ulc2:
+                                    if st.button("취소", key=f"dt1_unlinkcancel_{proj_id}_{i}", use_container_width=True):
+                                        st.session_state.pop(_unlink_key, None)
+                                        st.rerun()
 
             # ── 작업 목록 + 인라인 추가 ──────────────────────────
             st.divider()

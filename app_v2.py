@@ -4189,6 +4189,7 @@ def render_result(result, extracted_text=None, final_url=None):
         "AI 초안 기반으로 내 메모 정리하기",
         height=600,
         key=note_key,
+        help="마크다운으로 정리하면 아카이브 읽기 화면에서 그대로 렌더링돼요. 예: ## 질문, - 목록, - [ ] 체크, **강조**, > 인용",
     )
 
     st.divider()
@@ -4458,6 +4459,17 @@ def extract_local_concepts(text, tags=None, limit=18):
     return candidates[:limit]
 
 
+def render_readable_markdown(text, *, empty="메모 내용이 없어요.", max_chars=None):
+    """메모/분석 결과를 읽기 모드로 렌더링한다. 저장 원문은 바꾸지 않는다."""
+    body = _clean_text_value(text)
+    if max_chars and len(body) > max_chars:
+        body = body[:max_chars] + "\n\n…(이하 생략)"
+    if not body.strip():
+        st.caption(empty)
+        return
+    st.markdown(body)
+
+
 def infer_thinking_chapters(item):
     """하나의 긴 메모를 페이지 안의 장/섹션처럼 나눠 보여주기 위한 간단한 구조화 함수."""
     text = str(item.get("full_text") or item.get("memo") or "")
@@ -4516,7 +4528,7 @@ def render_thinking_page_preview(item):
             st.caption("추출된 개념이 아직 없어요.")
 
     with st.expander("원문/메모 일부 보기", expanded=False):
-        st.markdown(str(item.get("memo") or item.get("full_text") or "메모 내용이 없어요.")[:3500])
+        render_readable_markdown(item.get("memo") or item.get("full_text"), max_chars=3500)
 
 
 def restore_item_from_knowledge(item):
@@ -6019,7 +6031,7 @@ def render_knowledge_map_page():
                 _sel_idx = st.selectbox("메모 선택", range(len(_note_titles)), format_func=lambda i: _note_titles[i], key="brain_note_sel")
                 _sel_note = _notes[_sel_idx]
                 with st.expander("선택한 메모 미리보기", expanded=False):
-                    st.markdown(_sel_note.get("note", "")[:1500])
+                    render_readable_markdown(_sel_note.get("note", ""), max_chars=1500)
                 _brain_prompt_types = st.multiselect(
                     "원하는 분석 유형",
                     ["확장 주제 제안", "추가 조사 질문", "반대 관점", "발표 문장 초안", "연결 개념 찾기", "다음 할 일"],
@@ -6308,7 +6320,7 @@ def render_knowledge_map_page():
                             st.markdown(f"**섹션:** {_pn.get('section','')} | **신뢰도:** {_score}점")
                             _tags = [str(t) for t in _pn.get("tags",[])]
                             if _tags: st.markdown(f"**태그:** {' '.join(_tags)}")
-                            st.markdown(_pn.get("note","")[:500])
+                            render_readable_markdown(_pn.get("note", ""), max_chars=500)
 
             with _detail_t2:
                 if not _pm_proj_tasks:
@@ -8587,7 +8599,13 @@ if menu == "새 엔터티":
                                       help="이미 쓰던 태그를 골라 쓰면 중복이 안 생겨요")
         _wm_new_tags = st.text_input("새 태그 추가 (쉼표 구분)", key="wz_m_tags_new",
                                      placeholder="목록에 없는 태그만. 예: 여행, 맛집")
-        _wm_note = st.text_area("메모 내용 *", key="wz_m_note", height=180, placeholder="자유롭게 작성하세요...")
+        _wm_note = st.text_area(
+            "메모 내용 *",
+            key="wz_m_note",
+            height=180,
+            placeholder="## 핵심 정리\n- 항목\n- [ ] 확인할 일\n> 인용이나 참고",
+            help="마크다운을 지원해요. 저장 후 읽기 화면에서 제목/목록/체크박스가 적용돼요.",
+        )
         # 개념 자동 연결 선택
         _wm_all_cons = [c.get("name") if isinstance(c,dict) else str(c) for c in st.session_state.get("pkm_custom_concepts",[]) if c]
         _wm_link_cons = multiselect_with_all("연결할 개념 (선택)", _wm_all_cons, key="wz_m_cons")
@@ -9017,6 +9035,9 @@ if menu == "태그 관리":
                 _tk = f"tmv_tags_{_oi}_{_sel_tag}"
                 _ntk = f"tmv_ntags_{_oi}_{_sel_tag}"
                 _titk = f"tmv_title_{_oi}_{_sel_tag}"
+                st.markdown("**읽기 미리보기**")
+                render_readable_markdown(_item.get("note", ""), max_chars=1200)
+                st.divider()
                 st.text_input("제목", value=_item.get("title", ""), key=_titk)
                 st.multiselect("태그", options=get_tag_edit_options(_item),
                     default=[t for t in _item.get("tags", []) if t in get_tag_edit_options(_item)], key=_tk)
@@ -9158,10 +9179,10 @@ if menu == "지식 아카이브":
         with st.expander("📚 원문 / 메모 본문 보기", expanded=False):
             if _body:
                 st.markdown("**📝 내 메모**")
-                st.markdown(_body)
+                render_readable_markdown(_body)
             if _orig:
                 st.markdown("**📄 원문**")
-                st.markdown(_orig[:8000] + ("…(이하 생략)" if len(_orig) > 8000 else ""))
+                render_readable_markdown(_orig, max_chars=8000)
             if not _body and not _orig:
                 st.caption("저장된 본문이 없어요.")
 
@@ -9187,7 +9208,13 @@ if menu == "지식 아카이브":
                 key=tags_key, help="기존 기록의 태그를 선택/해제할 수 있어요.")
             st.text_input("새 태그 추가", placeholder="예: 맛집후보, 재확인필요 (쉼표로 여러 개)",
                           key=new_tags_key, help="입력 후 아래 저장 버튼을 눌러야 반영돼요.")
-            st.text_area("저장된 메모 수정", value=item.get("note", ""), height=280, key=edit_key)
+            st.text_area(
+                "저장된 메모 수정",
+                value=item.get("note", ""),
+                height=280,
+                key=edit_key,
+                help="마크다운을 지원해요. 예: ## 제목, - 목록, - [ ] 체크, **강조**, > 인용"
+            )
             fav_label = "⭐ 즐겨찾기 해제" if item.get("favorite", False) else "☆ 즐겨찾기"
             st.button(fav_label, key=f"favorite_archive_note_{original_index}",
                       use_container_width=True, on_click=toggle_archive_favorite, args=(original_index,))
@@ -10119,8 +10146,13 @@ if menu == "데이터 관리":
                 _qm_c1, _qm_c2 = st.columns([2, 1])
                 with _qm_c1:
                     _qm_title = st.text_input("제목 *", key="qm_s_title", placeholder="메모 제목을 입력하세요")
-                    _qm_body = st.text_area("본문 (붙여넣기)", key="qm_s_body", height=200,
-                        placeholder="분석할 텍스트, URL 내용, 정리한 내용을 붙여넣으세요")
+                    _qm_body = st.text_area(
+                        "본문 (붙여넣기)",
+                        key="qm_s_body",
+                        height=200,
+                        placeholder="## 핵심 정리\n- 항목\n- [ ] 확인할 일\n> 참고 내용",
+                        help="마크다운을 지원해요. 저장 후 읽기 화면에서 가독성 있게 표시돼요.",
+                    )
                 with _qm_c2:
                     # 프로젝트 선택
                     _qm_proj = st.selectbox("📁 프로젝트", _qm_proj_opts, key="qm_s_proj")
@@ -11842,7 +11874,7 @@ if menu == "AI 브레인스토밍":
                     st.markdown(f"**프로젝트:** {_sel_note_br.get('project','')}")
                     st.markdown(f"**태그:** {', '.join([str(t) for t in _sel_note_br.get('tags',[])])}")
                     st.markdown("---")
-                    st.markdown(_sel_note_br.get("note", "")[:2000])
+                    render_readable_markdown(_sel_note_br.get("note", ""), max_chars=2000)
             with _brc2:
                 _br_types_memo = st.multiselect(
                     "분석 유형 선택",

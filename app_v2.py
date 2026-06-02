@@ -7597,40 +7597,53 @@ def render_project_page():
                 _sevs = _events[_sel_d]
                 st.markdown(f"#### 📌 {_sel_d} · 일정 {len(_sevs)}개")
                 _notes_by_id_cal = {n.get("id"): n for n in st.session_state.get("archive_notes", [])}
-                for _ty in _TYPE_ORDER:
-                    _group = [(_i2, _t2, _ref2) for _i2, _t2, _yt, _ref2 in _sevs if _yt == _ty]
-                    if not _group:
-                        continue
-                    _ic, _lb, _col = _TYPE_META[_ty]
-                    st.markdown(f"<b style='color:{_col}'>{_ic} {_lb} ({len(_group)})</b>", unsafe_allow_html=True)
-                    for _gi, (_i2, _t2, _ref2) in enumerate(_group):
-                        _kind = _ref2[0] if _ref2 else None
-                        _rid = _ref2[1] if _ref2 else None
-                        if _kind == "note" and _rid:
-                            _bc1, _bc2 = st.columns([5, 1])
-                            with _bc1:
-                                st.markdown(f"&nbsp;&nbsp;{_i2} {_t2}")
-                                _note_obj = _notes_by_id_cal.get(_rid, {})
-                                _ncs = [c for c in (_note_obj.get("concepts", []) or []) if c]
-                                if _ncs:
-                                    st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;" + " ".join(f"`{c}`" for c in _ncs[:6]),
-                                                unsafe_allow_html=True)
-                            with _bc2:
-                                if st.button("열기", key=f"cal_open_note_{_rid}_{_gi}", use_container_width=True):
-                                    st.session_state["archive_open_note_id"] = _rid
-                                    st.query_params["page"] = "archive"
-                                    st.rerun()
-                        elif _kind == "project" and _rid:
-                            _bc1, _bc2 = st.columns([5, 1])
-                            with _bc1:
-                                st.markdown(f"&nbsp;&nbsp;{_i2} {_t2}")
-                            with _bc2:
-                                if st.button("열기", key=f"cal_open_proj_{_gi}", use_container_width=True):
-                                    st.session_state["ep_jump_entity"] = _rid
-                                    st.query_params["page"] = "projects"
-                                    st.rerun()
-                        else:
-                            st.markdown(f"&nbsp;&nbsp;{_i2} {_t2}")
+
+                def _cal_render_note(_i2, _t2, _rid, _gi, _indent="&nbsp;&nbsp;&nbsp;&nbsp;"):
+                    _bc1, _bc2 = st.columns([5, 1])
+                    with _bc1:
+                        st.markdown(f"{_indent}└ {_i2} {_t2}", unsafe_allow_html=True)
+                        _ncs = [c for c in (_notes_by_id_cal.get(_rid, {}).get("concepts", []) or []) if c]
+                        if _ncs:
+                            st.markdown(_indent + "&nbsp;&nbsp;&nbsp;개념: " + " ".join(f"`{c}`" for c in _ncs[:6]),
+                                        unsafe_allow_html=True)
+                    with _bc2:
+                        if _rid and st.button("열기", key=f"cal_open_note_{_rid}_{_gi}", use_container_width=True):
+                            st.session_state["archive_open_note_id"] = _rid
+                            st.query_params["page"] = "archive"
+                            st.rerun()
+
+                # 계층: 📁 프로젝트 → (시작/마감 · 작업 · 메모 · 분석)  — expander 미사용, 들여쓰기/카드
+                with st.container(border=True):
+                    _ph1, _ph2 = st.columns([5, 1])
+                    with _ph1:
+                        st.markdown(f"**📁 {sel_proj_name}**")
+                    with _ph2:
+                        if st.button("프로젝트", key=f"cal_proj_hdr_{_sel_d}", use_container_width=True):
+                            st.session_state["ep_jump_entity"] = sel_proj_name
+                            st.query_params["page"] = "projects"
+                            st.rerun()
+                    # 프로젝트 시작/마감
+                    for _i2, _t2, _yt, _ref2 in _sevs:
+                        if _yt == "project":
+                            st.markdown(f"&nbsp;&nbsp;└ {_i2} {_t2}", unsafe_allow_html=True)
+                    # ✅ 작업
+                    _task_evs = [(_i2, _t2) for _i2, _t2, _yt, _ref2 in _sevs if _yt == "task"]
+                    if _task_evs:
+                        st.markdown(f"&nbsp;&nbsp;**✅ 작업 ({len(_task_evs)})**", unsafe_allow_html=True)
+                        for _i2, _t2 in _task_evs:
+                            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;└ {_i2} {_t2}", unsafe_allow_html=True)
+                    # 📝 메모 / 🔬 연구노트
+                    _memo_evs = [(_i2, _t2, _ref2) for _i2, _t2, _yt, _ref2 in _sevs if _yt in ("note", "research")]
+                    if _memo_evs:
+                        st.markdown(f"&nbsp;&nbsp;**📝 메모 ({len(_memo_evs)})**", unsafe_allow_html=True)
+                        for _gi, (_i2, _t2, _ref2) in enumerate(_memo_evs):
+                            _cal_render_note(_i2, _t2, (_ref2[1] if _ref2 else None), _gi)
+                    # 📊 분석결과
+                    _ana_evs = [(_i2, _t2) for _i2, _t2, _yt, _ref2 in _sevs if _yt == "analysis"]
+                    if _ana_evs:
+                        st.markdown(f"&nbsp;&nbsp;**📊 분석결과 ({len(_ana_evs)})**", unsafe_allow_html=True)
+                        for _i2, _t2 in _ana_evs:
+                            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;└ {_i2} {_t2}", unsafe_allow_html=True)
             elif _events:
                 st.caption("📅 날짜 아래 **열기** 버튼을 누르면 그 날의 상세 일정을 볼 수 있어요.")
 

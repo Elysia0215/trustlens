@@ -14714,14 +14714,59 @@ def render_home_universe():
     except Exception:
         for _pl in _planets:
             st.markdown(f"🪐 **{_pl['name']}** · 📝 {_pl['memos']} 🧠 {_pl['concepts']} ✅ {_pl['tasks']}")
-    # 행성 바로가기 (클릭 이동)
-    _uc = st.columns(min(4, len(_planets)) or 1)
-    for _i, _pl in enumerate(_planets[:4]):
-        with _uc[_i]:
-            if st.button(f"🪐 {_pl['name'][:10]}", key=f"home_univ_{_i}", use_container_width=True):
-                st.session_state["ep_jump_entity"] = _pl["name"]
-                st.query_params["page"] = "projects"
-                st.rerun()
+    # 🪐 행성 선택 → 위성(메모·개념·태그·작업) 펼침 (V2) + 드릴다운
+    _univ_names = [p["name"] for p in _planets]
+    _sel_planet = st.selectbox("🪐 행성을 골라 위성(메모·개념·태그·작업)을 펼쳐봐요",
+                               ["(우주 전체 보기)"] + _univ_names, key="home_univ_sel")
+    if _sel_planet and _sel_planet != "(우주 전체 보기)":
+        _pn = [n for n in _notes if n.get("project") == _sel_planet]
+        _pn_ids = {n.get("id") for n in _pn}
+        _pcs = sorted({l.get("concept") for l in _links
+                       if l.get("note_id") in _pn_ids and l.get("concept")})
+        _ptags = sorted({str(t).replace("#", "").strip() for n in _pn
+                         for t in (n.get("tags", []) or []) if str(t).strip()})
+        _ptk = [t for t in _tasks if t.get("project") == _sel_planet]
+        st.markdown(
+            f"**🪐 {_sel_planet}** 위성 — 🌙 메모 {len(_pn)} · 🧠 개념 {len(_pcs)} · "
+            f"🏷️ 태그 {len(_ptags)} · ✅ 작업 {len(_ptk)}")
+        _w1, _w2, _w3 = st.columns(3)
+        with _w1:
+            st.markdown("**🌙 메모**")
+            if _pn:
+                for _wi, _wn in enumerate(_pn[:6]):
+                    if st.button(f"📝 {(_wn.get('title') or '제목 없음')[:14]}",
+                                 key=f"univ_memo_{_wn.get('id')}_{_wi}", use_container_width=True):
+                        st.session_state["archive_open_note_id"] = _wn.get("id")
+                        st.query_params["page"] = "archive"
+                        st.rerun()
+            else:
+                st.caption("아직 없어요.")
+        with _w2:
+            st.markdown("**🧠 개념**")
+            st.markdown(" ".join(f"`{c}`" for c in _pcs[:12]) if _pcs else "_아직 없어요._")
+            if _ptags:
+                st.markdown("**🏷️ 태그**")
+                st.markdown(" ".join(f"`#{t}`" for t in _ptags[:10]))
+        with _w3:
+            st.markdown("**✅ 작업**")
+            if _ptk:
+                for _wt in _ptk[:6]:
+                    st.markdown(f"- {_wt.get('title', '')} · {_wt.get('status', '')}")
+            else:
+                st.caption("아직 없어요.")
+        if st.button(f"📁 {_sel_planet} 프로젝트 상세 열기", key="univ_goto_proj", use_container_width=True):
+            st.session_state["ep_jump_entity"] = _sel_planet
+            st.query_params["page"] = "projects"
+            st.rerun()
+    else:
+        # 우주 전체: 행성 바로가기 버튼
+        _uc = st.columns(min(4, len(_planets)) or 1)
+        for _i, _pl in enumerate(_planets[:4]):
+            with _uc[_i]:
+                if st.button(f"🪐 {_pl['name'][:10]}", key=f"home_univ_{_i}", use_container_width=True):
+                    st.session_state["ep_jump_entity"] = _pl["name"]
+                    st.query_params["page"] = "projects"
+                    st.rerun()
 
 
 render_home_universe()

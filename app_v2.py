@@ -15966,6 +15966,75 @@ def render_home_universe():
                 return "⏸️", "#fef3c7", "#92400e"
             return "⬜", "#f1f5f9", "#475569"
 
+        # 위 카드에서 고른 종류의 목록 — 카드 바로 아래에 펼쳐 보여줌(클릭 시 멀리 안 가게)
+        def _render_sat_list():
+            _view_label = {"memo": "📝 메모", "concept": "🧠 개념",
+                           "tag": "🏷️ 태그", "task": "✅ 작업"}.get(_sat_view, "📝 메모")
+            st.markdown(f"**{_view_label} 목록 — {_univ_esc(_sel_planet)}**")
+            if _sat_view == "memo":
+                if _pn:
+                    for _wi, _wn in enumerate(_pn):
+                        _title = _clean_text_value(_wn.get("title")).strip() or "제목 없음"
+                        _tags = [
+                            _clean_text_value(_t).replace("#", "").strip()
+                            for _t in (_wn.get("tags", []) or [])
+                            if _clean_text_value(_t).strip()
+                        ]
+                        _tag_line = " ".join(f"#{_univ_esc(_t)}" for _t in _tags[:3])
+                        with st.container(border=True):
+                            st.markdown(
+                                f"<div style='font-weight:900;font-size:15px;'>📝 {_univ_esc(_title)}</div>"
+                                f"<div style='color:#64748b;font-size:12px;margin-top:4px;'>"
+                                f"{_tag_line or '태그 없음'} · 로그 #{_wi + 1}</div>",
+                                unsafe_allow_html=True)
+                            if st.button("메모 열기", key=f"univ_memo_{_wn.get('id')}_{_wi}",
+                                         use_container_width=True):
+                                st.session_state["archive_open_note_id"] = _wn.get("id")
+                                st.query_params["page"] = "archive"
+                                st.rerun()
+                else:
+                    st.caption("아직 이 행성엔 메모가 없어요. ✍️ 메모를 만들어 위성을 띄워보세요.")
+            elif _sat_view == "concept":
+                if _pcs:
+                    st.markdown(
+                        "<div style='line-height:2.4;'>"
+                        + "".join(_univ_chip(_c, "#ede9fe", "#6d28d9") for _c in _pcs)
+                        + "</div>", unsafe_allow_html=True)
+                else:
+                    st.caption("아직 연결된 개념이 없어요. 메모에서 개념이 추출되면 여기 모여요.")
+            elif _sat_view == "tag":
+                if _ptags:
+                    st.markdown(
+                        "<div style='line-height:2.4;'>"
+                        + "".join(_univ_chip(_t, "#dcfce7", "#15803d", "#") for _t in _ptags)
+                        + "</div>", unsafe_allow_html=True)
+                else:
+                    st.caption("아직 태그가 없어요. 메모에 태그를 달면 여기 모여요.")
+            elif _sat_view == "task":
+                if _ptk:
+                    for _ti, _wt in enumerate(_ptk):
+                        _title = _clean_text_value(_wt.get("title")).strip() or "제목 없음"
+                        _status = _clean_text_value(_wt.get("status")).strip() or "상태 없음"
+                        _priority = _clean_text_value(_wt.get("priority")).strip()
+                        _due = _clean_text_value(_wt.get("due_date")).strip()
+                        _emo, _bg, _fg = _task_badge(_status)
+                        _meta = " · ".join([_v for _v in [_priority, _due[:10] if _due else ""] if _v])
+                        with st.container(border=True):
+                            st.markdown(
+                                f"<div style='display:flex;align-items:center;gap:8px;'>"
+                                f"<span style='background:{_bg};color:{_fg};border-radius:999px;"
+                                f"padding:4px 9px;font-weight:900;font-size:12px;'>{_emo} {_univ_esc(_status)}</span>"
+                                f"<span style='color:#64748b;font-size:12px;'>퀘스트 #{_ti + 1}</span></div>"
+                                f"<div style='font-weight:900;font-size:15px;margin-top:8px;'>{_univ_esc(_title)}</div>"
+                                f"<div style='color:#64748b;font-size:12px;margin-top:4px;'>{_univ_esc(_meta) if _meta else '추가 정보 없음'}</div>",
+                                unsafe_allow_html=True)
+                    if st.button("✅ 작업 보드로 이동", key=f"univ_tasks_open_{_sel_planet}", use_container_width=True):
+                        st.query_params["page"] = "tasks"
+                        st.rerun()
+                else:
+                    st.caption("아직 작업이 없어요. 작업을 만들면 여기서 퀘스트로 보여요.")
+        _render_sat_list()
+
         st.markdown(
             "<div style='margin-top:18px;padding:14px 16px;border-radius:14px;"
             "background:linear-gradient(135deg,#eef2ff,#f5f3ff);"
@@ -16070,72 +16139,6 @@ def render_home_universe():
                                f"univ_move_concepts_{_sel_planet}"):
                         st.session_state.pop(_k, None)
                     st.rerun()
-        # 위 카드에서 고른 종류의 목록만 펼쳐서 보여줌 (행성 선택 → 카드 클릭 → 목록)
-        _view_label = {"memo": "📝 메모", "concept": "🧠 개념",
-                       "tag": "🏷️ 태그", "task": "✅ 작업"}.get(_sat_view, "📝 메모")
-        st.markdown(f"**{_view_label} 목록 — {_univ_esc(_sel_planet)}**")
-        if _sat_view == "memo":
-            if _pn:
-                for _wi, _wn in enumerate(_pn):
-                    _title = _clean_text_value(_wn.get("title")).strip() or "제목 없음"
-                    _tags = [
-                        _clean_text_value(_t).replace("#", "").strip()
-                        for _t in (_wn.get("tags", []) or [])
-                        if _clean_text_value(_t).strip()
-                    ]
-                    _tag_line = " ".join(f"#{_univ_esc(_t)}" for _t in _tags[:3])
-                    with st.container(border=True):
-                        st.markdown(
-                            f"<div style='font-weight:900;font-size:15px;'>📝 {_univ_esc(_title)}</div>"
-                            f"<div style='color:#64748b;font-size:12px;margin-top:4px;'>"
-                            f"{_tag_line or '태그 없음'} · 로그 #{_wi + 1}</div>",
-                            unsafe_allow_html=True)
-                        if st.button("메모 열기", key=f"univ_memo_{_wn.get('id')}_{_wi}",
-                                     use_container_width=True):
-                            st.session_state["archive_open_note_id"] = _wn.get("id")
-                            st.query_params["page"] = "archive"
-                            st.rerun()
-            else:
-                st.caption("아직 이 행성엔 메모가 없어요. ✍️ 메모를 만들어 위성을 띄워보세요.")
-        elif _sat_view == "concept":
-            if _pcs:
-                st.markdown(
-                    "<div style='line-height:2.4;'>"
-                    + "".join(_univ_chip(_c, "#ede9fe", "#6d28d9") for _c in _pcs)
-                    + "</div>", unsafe_allow_html=True)
-            else:
-                st.caption("아직 연결된 개념이 없어요. 메모에서 개념이 추출되면 여기 모여요.")
-        elif _sat_view == "tag":
-            if _ptags:
-                st.markdown(
-                    "<div style='line-height:2.4;'>"
-                    + "".join(_univ_chip(_t, "#dcfce7", "#15803d", "#") for _t in _ptags)
-                    + "</div>", unsafe_allow_html=True)
-            else:
-                st.caption("아직 태그가 없어요. 메모에 태그를 달면 여기 모여요.")
-        elif _sat_view == "task":
-            if _ptk:
-                for _ti, _wt in enumerate(_ptk):
-                    _title = _clean_text_value(_wt.get("title")).strip() or "제목 없음"
-                    _status = _clean_text_value(_wt.get("status")).strip() or "상태 없음"
-                    _priority = _clean_text_value(_wt.get("priority")).strip()
-                    _due = _clean_text_value(_wt.get("due_date")).strip()
-                    _emo, _bg, _fg = _task_badge(_status)
-                    _meta = " · ".join([_v for _v in [_priority, _due[:10] if _due else ""] if _v])
-                    with st.container(border=True):
-                        st.markdown(
-                            f"<div style='display:flex;align-items:center;gap:8px;'>"
-                            f"<span style='background:{_bg};color:{_fg};border-radius:999px;"
-                            f"padding:4px 9px;font-weight:900;font-size:12px;'>{_emo} {_univ_esc(_status)}</span>"
-                            f"<span style='color:#64748b;font-size:12px;'>퀘스트 #{_ti + 1}</span></div>"
-                            f"<div style='font-weight:900;font-size:15px;margin-top:8px;'>{_univ_esc(_title)}</div>"
-                            f"<div style='color:#64748b;font-size:12px;margin-top:4px;'>{_univ_esc(_meta) if _meta else '추가 정보 없음'}</div>",
-                            unsafe_allow_html=True)
-                if st.button("✅ 작업 보드로 이동", key=f"univ_tasks_open_{_sel_planet}", use_container_width=True):
-                    st.query_params["page"] = "tasks"
-                    st.rerun()
-            else:
-                st.caption("아직 작업이 없어요. 작업을 만들면 여기서 퀘스트로 보여요.")
         render_action_buttons("project", target_name=_sel_planet, project=_sel_planet,
                               key_prefix=f"univ_act_{_sel_planet}")
     else:

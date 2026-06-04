@@ -16053,6 +16053,28 @@ def render_home_universe():
                         f"<div style='text-align:center'><div style='font-size:1.25em'>{_em}</div>"
                         f"<b>{_name}</b><br><span style='color:#7c3aed;font-weight:900'>{_count}개</span></div>",
                         unsafe_allow_html=True)
+        # 🔍 대기 항목이 '무엇인지' 실제 목록으로 펼쳐 보기 (숫자만 보이던 문제 해결)
+        if _launch_total > 0:
+            with st.expander("🔍 대기 항목 목록 보기", expanded=False):
+                _lc_note_titles = [
+                    _clean_text_value(n.get("title")).strip() or "제목 없음" for n in _loose_notes
+                ]
+                _lc_task_titles = [
+                    _clean_text_value(t.get("title")).strip() or "제목 없음" for t in _loose_tasks
+                ]
+                _lc_lists = [
+                    ("🌙", "대기 메모", _lc_note_titles, ""),
+                    ("🧠", "대기 개념", list(_loose_concepts), ""),
+                    ("🏷️", "동승 태그", list(_loose_tags), "#"),
+                    ("✅", "대기 작업", _lc_task_titles, ""),
+                ]
+                for _em, _nm, _items, _pre in _lc_lists:
+                    if _items:
+                        st.markdown(f"**{_em} {_nm} {len(_items)}개**")
+                        st.markdown(
+                            "\n".join(f"- {_pre}{_univ_esc(_it)}" for _it in _items[:15])
+                            + (f"\n- … 외 {len(_items)-15}개" if len(_items) > 15 else ""))
+                st.caption("아래 탭에서 보낼 항목을 선택해 발사하거나, 그대로 두면 발사 대기로 남아요.")
         if _launch_total == 0:
             st.success("🌍 모든 지식이 제자리를 찾았어요.")
             st.caption("발사 대기 중인 메모나 개념이 없습니다.")

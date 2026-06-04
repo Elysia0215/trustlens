@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-04.13"  # 배포 식별용
+APP_BUILD = "2026-06-04.14"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -15793,9 +15793,9 @@ _dash_ai_conn = sum(1 for _c, _n in _dash_cc.items() if _n >= 2)  # 2개 이상 
 def _wstat(num, label):
     return (
         f"<div style='text-align:center;padding:0 14px;'>"
-        f"<div style='font-size:1.7rem;font-weight:900;color:#fff;"
+        f"<div style='font-size:1.7rem;font-weight:900;color:#ffffff !important;"
         f"text-shadow:0 1px 3px rgba(0,0,0,0.35);line-height:1.1;'>{num}</div>"
-        f"<div style='font-size:0.78rem;color:#e0e7ff;'>{label}</div></div>"
+        f"<div style='font-size:0.78rem;color:#e0e7ff !important;'>{label}</div></div>"
     )
 
 st.markdown(

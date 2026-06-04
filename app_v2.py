@@ -4539,6 +4539,190 @@ def extract_local_concepts(text, tags=None, limit=18):
     return candidates[:limit]
 
 
+# ════════════════════════════════════════════════════════════════
+# 🔗 AI 연결 추천 (로컬 규칙 기반) — 1단계: 계산 + 미리보기만(데이터 반영 X)
+# ════════════════════════════════════════════════════════════════
+_TASK_KEYWORDS = ("예약", "확인", "신청", "등록", "구매", "사기", "보내", "제출",
+                  "정리", "작성", "조사", "준비", "예매", "결제", "신고", "문의")
+
+def build_reco(note):
+    """메모 하나에 대한 연결 후보를 로컬 규칙으로 계산한다. (순수 함수, 데이터 변경 없음)
+    반환: {concepts, tags, project, related_notes, routes, tasks} — 각 항목에 reason 포함."""
+    if not isinstance(note, dict):
+        return {}
+    _body = " ".join([str(note.get("title", "")), str(note.get("note", "")),
+                      str(note.get("original_text", ""))]).strip()
+    _own_tags = [str(t).replace("#", "").strip() for t in (note.get("tags", []) or []) if str(t).strip()]
+    _own_id = note.get("id")
+    _own_proj = _clean_text_value(note.get("project")).strip()
+
+    _notes = st.session_state.get("archive_notes", [])
+    _links = st.session_state.get("note_concept_links", [])
+    _projects = [p for p in st.session_state.get("projects", [])
+                 if isinstance(p, dict) and _clean_text_value(p.get("name")).strip()]
+
+    # ── 🧠 개념 추천 ── 자동 추출 → canonical → 이미 연결된 건 제외
+    _auto = canonical_concepts(extract_local_concepts(_body, _own_tags, limit=10))
+    _already = {canonical_concept(c) for c in (note.get("concepts", []) or [])}
+    _existing_all = {canonical_concept(l.get("concept")) for l in _links if l.get("concept")}
+    _con_reco = []
+    for _c in _auto:
+        if not _c or _c in _already:
+            continue
+        _is_existing = _c in _existing_all
+        _con_reco.append({
+            "name": _c,
+            "reason": "기존 개념과 일치" if _is_existing else "본문에서 자동 추출",
+            "existing": _is_existing,
+        })
+
+    # ── 🏷 태그 추천 ── 자주 쓰는 태그 중 본문에 등장 + 자체 태그 제외
+    _tag_freq = {}
+    for _n in _notes:
+        for _t in (_n.get("tags", []) or []):
+            _tc = str(_t).replace("#", "").strip()
+            if _tc:
+                _tag_freq[_tc] = _tag_freq.get(_tc, 0) + 1
+    _tag_reco = []
+    for _t, _f in sorted(_tag_freq.items(), key=lambda x: -x[1]):
+        if _t in _own_tags:
+            continue
+        if _t in _body or _f >= 3:
+            _tag_reco.append({"name": _t,
+                              "reason": ("본문에 등장" if _t in _body else f"자주 쓰는 태그({_f}회)")})
+        if len(_tag_reco) >= 6:
+            break
+
+    # ── 📁 프로젝트 추천 ── 이 메모의 개념·태그가 가장 많이 겹치는 프로젝트
+    _my_cset = {_c["name"] for _c in _con_reco} | _already
+    _my_tset = set(_own_tags) | {t["name"] for t in _tag_reco}
+    _proj_score = []
+    for _p in _projects:
+        _pn = _p.get("name")
+        if _pn == _own_proj:
+            continue
+        _pcs = set()
+        _pts = set()
+        _pnote_ids = {n.get("id") for n in _notes if _clean_text_value(n.get("project")).strip() == _pn}
+        for _l in _links:
+            if _l.get("note_id") in _pnote_ids or _clean_text_value(_l.get("project")).strip() == _pn:
+                _cc = canonical_concept(_l.get("concept"))
+                if _cc:
+                    _pcs.add(_cc)
+        for _n in _notes:
+            if _clean_text_value(_n.get("project")).strip() == _pn:
+                for _t in (_n.get("tags", []) or []):
+                    _tc = str(_t).replace("#", "").strip()
+                    if _tc:
+                        _pts.add(_tc)
+        _shared_c = _my_cset & _pcs
+        _shared_t = _my_tset & _pts
+        _score = len(_shared_c) * 2 + len(_shared_t)
+        if _score > 0:
+            _proj_score.append((_pn, _score, sorted(_shared_c), sorted(_shared_t)))
+    _proj_score.sort(key=lambda x: -x[1])
+    _project = None
+    if _proj_score:
+        _best = _proj_score[0]
+        _rz = []
+        if _best[2]:
+            _rz.append("개념 " + ", ".join(_best[2][:3]))
+        if _best[3]:
+            _rz.append("태그 " + ", ".join("#" + t for t in _best[3][:3]))
+        _project = {"best": _best[0], "reason": " · ".join(_rz) + " 겹침",
+                    "alts": [p[0] for p in _proj_score[1:4]]}
+
+    # ── 🔗 관련 메모 추천 ── 개념/태그를 공유하는 다른 메모
+    _related = []
+    for _n in _notes:
+        if _n.get("id") == _own_id:
+            continue
+        _ncs = {canonical_concept(c) for c in (_n.get("concepts", []) or [])}
+        _nts = {str(t).replace("#", "").strip() for t in (_n.get("tags", []) or [])}
+        _sc = _my_cset & _ncs
+        _stg = _my_tset & _nts
+        if _sc or _stg:
+            _rz = []
+            if _sc:
+                _rz.append("개념 " + ", ".join(list(_sc)[:2]))
+            if _stg:
+                _rz.append("태그 " + ", ".join("#" + t for t in list(_stg)[:2]))
+            _related.append({"id": _n.get("id"),
+                             "title": _clean_text_value(_n.get("title")).strip() or "제목 없음",
+                             "reason": " · ".join(_rz) + " 공유",
+                             "score": len(_sc) * 2 + len(_stg)})
+    _related.sort(key=lambda x: -x["score"])
+    _related = _related[:5]
+
+    # ── ✅ 작업 추천 ── 본문 줄에서 액션 키워드
+    _tasks = []
+    for _line in re.split(r"[\n.·•\-]", _body):
+        _ls = _line.strip()
+        if 4 <= len(_ls) <= 40 and any(_k in _ls for _k in _TASK_KEYWORDS):
+            _tasks.append({"title": _ls, "reason": "본문에서 할 일 패턴 발견"})
+        if len(_tasks) >= 4:
+            break
+
+    return {"concepts": _con_reco, "tags": _tag_reco, "project": _project,
+            "related_notes": _related, "tasks": _tasks}
+
+
+def render_reco_preview(note):
+    """추천 결과 미리보기 (1단계: 데이터 반영 없이 후보만 보여줌)."""
+    _r = build_reco(note)
+    if not _r:
+        return
+    _total = (len(_r.get("concepts", [])) + len(_r.get("tags", []))
+              + (1 if _r.get("project") else 0) + len(_r.get("related_notes", []))
+              + len(_r.get("tasks", [])))
+    st.markdown("#### 🔗 JIUM이 찾은 연결 후보")
+    if _total == 0:
+        st.caption("아직 연결 후보가 없어요. 기록이 더 쌓이면 JIUM이 연결을 찾아줘요.")
+        return
+    st.caption("⚠️ 미리보기예요 — 아직 실제로 연결되진 않았어요. (추천 품질 확인용)")
+
+    def _esc(_v):
+        import html as _h
+        return _h.escape(str(_v))
+
+    if _r["concepts"]:
+        st.markdown("**🧠 개념 추천**")
+        st.markdown(" ".join(
+            f"<span style='display:inline-block;background:#ede9fe;color:#6d28d9;border-radius:999px;"
+            f"padding:3px 10px;margin:2px;font-size:0.85em'>{_esc(c['name'])} "
+            f"<span style='color:#a78bfa;font-size:0.85em'>· {_esc(c['reason'])}</span></span>"
+            for c in _r["concepts"]), unsafe_allow_html=True)
+    if _r["tags"]:
+        st.markdown("**🏷 태그 추천**")
+        st.markdown(" ".join(
+            f"<span style='display:inline-block;background:#dcfce7;color:#15803d;border-radius:999px;"
+            f"padding:3px 10px;margin:2px;font-size:0.85em'>#{_esc(t['name'])} "
+            f"<span style='color:#4ade80;font-size:0.85em'>· {_esc(t['reason'])}</span></span>"
+            for t in _r["tags"]), unsafe_allow_html=True)
+    if _r["project"]:
+        _p = _r["project"]
+        st.markdown(
+            f"**📁 프로젝트 추천**  \n"
+            f"<span style='color:#1e293b'>「{_esc(_p['best'])}」에 넣으면 좋아요</span> "
+            f"<span style='color:#64748b;font-size:0.85em'>· 근거: {_esc(_p['reason'])}</span>",
+            unsafe_allow_html=True)
+    if _r["related_notes"]:
+        st.markdown("**🔗 관련 메모 추천**")
+        for _n in _r["related_notes"]:
+            st.markdown(
+                f"<div style='padding:4px 0;color:#1e293b'>📝 {_esc(_n['title'])} "
+                f"<span style='color:#64748b;font-size:0.85em'>· {_esc(_n['reason'])}</span></div>",
+                unsafe_allow_html=True)
+    if _r["tasks"]:
+        st.markdown("**✅ 작업 추천**")
+        for _t in _r["tasks"]:
+            st.markdown(
+                f"<div style='padding:4px 0;color:#1e293b'>☑ {_esc(_t['title'])} "
+                f"<span style='color:#64748b;font-size:0.85em'>· {_esc(_t['reason'])}</span></div>",
+                unsafe_allow_html=True)
+    st.caption("👍 추천 품질을 확인하는 단계예요. 다음 단계에서 [모두 적용]/[선택 적용] 버튼이 붙어요.")
+
+
 def render_readable_markdown(text, *, empty="메모 내용이 없어요.", max_chars=None):
     """메모/분석 결과를 읽기 모드로 렌더링한다. 저장 원문은 바꾸지 않는다."""
     body = _clean_text_value(text)
@@ -8709,12 +8893,25 @@ if menu == "새 엔터티":
                     + [c.strip() for c in _wm_new_cons.split(",") if c.strip()]
                     + list(_auto_cons)
                 ))
-                create_memo(_wm_title, _wm_note, _wm_proj, _wm_section or "일반",
-                            _tags, original_text=_wm_note, concepts=_cons)
+                _new_memo = create_memo(_wm_title, _wm_note, _wm_proj, _wm_section or "일반",
+                                        _tags, original_text=_wm_note, concepts=_cons)
+                st.session_state["_reco_preview_note_id"] = _new_memo.get("id")
                 _flash(f"'{_wm_title}' 메모를 '{_wm_proj}'에 저장했어요! (개념 {len(_cons)}개 연결)")
                 st.rerun()
             else:
                 st.warning("제목과 내용을 입력해주세요.")
+
+        # 저장 직후 AI 연결 추천 미리보기 (1단계: 후보만, 반영 X)
+        _rp_id = st.session_state.get("_reco_preview_note_id")
+        if _rp_id:
+            _rp_note = next((n for n in st.session_state.get("archive_notes", [])
+                             if n.get("id") == _rp_id), None)
+            if _rp_note:
+                st.divider()
+                render_reco_preview(_rp_note)
+                if st.button("닫기", key="reco_preview_close"):
+                    st.session_state.pop("_reco_preview_note_id", None)
+                    st.rerun()
 
     # ─── 폴더 ───
     else:

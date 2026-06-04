@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-04.6"  # 배포 식별용 — 코드 바꿔 push할 때마다 갱신
+APP_BUILD = "2026-06-04.7"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -6203,7 +6203,7 @@ def render_knowledge_map_page():
             _mm_show_tasks = st.toggle("할일 노드", value=True, key="mm_show_tasks")
             _mm_show_concepts = st.toggle("개념 노드", value=False, key="mm_show_concepts")
             st.divider()
-            _mm_mode = st.radio("배치 모드", ["태그 중심", "프로젝트별 행성"], key="mm_mode")
+            _mm_mode = st.radio("배치 모드", ["🌐 전체 관계", "프로젝트별 행성", "태그 중심"], key="mm_mode")
             st.divider()
             _mm_max_tags = st.slider("태그 최대 개수", 5, 30, 16, 1, key="mm_max_tags")
             _mm_min_count = st.slider("최소 연결 수", 1, 10, 1, 1, key="mm_min_count")
@@ -6245,7 +6245,72 @@ def render_knowledge_map_page():
                 edge_x, edge_y = [], []
 
                 # ── 배치 모드 ──
-                if _mm_mode == "프로젝트별 행성":
+                if _mm_mode == "🌐 전체 관계":
+                    # 메모 중심 ERD: JIUM → 프로젝트 → 메모/연구노트 → (개념·태그·작업)
+                    _C_PROJ, _C_MEMO = "#16a34a", "#2563eb"
+                    _C_CONCEPT, _C_TAG, _C_TASK = "#8b5cf6", "#f59e0b", "#eab308"
+                    _links_all = st.session_state.get("note_concept_links", [])
+                    _tasks_all = [t for t in st.session_state.get("tasks", []) if isinstance(t, dict)]
+                    _projs = _all_projects
+                    n_proj = max(len(_projs), 1)
+                    # 중심 JIUM
+                    node_x.append(0); node_y.append(0)
+                    node_text.append("🌌 JIUM"); node_size.append(34)
+                    node_color.append("#1f3f91"); node_hover.append("내 지식 세계")
+                    _R_PROJ = 5.0
+                    for _pi, _pn in enumerate(_projs):
+                        _pa = 2 * math.pi * _pi / n_proj
+                        _ppx, _ppy = math.cos(_pa) * _R_PROJ, math.sin(_pa) * _R_PROJ
+                        edge_x += [0, _ppx, None]; edge_y += [0, _ppy, None]
+                        _pmemos = [it for it in _mm_items if it.get("project", "기본 프로젝트") == _pn]
+                        node_x.append(_ppx); node_y.append(_ppy)
+                        node_text.append(f"📁 {_pn}"); node_size.append(20)
+                        node_color.append(_C_PROJ); node_hover.append(f"프로젝트: {_pn} · 메모 {len(_pmemos)}개")
+                        # 프로젝트의 메모(연구노트) — 대표 N개
+                        _pmemos_top = _pmemos[:_mm_max_tags // 2 or 5][:6]
+                        n_m = max(len(_pmemos_top), 1)
+                        for _mi, _mo in enumerate(_pmemos_top):
+                            _ma = _pa + (2 * math.pi * _mi / n_m) * 0.45 - math.pi * 0.22
+                            _mr = 2.6
+                            _mx = _ppx + math.cos(_ma) * _mr
+                            _my = _ppy + math.sin(_ma) * _mr
+                            edge_x += [_ppx, _mx, None]; edge_y += [_ppy, _my, None]
+                            _mid = _mo.get("id")
+                            _mtitle = str(_mo.get("title", "") or "메모")[:14]
+                            node_x.append(_mx); node_y.append(_my)
+                            node_text.append(f"📝 {_mtitle}"); node_size.append(13)
+                            node_color.append(_C_MEMO)
+                            node_hover.append(f"메모: {_mo.get('title','')} — {_pn}")
+                            # 이 메모의 잎: 개념·태그·작업 (합쳐서 최대 6개)
+                            _leaves = []
+                            for _c in (_mo.get("concepts", []) or [])[:3]:
+                                if _c: _leaves.append(("concept", str(_c)))
+                            for _tg in (_mo.get("tags", []) or [])[:3]:
+                                _tgc = str(_tg).replace("#", "").strip()
+                                if _tgc: _leaves.append(("tag", _tgc))
+                            for _tk in _tasks_all:
+                                if _tk.get("source_note_id") == _mid and _mid:
+                                    _leaves.append(("task", str(_tk.get("title", "") or "할일")))
+                            _leaves = _leaves[:6]
+                            n_l = max(len(_leaves), 1)
+                            for _li, (_lt, _lv) in enumerate(_leaves):
+                                _la = _ma + (2 * math.pi * _li / n_l) * 0.5 - math.pi * 0.25
+                                _lx = _mx + math.cos(_la) * 1.2
+                                _ly = _my + math.sin(_la) * 1.2
+                                edge_x += [_mx, _lx, None]; edge_y += [_my, _ly, None]
+                                node_x.append(_lx); node_y.append(_ly)
+                                if _lt == "concept":
+                                    node_text.append(f"🧠 {_lv[:10]}"); node_color.append(_C_CONCEPT)
+                                    node_hover.append(f"개념: {_lv}")
+                                elif _lt == "tag":
+                                    node_text.append(f"#{_lv[:10]}"); node_color.append(_C_TAG)
+                                    node_hover.append(f"태그: #{_lv}")
+                                else:
+                                    node_text.append(f"⬜ {_lv[:10]}"); node_color.append(_C_TASK)
+                                    node_hover.append(f"작업: {_lv}")
+                                node_size.append(9)
+
+                elif _mm_mode == "프로젝트별 행성":
                     # 프로젝트를 행성처럼 원형 배치, 각 행성 주변에 태그 위성
                     _proj_colors = ["#2563eb","#16a34a","#dc2626","#d97706","#7c3aed","#0891b2","#be185d"]
                     n_proj = max(len(_all_projects), 1)
@@ -6414,10 +6479,12 @@ def render_knowledge_map_page():
                 st.plotly_chart(fig, use_container_width=True)
                 st.caption(f"노드 {len(node_x)}개 · 연결선 {len([x for x in edge_x if x is None])}개")
                 st.markdown(
-                    "<div style='font-size:0.8em;color:#64748b;'>"
-                    "🟦 프로젝트 · <span style='color:#f59e0b'>⬜ 할일</span> · "
-                    "<span style='color:#3b82f6'>#태그</span> · "
-                    "<span style='color:#8b5cf6'>🧠 개념</span> — "
+                    "<div style='font-size:0.82em;color:#64748b;'>"
+                    "<span style='color:#16a34a'>● 프로젝트</span> · "
+                    "<span style='color:#2563eb'>● 메모/연구노트</span> · "
+                    "<span style='color:#8b5cf6'>● 개념</span> · "
+                    "<span style='color:#f59e0b'>● 태그</span> · "
+                    "<span style='color:#eab308'>● 작업</span> — "
                     "노드에 마우스를 올리면 상세가 보여요.</div>",
                     unsafe_allow_html=True)
 

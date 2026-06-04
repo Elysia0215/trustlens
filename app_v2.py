@@ -25,17 +25,34 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
+_SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
+
+
 @st.cache_resource(show_spinner=False)
 def _sb_client():
     """st.secrets['supabase'] 설정 + supabase 패키지 있으면 클라이언트 반환, 없으면 None."""
     try:
-        _cfg = st.secrets.get("supabase", {})
-        _url, _key = _cfg.get("url"), _cfg.get("key")
-        if not _url or not _key:
+        try:
+            _cfg = st.secrets.get("supabase", {})
+        except Exception as _e0:
+            _SB_DEBUG.update(stage="no_secrets", error=f"{type(_e0).__name__}: {_e0}")
             return None
-        from supabase import create_client
-        return create_client(_url, _key)
-    except Exception:
+        _url, _key = _cfg.get("url"), _cfg.get("key")
+        _SB_DEBUG["url_set"] = bool(_url)
+        _SB_DEBUG["key_set"] = bool(_key)
+        if not _url or not _key:
+            _SB_DEBUG.update(stage="missing_url_or_key")
+            return None
+        try:
+            from supabase import create_client
+        except Exception as _e1:
+            _SB_DEBUG.update(stage="import_failed", error=f"{type(_e1).__name__}: {_e1}")
+            return None
+        _c = create_client(_url, _key)
+        _SB_DEBUG.update(stage="ok", error=None)
+        return _c
+    except Exception as _e:
+        _SB_DEBUG.update(stage="create_failed", error=f"{type(_e).__name__}: {_e}")
         return None
 
 
@@ -48,7 +65,8 @@ def _sb_load():
         _rows = _r.data or []
         if _rows and _rows[0].get("data"):
             return _rows[0]["data"]
-    except Exception:
+    except Exception as _e:
+        _SB_DEBUG.update(stage="load_failed", error=f"{type(_e).__name__}: {_e}")
         return None
     return None
 
@@ -59,8 +77,10 @@ def _sb_save(data):
         return False
     try:
         _c.table("jium_store").upsert({"id": "main", "data": data}).execute()
+        _SB_DEBUG.update(stage="save_ok", error=None)
         return True
-    except Exception:
+    except Exception as _e:
+        _SB_DEBUG.update(stage="save_failed", error=f"{type(_e).__name__}: {_e}")
         return False
 
 
@@ -10076,6 +10096,19 @@ if menu == "데이터 관리":
             "이 상태에서는 **새로 배포될 때마다 서버 데이터가 초기화**될 수 있어요.  \n"
             "**내 PC로 '내보내기(다운로드)' 해두는 게 유일하게 안전한 방법이에요.**"
         )
+        with st.expander("🔧 연결 진단 (개발용)"):
+            try:
+                _keys = list(st.secrets.keys())
+            except Exception as _e:
+                _keys = f"secrets 접근 실패: {_e}"
+            st.write({
+                "secrets_keys": _keys,
+                "has_supabase_section": ("supabase" in (st.secrets.keys() if hasattr(st.secrets, "keys") else [])),
+                "url_set": _SB_DEBUG.get("url_set"),
+                "key_set": _SB_DEBUG.get("key_set"),
+                "stage": _SB_DEBUG.get("stage"),
+                "error": _SB_DEBUG.get("error"),
+            })
 
     import json as _bk_json
     _bk_data = collect_persisted_data()

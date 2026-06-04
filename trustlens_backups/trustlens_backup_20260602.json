@@ -37,7 +37,7 @@
       "id": "3af9e3ac",
       "url": "https://m.blog.naver.com/hanbluewind/224294682112",
       "title": "중고 스크린 골프 시장 정보",
-      "project": "기본 프로젝트",
+      "project": "테슽트1",
       "section": "일반",
       "step": "없음",
       "content_type": "info",
@@ -57,7 +57,7 @@
       "task": "",
       "task_id": "",
       "created_at": "2026-06-01 15:55",
-      "updated_at": "2026-06-01 15:55",
+      "updated_at": "2026-06-02 20:33",
       "deleted_at": null,
       "entity_id": "746cc2c3-fd3",
       "parent_id": null,
@@ -107,7 +107,7 @@
       "id": "01f44bf5",
       "url": "",
       "title": "[연구노트] 테스트",
-      "project": "테슽트1",
+      "project": "테수2",
       "section": "일반",
       "content_type": "research_note",
       "score": 0,
@@ -127,7 +127,8 @@
       "embedding_status": "pending",
       "status": "saved",
       "priority": "보통",
-      "project_id": "project_21436cdf"
+      "project_id": "project_21436cdf",
+      "updated_at": "2026-06-02 20:41"
     },
     {
       "id": "7bc46bc5",
@@ -238,7 +239,7 @@
       "user_id": "local_user",
       "url": "https://m.blog.naver.com/clee20000/224246237923",
       "title": "일본의 고령층 초단기 일자리",
-      "project": "기본 프로젝트",
+      "project": "테슽트1",
       "project_id": "",
       "task": "",
       "task_id": "",
@@ -262,7 +263,7 @@
       "last_reviewed_at": null,
       "saved_at": "2026-06-02 02:10",
       "created_at": "2026-06-02 02:10",
-      "updated_at": "2026-06-02 02:10",
+      "updated_at": "2026-06-02 20:33",
       "deleted_at": null,
       "entity_id": "c7775b16-c3a",
       "parent_id": null,
@@ -2220,7 +2221,7 @@
       "created_at": "",
       "id": "concept_음란물 사이트_13b5",
       "user_id": "local_user",
-      "updated_at": "2026-06-01 16:23",
+      "updated_at": "2026-06-02 20:45",
       "deleted_at": null,
       "entity_id": "d50d4162-81f",
       "parent_id": null,
@@ -2229,7 +2230,8 @@
       "vector_id": null,
       "embedding_status": "pending",
       "status": "active",
-      "priority": "보통"
+      "priority": "보통",
+      "project": "테슽트1"
     },
     {
       "name": "경찰 수사",
@@ -2238,7 +2240,7 @@
       "created_at": "",
       "id": "concept_경찰 수사_67ae",
       "user_id": "local_user",
-      "updated_at": "2026-06-01 16:23",
+      "updated_at": "2026-06-02 20:45",
       "deleted_at": null,
       "entity_id": "cf1831f3-80d",
       "parent_id": null,
@@ -2250,7 +2252,8 @@
       "priority": "보통",
       "aliases": [
         "경찰은"
-      ]
+      ],
+      "project": "테슽트1"
     },
     {
       "name": "성범죄",
@@ -2259,7 +2262,7 @@
       "created_at": "",
       "id": "concept_성범죄_dc82",
       "user_id": "local_user",
-      "updated_at": "2026-06-01 16:23",
+      "updated_at": "2026-06-02 20:45",
       "deleted_at": null,
       "entity_id": "2a34b80a-09f",
       "parent_id": null,
@@ -2268,7 +2271,8 @@
       "vector_id": null,
       "embedding_status": "pending",
       "status": "active",
-      "priority": "보통"
+      "priority": "보통",
+      "project": "테슽트1"
     },
     {
       "name": "불법 촬영물",
@@ -2277,7 +2281,7 @@
       "created_at": "",
       "id": "concept_불법 촬영물_5792",
       "user_id": "local_user",
-      "updated_at": "2026-06-01 16:23",
+      "updated_at": "2026-06-02 20:45",
       "deleted_at": null,
       "entity_id": "5a27c214-00c",
       "parent_id": null,
@@ -2286,7 +2290,8 @@
       "vector_id": null,
       "embedding_status": "pending",
       "status": "active",
-      "priority": "보통"
+      "priority": "보통",
+      "project": "테슽트1"
     },
     {
       "name": "집단",
@@ -2295,7 +2300,7 @@
       "created_at": "",
       "id": "concept_집단_f374",
       "user_id": "local_user",
-      "updated_at": "2026-06-01 16:23",
+      "updated_at": "2026-06-02 20:45",
       "deleted_at": null,
       "entity_id": "39c7cfbc-03d",
       "parent_id": null,
@@ -2304,7 +2309,8 @@
       "vector_id": null,
       "embedding_status": "pending",
       "status": "active",
-      "priority": "보통"
+      "priority": "보통",
+      "project": "테슽트1"
     },
     {
       "name": "성관계를",
@@ -2313,7 +2319,7 @@
       "created_at": "",
       "id": "concept_성관계를_cb75",
       "user_id": "local_user",
-      "updated_at": "2026-06-01 16:23",
+      "updated_at": "2026-06-02 20:45",
       "deleted_at": null,
       "entity_id": "33c47b39-239",
       "parent_id": null,
@@ -2322,7 +2328,8 @@
       "vector_id": null,
       "embedding_status": "pending",
       "status": "active",
-      "priority": "보통"
+      "priority": "보통",
+      "project": "테슽트1"
     },
     {
       "name": "사회",
@@ -2331,7 +2338,7 @@
       "created_at": "",
       "id": "concept_사회_212d",
       "user_id": "local_user",
-      "updated_at": "2026-06-01 16:23",
+      "updated_at": "2026-06-02 20:45",
       "deleted_at": null,
       "entity_id": "7e5b29de-a04",
       "parent_id": null,
@@ -2343,7 +2350,8 @@
       "priority": "보통",
       "aliases": [
         "회원"
-      ]
+      ],
+      "project": "테슽트1"
     },
     {
       "name": "제목",
@@ -2352,7 +2360,7 @@
       "created_at": "",
       "id": "concept_제목_e877",
       "user_id": "local_user",
-      "updated_at": "2026-06-01 16:23",
+      "updated_at": "2026-06-02 20:45",
       "deleted_at": null,
       "entity_id": "fc599fa8-61d",
       "parent_id": null,
@@ -2361,7 +2369,8 @@
       "vector_id": null,
       "embedding_status": "pending",
       "status": "active",
-      "priority": "보통"
+      "priority": "보통",
+      "project": "테슽트1"
     },
     {
       "name": "스크린골프",
@@ -2381,8 +2390,9 @@
       "priority": "보통",
       "id": "concept_스크린골프_4593550528",
       "user_id": "local_user",
-      "updated_at": "2026-06-01 21:00",
-      "deleted_at": null
+      "updated_at": "2026-06-02 20:45",
+      "deleted_at": null,
+      "project": "테슽트1"
     },
     {
       "name": "야장감성",
@@ -2402,8 +2412,9 @@
       "priority": "보통",
       "id": "concept_야장감성_4670050752",
       "user_id": "local_user",
-      "updated_at": "2026-06-01 21:42",
-      "deleted_at": null
+      "updated_at": "2026-06-02 20:45",
+      "deleted_at": null,
+      "project": "테슽트1"
     }
   ],
   "concept_aliases": {},
@@ -2422,12 +2433,21 @@
   },
   "projects": [
     {
+      "id": "project_21436cdf",
+      "user_id": "local_user",
       "name": "테슽트1",
+      "description": "",
+      "category": "학교/팀플",
       "status": "진행 중",
       "priority": "높음",
-      "description": "",
-      "id": "b0c78918",
-      "entity_id": "c8b1244f-555",
+      "owner": "채연",
+      "start_date": "",
+      "due_date": "",
+      "progress": 0,
+      "created_at": "2026-06-02 01:22",
+      "updated_at": "2026-06-02 02:54",
+      "deleted_at": null,
+      "entity_id": "e8e83740-975",
       "parent_id": null,
       "created_by": "local_user",
       "updated_by": "local_user",
@@ -2435,12 +2455,21 @@
       "embedding_status": "pending"
     },
     {
-      "name": "테스트2",
+      "id": "project_638bc774",
+      "user_id": "local_user",
+      "name": "테수2",
+      "description": "",
+      "category": "학교/팀플",
       "status": "예정",
       "priority": "높음",
-      "description": "",
-      "id": "53bf8167",
-      "entity_id": "59ed9d41-2c1",
+      "owner": "채연",
+      "start_date": "2026-06-02",
+      "due_date": "2026-06-30",
+      "progress": 0,
+      "created_at": "2026-06-02 20:35",
+      "updated_at": "2026-06-02 20:35",
+      "deleted_at": null,
+      "entity_id": "5965802c-af9",
       "parent_id": null,
       "created_by": "local_user",
       "updated_by": "local_user",
@@ -2454,14 +2483,18 @@
       "project_id": "project_21436cdf",
       "name": "하이",
       "order": 1,
-      "created_at": "2026-06-02 11:06"
+      "created_at": "2026-06-02 11:06",
+      "project": "테슽트1",
+      "updated_at": "2026-06-02 20:44"
     },
     {
       "id": "section_35c9a6b1",
       "project_id": "project_21436cdf",
       "name": "하이",
       "order": 2,
-      "created_at": "2026-06-02 11:06"
+      "created_at": "2026-06-02 11:06",
+      "project": "테슽트1",
+      "updated_at": "2026-06-02 20:44"
     }
   ],
   "project_steps": [],
@@ -2521,34 +2554,44 @@
       "updated_by": "local_user",
       "vector_id": null,
       "embedding_status": "pending",
-      "updated_at": "2026-06-02 19:21"
+      "updated_at": "2026-06-02 20:35"
     }
   ],
   "note_concept_links": [
     {
       "note_id": "298224bb",
       "concept": "노후준비",
-      "linked_at": "2026-06-02 02:10"
+      "linked_at": "2026-06-02 02:10",
+      "project": "테슽트1",
+      "updated_at": "2026-06-02 20:33"
     },
     {
       "note_id": "298224bb",
       "concept": "고령화",
-      "linked_at": "2026-06-02 02:10"
+      "linked_at": "2026-06-02 02:10",
+      "project": "테슽트1",
+      "updated_at": "2026-06-02 20:33"
     },
     {
       "note_id": "298224bb",
       "concept": "사회",
-      "linked_at": "2026-06-02 02:10"
+      "linked_at": "2026-06-02 02:10",
+      "project": "테슽트1",
+      "updated_at": "2026-06-02 20:45"
     },
     {
       "note_id": "298224bb",
       "concept": "은퇴자",
-      "linked_at": "2026-06-02 02:10"
+      "linked_at": "2026-06-02 02:10",
+      "project": "테슽트1",
+      "updated_at": "2026-06-02 20:33"
     },
     {
       "note_id": "298224bb",
       "concept": "일자리",
-      "linked_at": "2026-06-02 02:10"
+      "linked_at": "2026-06-02 02:10",
+      "project": "테슽트1",
+      "updated_at": "2026-06-02 20:33"
     },
     {
       "note_id": "165b3e42",
@@ -2576,7 +2619,7 @@
   "excluded_concepts_log": [],
   "custom_select_options": {},
   "saved_searches": [],
-  "brain_theme": "lab",
+  "brain_theme": "space",
   "lumi_avatar": "compass",
   "app_settings": {
     "ui_density": "여유",
@@ -2603,10 +2646,9 @@
   "brain_growth_state": {
     "last_level": 2,
     "unlocked_rewards": [
-      "concept_10",
-      "project_3"
+      "concept_10"
     ],
-    "last_checked_at": "2026-06-02 19:31"
+    "last_checked_at": "2026-06-02 01:03"
   },
   "nav_group_states": {},
   "entities": [
@@ -3048,226 +3090,17 @@
       "priority": "보통"
     },
     {
-      "id": "a4b6b8cf",
+      "id": "project_638bc774",
       "user_id": "local_user",
       "type": "project",
-      "name": "테슽트1",
-      "folder": "",
+      "name": "테수2",
+      "folder": "학교/팀플",
       "parent_id": "",
       "description": "",
-      "created_at": "2026-06-02 19:13",
-      "updated_at": "2026-06-02 19:13",
+      "created_at": "2026-06-02 20:35",
+      "updated_at": "2026-06-02 20:35",
       "deleted_at": null,
-      "entity_id": "017a713c-c83",
-      "created_by": "local_user",
-      "updated_by": "local_user",
-      "vector_id": null,
-      "embedding_status": "pending",
-      "status": "active",
-      "priority": "보통"
-    },
-    {
-      "id": "a0f8b8ac",
-      "user_id": "local_user",
-      "type": "project",
-      "name": "테스트2",
-      "folder": "",
-      "parent_id": "",
-      "description": "",
-      "created_at": "2026-06-02 19:13",
-      "updated_at": "2026-06-02 19:13",
-      "deleted_at": null,
-      "entity_id": "af151b62-dee",
-      "created_by": "local_user",
-      "updated_by": "local_user",
-      "vector_id": null,
-      "embedding_status": "pending",
-      "status": "active",
-      "priority": "보통"
-    },
-    {
-      "id": "088d713f",
-      "user_id": "local_user",
-      "type": "project",
-      "name": "",
-      "folder": "",
-      "parent_id": "",
-      "description": "",
-      "created_at": "2026-06-02 19:13",
-      "updated_at": "2026-06-02 19:13",
-      "deleted_at": null,
-      "entity_id": "e775d80a-928",
-      "created_by": "local_user",
-      "updated_by": "local_user",
-      "vector_id": null,
-      "embedding_status": "pending",
-      "status": "active",
-      "priority": "보통"
-    },
-    {
-      "id": "00b5e445",
-      "user_id": "local_user",
-      "type": "project",
-      "name": "테슽트1",
-      "folder": "",
-      "parent_id": "",
-      "description": "",
-      "created_at": "2026-06-02 19:14",
-      "updated_at": "2026-06-02 19:14",
-      "deleted_at": null,
-      "entity_id": "aa09e0c1-fa8",
-      "created_by": "local_user",
-      "updated_by": "local_user",
-      "vector_id": null,
-      "embedding_status": "pending",
-      "status": "active",
-      "priority": "보통"
-    },
-    {
-      "id": "0edb530e",
-      "user_id": "local_user",
-      "type": "project",
-      "name": "테스트2",
-      "folder": "",
-      "parent_id": "",
-      "description": "",
-      "created_at": "2026-06-02 19:14",
-      "updated_at": "2026-06-02 19:14",
-      "deleted_at": null,
-      "entity_id": "877ed7b9-200",
-      "created_by": "local_user",
-      "updated_by": "local_user",
-      "vector_id": null,
-      "embedding_status": "pending",
-      "status": "active",
-      "priority": "보통"
-    },
-    {
-      "id": "ad3cf196",
-      "user_id": "local_user",
-      "type": "project",
-      "name": "",
-      "folder": "",
-      "parent_id": "",
-      "description": "",
-      "created_at": "2026-06-02 19:14",
-      "updated_at": "2026-06-02 19:14",
-      "deleted_at": null,
-      "entity_id": "671cd461-f80",
-      "created_by": "local_user",
-      "updated_by": "local_user",
-      "vector_id": null,
-      "embedding_status": "pending",
-      "status": "active",
-      "priority": "보통"
-    },
-    {
-      "id": "ed718a95",
-      "user_id": "local_user",
-      "type": "project",
-      "name": "테슽트1",
-      "folder": "",
-      "parent_id": "",
-      "description": "",
-      "created_at": "2026-06-02 19:14",
-      "updated_at": "2026-06-02 19:14",
-      "deleted_at": null,
-      "entity_id": "efd4580f-087",
-      "created_by": "local_user",
-      "updated_by": "local_user",
-      "vector_id": null,
-      "embedding_status": "pending",
-      "status": "active",
-      "priority": "보통"
-    },
-    {
-      "id": "361dadc9",
-      "user_id": "local_user",
-      "type": "project",
-      "name": "테스트2",
-      "folder": "",
-      "parent_id": "",
-      "description": "",
-      "created_at": "2026-06-02 19:14",
-      "updated_at": "2026-06-02 19:14",
-      "deleted_at": null,
-      "entity_id": "74bd5211-7f9",
-      "created_by": "local_user",
-      "updated_by": "local_user",
-      "vector_id": null,
-      "embedding_status": "pending",
-      "status": "active",
-      "priority": "보통"
-    },
-    {
-      "id": "2e479cb9",
-      "user_id": "local_user",
-      "type": "project",
-      "name": "",
-      "folder": "",
-      "parent_id": "",
-      "description": "",
-      "created_at": "2026-06-02 19:14",
-      "updated_at": "2026-06-02 19:14",
-      "deleted_at": null,
-      "entity_id": "ececceb0-347",
-      "created_by": "local_user",
-      "updated_by": "local_user",
-      "vector_id": null,
-      "embedding_status": "pending",
-      "status": "active",
-      "priority": "보통"
-    },
-    {
-      "id": "b0c78918",
-      "user_id": "local_user",
-      "type": "project",
-      "name": "테슽트1",
-      "folder": "",
-      "parent_id": "",
-      "description": "",
-      "created_at": "2026-06-02 19:18",
-      "updated_at": "2026-06-02 19:18",
-      "deleted_at": null,
-      "entity_id": "ff187b5d-2df",
-      "created_by": "local_user",
-      "updated_by": "local_user",
-      "vector_id": null,
-      "embedding_status": "pending",
-      "status": "active",
-      "priority": "보통"
-    },
-    {
-      "id": "53bf8167",
-      "user_id": "local_user",
-      "type": "project",
-      "name": "테스트2",
-      "folder": "",
-      "parent_id": "",
-      "description": "",
-      "created_at": "2026-06-02 19:18",
-      "updated_at": "2026-06-02 19:18",
-      "deleted_at": null,
-      "entity_id": "cc1ac9db-c88",
-      "created_by": "local_user",
-      "updated_by": "local_user",
-      "vector_id": null,
-      "embedding_status": "pending",
-      "status": "active",
-      "priority": "보통"
-    },
-    {
-      "id": "5190be67",
-      "user_id": "local_user",
-      "type": "project",
-      "name": "",
-      "folder": "",
-      "parent_id": "",
-      "description": "",
-      "created_at": "2026-06-02 19:18",
-      "updated_at": "2026-06-02 19:18",
-      "deleted_at": null,
-      "entity_id": "60dd95e4-2b7",
+      "entity_id": "fde3d434-573",
       "created_by": "local_user",
       "updated_by": "local_user",
       "vector_id": null,

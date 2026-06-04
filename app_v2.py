@@ -8699,13 +8699,16 @@ if menu == "새 엔터티":
                     list(_wm_sel_tags) +
                     [t.strip() for t in _wm_new_tags.split(",") if t.strip()]
                 ))
+                # 사용자가 고른/입력한 개념 + 메모 내용에서 자동 추출한 개념 합치기
+                _auto_cons = extract_local_concepts(_wm_note, _tags, limit=8)
                 _cons = list(dict.fromkeys(
-                    list(_wm_link_cons) +
-                    [c.strip() for c in _wm_new_cons.split(",") if c.strip()]
+                    list(_wm_link_cons)
+                    + [c.strip() for c in _wm_new_cons.split(",") if c.strip()]
+                    + list(_auto_cons)
                 ))
                 create_memo(_wm_title, _wm_note, _wm_proj, _wm_section or "일반",
                             _tags, original_text=_wm_note, concepts=_cons)
-                _flash(f"'{_wm_title}' 메모를 '{_wm_proj}'에 저장했어요!")
+                _flash(f"'{_wm_title}' 메모를 '{_wm_proj}'에 저장했어요! (개념 {len(_cons)}개 연결)")
                 st.rerun()
             else:
                 st.warning("제목과 내용을 입력해주세요.")

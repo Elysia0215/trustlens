@@ -25,6 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
+APP_BUILD = "2026-06-04.3"  # 배포 식별용 — 코드 바꿔 push할 때마다 갱신
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -13832,35 +13833,100 @@ if menu == "설정":
         except Exception:
             _dev_secret_keys = []
 
+        # 6) 엔티티별 개수 (세션 vs 클라우드)
+        _dev_entity_keys = ("archive_notes", "tasks", "projects", "pkm_custom_concepts",
+                            "note_concept_links", "relations", "saved_analyses")
+        _dev_counts = {}
+        for _ek in _dev_entity_keys:
+            _ss_n = len(st.session_state.get(_ek, []) or [])
+            _sb_n = len((_dev_sb or {}).get(_ek, []) or []) if _dev_sb_ok else "-"
+            _dev_counts[_ek] = {"session": _ss_n, "supabase": _sb_n}
+        # 7) 환경/버전
+        import sys as _devsys
+        _dev_env = {
+            "app_build": APP_BUILD,
+            "python": _devsys.version.split()[0],
+            "streamlit": st.__version__,
+            "supabase_pkg": _dev_pkg,
+            "data_file_exists": DATA_FILE.exists(),
+        }
+
+        st.markdown("##### 1) 핵심 상태")
         st.write({
             "supabase_connected": _dev_connected,
-            "supabase_pkg": _dev_pkg,
-            "secrets_keys": _dev_secret_keys,
             "supabase_load_ok": _dev_sb_ok,
-            "supabase_note_count": len(_dev_sb_notes),
-            "supabase_dates": dict(sorted(_dev_sb_dates.items())),
-            "session_note_count": len(_dev_ss_notes),
-            "session_dates": dict(sorted(_dev_ss_dates.items())),
-            "session_note_types": dict(_dev_types),
+            "secrets_keys": _dev_secret_keys,
             "last_sb_stage": _SB_DEBUG.get("stage"),
             "last_sb_error": _SB_DEBUG.get("error"),
         })
+        st.markdown("##### 2) 메모 날짜별 개수 (저장 vs 화면)")
+        st.write({
+            "supabase_dates": dict(sorted(_dev_sb_dates.items())),
+            "session_dates": dict(sorted(_dev_ss_dates.items())),
+            "session_note_types": dict(_dev_types),
+        })
+        st.markdown("##### 3) 엔티티별 개수 (session ↔ supabase)")
+        st.write(_dev_counts)
+        st.markdown("##### 4) 환경·버전")
+        st.write(_dev_env)
+
+        st.markdown("##### 5) 빠른 링크")
+        st.markdown(
+            "- 🗄 [Supabase 테이블 에디터]"
+            "(https://supabase.com/dashboard/project/fxjmipuajllwejypmvmk/editor)\n"
+            "- 🔑 [Supabase API 키 설정]"
+            "(https://supabase.com/dashboard/project/fxjmipuajllwejypmvmk/settings/api-keys)\n"
+            "- 🐙 [GitHub 저장소](https://github.com/Elysia0215/trustlens)\n"
+            "- ☁️ [Streamlit Cloud 앱 관리](https://share.streamlit.io/)"
+        )
+
+        st.markdown("##### 6) 점검·복구 액션")
         _dc1, _dc2 = st.columns(2)
         with _dc1:
             if st.button("🔄 Supabase 연결 캐시 비우기", key="dev_sb_clear", use_container_width=True):
                 _sb_client.clear()
                 st.rerun()
+            if st.button("🔁 Supabase 읽기/쓰기 왕복 테스트", key="dev_roundtrip", use_container_width=True):
+                _c = _sb_client()
+                if not _c:
+                    st.error("연결 안 됨 — 캐시 비우기 먼저.")
+                else:
+                    try:
+                        import time as _t
+                        _stamp = datetime.now().isoformat()
+                        _c.table("jium_store").upsert(
+                            {"id": "_healthcheck", "data": {"ping": _stamp}}).execute()
+                        _r = _c.table("jium_store").select("data").eq(
+                            "id", "_healthcheck").limit(1).execute()
+                        _got = (_r.data or [{}])[0].get("data", {}).get("ping")
+                        if _got == _stamp:
+                            st.success(f"왕복 OK ✅ (write+read 정상) — {_stamp}")
+                        else:
+                            st.warning(f"읽은 값 불일치: {_got}")
+                    except Exception as _e:
+                        st.error(f"왕복 실패: {type(_e).__name__}: {_e}")
         with _dc2:
             if st.button("💾 지금 세션을 Supabase에 강제 저장", key="dev_force_save",
                          use_container_width=True, type="primary"):
                 _ok = _sb_save(collect_persisted_data())
                 if _ok:
-                    st.success("강제 저장 완료. supabase_dates를 다시 확인하세요.")
+                    st.success("강제 저장 완료. 위 supabase_dates를 다시 확인하세요.")
                 else:
                     st.error(f"저장 실패: {_SB_DEBUG.get('error')}")
+            if st.button("⬇️ 클라우드(Supabase)를 화면으로 다시 불러오기", key="dev_reload",
+                         use_container_width=True):
+                _fresh = _sb_load()
+                if isinstance(_fresh, dict):
+                    for _k, _v in normalize_persisted_data(_fresh).items():
+                        st.session_state[_k] = _v
+                    _flash("클라우드 데이터로 화면을 새로 채웠어요.")
+                    st.rerun()
+                else:
+                    st.error("클라우드에서 데이터를 못 읽었어요.")
         st.caption(
             "해석: **session_dates엔 있는데 supabase_dates엔 없으면** → 저장이 클라우드까지 "
-            "안 간 것. **둘 다 있는데 화면 목록에서 안 보이면** → 표시(필터) 문제."
+            "안 간 것(저장 버그). **둘 다 있는데 화면 목록에서 안 보이면** → 표시(필터) 문제. "
+            "왕복 테스트가 실패하면 → 연결/키/RLS 문제."
         )
     st.stop()
 

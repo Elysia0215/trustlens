@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-04.11"  # 배포 식별용
+APP_BUILD = "2026-06-04.12"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -17523,27 +17523,30 @@ def _wg_render():
         elif _expand_pct is not None:
             st.caption(f"💡 이번 달에만 지식 세계가 {_expand_pct}% 넓어졌어요. 아는 만큼 보여요.")
 
-# 성장 리포트 — 홈을 짧게: 기본 접힘 (자세히는 펼쳐서)
-with st.expander("🌍 세계 성장 리포트 (펼치기)", expanded=False):
+# 홈을 짧게: 성장 리포트/우주맵은 토글로 접어둠 (expander로 감싸면 내부 expander와 중첩 오류 → 토글 사용)
+st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+_home_t1, _home_t2, _home_t3 = st.columns(3)
+with _home_t1:
+    _home_show_growth = st.toggle("🌍 성장 리포트", value=False, key="home_show_growth")
+with _home_t2:
+    _home_show_univ = st.toggle("🪐 내 지식 우주", value=False, key="home_show_univ")
+with _home_t3:
+    _home_show_brain = st.toggle("🧠 뇌지도", value=False, key="home_show_brain")
+
+if _home_show_growth:
     try:
         _wg_render()
     except Exception:
         pass
-st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-
-# 내 지식 우주 — 전용 '🕸️ 지식 지도' 페이지가 따로 있어 홈에선 접어둠
-with st.expander("🪐 내 지식 우주 · 지구 발사대 (펼치기)", expanded=False):
+if _home_show_univ:
     try:
         render_home_universe()
     except Exception as _univ_err:
         import traceback as _univ_tb
-        st.error("🪐 내 지식 우주/지구 발사대 렌더 중 오류가 났어요. 아래 상세를 확인하세요.")
-        st.exception(_univ_err)
+        st.error("🪐 내 지식 우주/지구 발사대 렌더 중 오류가 났어요.")
         st.code(_univ_tb.format_exc())
     apply_scroll_restore()
-st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-# 뇌지도는 우주맵과 역할이 겹쳐 홈에선 접어둠 (필요할 때만 펼침)
-with st.expander("🧠 전체 지식 뇌지도 (펼치기)", expanded=False):
+if _home_show_brain:
     render_home_mini_knowledge_graph(_brain_theme_key)
 st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 

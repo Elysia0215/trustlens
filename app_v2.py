@@ -15973,43 +15973,67 @@ def render_home_universe():
             _view_label = {"memo": "📝 메모", "concept": "🧠 개념",
                            "tag": "🏷️ 태그", "task": "✅ 작업"}.get(_sat_view, "📝 메모")
             st.markdown(f"**{_view_label} 목록 — {_univ_esc(_sel_planet)}**")
+
+            # 메모 카드 — 2열 컴팩트(세로로 너무 길지 않게)
+            def _render_memo_cards(_notes, _kp):
+                for _row in range(0, len(_notes), 2):
+                    _mc = st.columns(2)
+                    for _col, _wn in zip(_mc, _notes[_row:_row + 2]):
+                        with _col:
+                            with st.container(border=True):
+                                _title = _clean_text_value(_wn.get("title")).strip() or "제목 없음"
+                                _tags = [_clean_text_value(_t).replace("#", "").strip()
+                                         for _t in (_wn.get("tags", []) or []) if _clean_text_value(_t).strip()]
+                                _tag_line = " ".join(f"#{_univ_esc(_t)}" for _t in _tags[:2])
+                                st.markdown(
+                                    f"<div style='font-weight:800;font-size:14px;'>📝 {_univ_esc(_title)}</div>"
+                                    f"<div style='color:#94a3b8;font-size:11px;margin-top:2px;'>{_tag_line or '태그 없음'}</div>",
+                                    unsafe_allow_html=True)
+                                if st.button("열기", key=f"univ_memo_{_kp}_{_wn.get('id')}_{_row}",
+                                             use_container_width=True):
+                                    st.session_state["archive_open_note_id"] = _wn.get("id")
+                                    st.query_params["page"] = "archive"
+                                    st.rerun()
+
             if _sat_view == "memo":
                 if _pn:
-                    for _wi, _wn in enumerate(_pn):
-                        _title = _clean_text_value(_wn.get("title")).strip() or "제목 없음"
-                        _tags = [
-                            _clean_text_value(_t).replace("#", "").strip()
-                            for _t in (_wn.get("tags", []) or [])
-                            if _clean_text_value(_t).strip()
-                        ]
-                        _tag_line = " ".join(f"#{_univ_esc(_t)}" for _t in _tags[:3])
-                        with st.container(border=True):
-                            st.markdown(
-                                f"<div style='font-weight:900;font-size:15px;'>📝 {_univ_esc(_title)}</div>"
-                                f"<div style='color:#64748b;font-size:12px;margin-top:4px;'>"
-                                f"{_tag_line or '태그 없음'} · 로그 #{_wi + 1}</div>",
-                                unsafe_allow_html=True)
-                            if st.button("메모 열기", key=f"univ_memo_{_wn.get('id')}_{_wi}",
-                                         use_container_width=True):
-                                st.session_state["archive_open_note_id"] = _wn.get("id")
-                                st.query_params["page"] = "archive"
-                                st.rerun()
+                    _render_memo_cards(_pn, "all")
                 else:
                     st.caption("아직 이 행성엔 메모가 없어요. ✍️ 메모를 만들어 위성을 띄워보세요.")
             elif _sat_view == "concept":
                 if _pcs:
-                    st.markdown(
-                        "<div style='line-height:2.4;'>"
-                        + "".join(_univ_chip(_c, "#ede9fe", "#6d28d9") for _c in _pcs)
-                        + "</div>", unsafe_allow_html=True)
+                    st.caption("개념을 누르면 🧠 개념 라이브러리에서 어디에 연결됐는지 봐요.")
+                    _ccols = st.columns(4)
+                    for _ci, _c in enumerate(_pcs):
+                        with _ccols[_ci % 4]:
+                            if st.button(f"🧠 {_c}", key=f"univ_con_{_sel_planet}_{_ci}",
+                                         use_container_width=True):
+                                st.session_state["concept_lib_open"] = canonical_concept(_c)
+                                st.query_params["page"] = "concept_lib"
+                                st.rerun()
                 else:
                     st.caption("아직 연결된 개념이 없어요. 메모에서 개념이 추출되면 여기 모여요.")
             elif _sat_view == "tag":
                 if _ptags:
-                    st.markdown(
-                        "<div style='line-height:2.4;'>"
-                        + "".join(_univ_chip(_t, "#dcfce7", "#15803d", "#") for _t in _ptags)
-                        + "</div>", unsafe_allow_html=True)
+                    st.caption("태그를 누르면 그 태그가 달린 메모만 아래에 보여요.")
+                    _tag_pick = st.session_state.get(f"univ_tag_pick_{_sel_planet}")
+                    _tcols = st.columns(4)
+                    for _ti, _t in enumerate(_ptags):
+                        with _tcols[_ti % 4]:
+                            if st.button(f"#{_t}", key=f"univ_tag_{_sel_planet}_{_ti}",
+                                         use_container_width=True,
+                                         type=("primary" if _tag_pick == _t else "secondary")):
+                                st.session_state[f"univ_tag_pick_{_sel_planet}"] = (
+                                    None if _tag_pick == _t else _t)
+                                st.rerun()
+                    if _tag_pick:
+                        _tagged = [
+                            n for n in _pn
+                            if _tag_pick in [_clean_text_value(x).replace("#", "").strip()
+                                             for x in (n.get("tags", []) or [])]
+                        ]
+                        st.markdown(f"**#{_univ_esc(_tag_pick)} 메모 {len(_tagged)}개**")
+                        _render_memo_cards(_tagged, f"tag_{_tag_pick}")
                 else:
                     st.caption("아직 태그가 없어요. 메모에 태그를 달면 여기 모여요.")
             elif _sat_view == "task":

@@ -15551,8 +15551,14 @@ def render_home_universe():
             else:
                 _dash, _lcol = "dot", _hex_rgba("#fb923c", 0.9)       # 🟠 공유 태그
             _rw = min(7, 2.5 + _rt["strength"] * 0.6)
-            _rtxt = (f"{_rt['a']} ↔ {_rt['b']}<br>🟣 공유 개념 {len(_rt['concepts'])} · "
-                     f"🟠 공유 태그 {len(_rt['tags'])}" + ("<br>🟢 직접 관계 있음" if _rt['direct'] else ""))
+            # hover에 '왜 연결됐는지'(실제 공유 개념·태그명)를 보여줌
+            _rtxt = f"{_rt['a']} ↔ {_rt['b']} · 강도 {_rt['strength']}"
+            if _rt["concepts"]:
+                _rtxt += "<br>🟣 공유 개념: " + ", ".join(_rt["concepts"][:5])
+            if _rt["tags"]:
+                _rtxt += "<br>🟠 공유 태그: " + ", ".join(_rt["tags"][:5])
+            if _rt["direct"]:
+                _rtxt += "<br>🟢 직접 관계 있음"
             _fig.add_trace(_ugo.Scatter(
                 x=[_xi, _xj], y=[_yi, _yj], mode="lines",
                 line=dict(color=_lcol, width=_rw, dash=_dash),
@@ -15626,28 +15632,46 @@ def render_home_universe():
                 "🌱 아직 발견된 항로가 없어요.<br>"
                 "같은 개념이나 태그를 쓰는 프로젝트가 생기면 <b>JIUM이 자동으로 연결을 발견</b>해요."
                 "</div>", unsafe_allow_html=True)
-        # 🛸 발견된 연결 목록
+        # 🛸 발견된 연결 목록 — '왜 연결됐는지' 실제 개념명/태그명을 보여줌
         if _routes:
             with st.expander(f"🛸 발견된 항로 {len(_routes)}개 — 내 세계는 이렇게 연결돼 있어요", expanded=False):
                 for _rt in _routes[:12]:
-                    _kind = ("🟢 직접 관계" if _rt["direct"]
-                             else "🟣 공유 개념" if _rt["concepts"] else "🟠 공유 태그")
-                    _bits = []
+                    _reason = []
                     if _rt["concepts"]:
-                        _bits.append(f"🧠 개념 {len(_rt['concepts'])} ({', '.join(_rt['concepts'][:3])}{'…' if len(_rt['concepts'])>3 else ''})")
+                        _reason.append(
+                            "<div style='margin-top:3px;'>🟣 <b>공유 개념</b>: "
+                            + ", ".join(_univ_esc(_c) for _c in _rt["concepts"][:6])
+                            + (f" 외 {len(_rt['concepts'])-6}" if len(_rt['concepts']) > 6 else "")
+                            + "</div>")
                     if _rt["tags"]:
-                        _bits.append(f"🏷 태그 {len(_rt['tags'])}")
+                        _reason.append(
+                            "<div style='margin-top:3px;'>🟠 <b>공유 태그</b>: "
+                            + ", ".join(f"#{_univ_esc(_t)}" for _t in _rt["tags"][:6])
+                            + (f" 외 {len(_rt['tags'])-6}" if len(_rt['tags']) > 6 else "")
+                            + "</div>")
                     if _rt["direct"]:
-                        _bits.append("🔗 직접 관계")
+                        _reason.append("<div style='margin-top:3px;'>🟢 <b>직접 관계</b> 있음</div>")
                     st.markdown(
-                        f"<div style='padding:6px 0;border-bottom:1px solid #f1f5f9;'>"
+                        f"<div style='padding:8px 0;border-bottom:1px solid #f1f5f9;'>"
                         f"<b>🪐 {_univ_esc(_rt['a'])}</b> <span style='color:#94a3b8'>↔</span> "
                         f"<b>🪐 {_univ_esc(_rt['b'])}</b> "
-                        f"<span style='color:#64748b;font-size:0.85em'>· {_kind} · 강도 {_rt['strength']}</span>"
-                        f"<div style='color:#64748b;font-size:0.82em;margin-top:2px'>{' · '.join(_bits)}</div>"
+                        f"<span style='color:#64748b;font-size:0.85em'>· 강도 {_rt['strength']}</span>"
+                        f"<div style='color:#475569;font-size:0.86em'>{''.join(_reason)}</div>"
                         "</div>", unsafe_allow_html=True)
                 if len(_routes) > 12:
                     st.caption(f"외 {len(_routes) - 12}개 항로가 더 있어요.")
+        # 🔧 항로 후보 디버그 — 로컬/배포에서 다르게 보일 때 추적용 (각 행성의 개념·태그 집합)
+        with st.expander("🔧 항로 후보 데이터 (디버그)", expanded=False):
+            st.caption("각 행성의 개념(canonical)·태그 집합이에요. 두 행성에 같은 항목이 있으면 항로가 그려져요. "
+                       "로컬/배포에서 항로가 다르면 여기서 집합이 다른지 확인하세요.")
+            for _pl in _planets:
+                _cs = ", ".join(sorted(_pl.get("cset", set()))) or "(없음)"
+                _ts = ", ".join(f"#{_t}" for _t in sorted(_pl.get("tset", set()))) or "(없음)"
+                st.markdown(
+                    f"**🪐 {_univ_esc(_pl['name'])}**  \n"
+                    f"<span style='color:#6d28d9;font-size:0.85em'>🧠 개념: {_univ_esc(_cs)}</span>  \n"
+                    f"<span style='color:#15803d;font-size:0.85em'>🏷 태그: {_univ_esc(_ts)}</span>",
+                    unsafe_allow_html=True)
     except Exception:
         for _pl in _planets:
             st.markdown(f"🪐 **{_pl['name']}** · 📝 {_pl['memos']} 🧠 {_pl['concepts']} ✅ {_pl['tasks']}")

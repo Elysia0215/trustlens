@@ -1485,7 +1485,7 @@ button[data-testid="collapsedControl"],
         ]),
         ("⚙️", "관리", "#94a3b8", [        # 회색
             ("settings",  "⚙️", "설정"),
-            ("data",      "🔗", "데이터 관리"),
+            ("data",      "💾", "데이터 백업·관리"),
             ("entity",    "🔎", "엔터티 상세"),
             ("history",   "🕒", "최근 검색 기록"),
             ("changelog", "🆕", "패치 노트"),
@@ -10061,8 +10061,81 @@ if menu == "지식 맵":
 
 if menu == "데이터 관리":
     import plotly.graph_objects as _pgo
-    st.markdown("## 🗄️ 데이터 관리 · ERD")
-    st.caption("엔티티(프로젝트·개념·작업·메모·태그)를 생성·편집·연결하고 관계를 시각화해요.")
+    st.markdown("## 🗄️ 데이터 백업·관리 · ERD")
+    st.caption("내 데이터를 백업/복원하고, 엔티티(프로젝트·개념·작업·메모·태그)를 연결·시각화해요.")
+
+    st.markdown("### 💾 백업 · 내보내기 / 가져오기")
+    if _sb_client():
+        st.success(
+            "☁️ **Supabase 클라우드 저장 연결됨** — 작성한 데이터는 자동으로 보존돼요. "
+            "그래도 중요한 시점엔 아래 '내보내기'로 내 PC에 한 부 받아두면 안전해요."
+        )
+    else:
+        st.error(
+            "⚠️ **중요** — 클라우드 저장(Supabase)이 아직 연결되지 않았어요. "
+            "이 상태에서는 **새로 배포될 때마다 서버 데이터가 초기화**될 수 있어요.  \n"
+            "**내 PC로 '내보내기(다운로드)' 해두는 게 유일하게 안전한 방법이에요.**"
+        )
+
+    import json as _bk_json
+    _bk_data = collect_persisted_data()
+    _bk_notes = len(_bk_data.get("archive_notes", []))
+    _bk_str = _bk_json.dumps(_bk_data, ensure_ascii=False, indent=2)
+    _bk_c1, _bk_c2 = st.columns(2)
+    with _bk_c1:
+        st.markdown("**⬇️ 내보내기 (내 PC로 저장)**")
+        st.caption(f"현재 메모 {_bk_notes}개 · 개념·태그·프로젝트 전체 포함")
+        st.download_button(
+            "💾 백업 파일 다운로드",
+            data=_bk_str.encode("utf-8"),
+            file_name=f"jium_backup_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
+            mime="application/json",
+            use_container_width=True,
+            type="primary",
+        )
+        st.caption("💡 배포(업데이트) 전에 항상 한 번 받아두세요.")
+    with _bk_c2:
+        st.markdown("**⬆️ 가져오기 (백업 복원)**")
+        _bk_up = st.file_uploader("백업 .json 파일 선택", type=["json"], key="bk_restore_file")
+        _bk_merge = st.checkbox("기존 데이터에 합치기(merge) — 끄면 통째로 교체", value=False, key="bk_merge")
+        if _bk_up is not None and st.button("📥 이 파일로 복원", key="bk_do_restore", use_container_width=True):
+            try:
+                _loaded = _bk_json.loads(_bk_up.getvalue().decode("utf-8"))
+                _loaded = normalize_persisted_data(_loaded)
+                _list_keys = ("archive_notes", "tasks", "projects", "note_concept_links",
+                              "relations", "saved_analyses", "search_history",
+                              "pkm_custom_concepts", "project_sections", "project_steps",
+                              "entities", "folders")
+                if _bk_merge:
+                    for _k in _list_keys:
+                        _cur = st.session_state.get(_k, []) or []
+                        _new = _loaded.get(_k, []) or []
+                        _seen = {(_x.get("id") if isinstance(_x, dict) else _x) for _x in _cur}
+                        for _x in _new:
+                            _xid = _x.get("id") if isinstance(_x, dict) else _x
+                            if _xid not in _seen:
+                                _cur.append(_x)
+                        st.session_state[_k] = _cur
+                else:
+                    for _k, _v in _loaded.items():
+                        st.session_state[_k] = _v
+                save_persisted_data()
+                st.success(f"복원했어요! 메모 {len(st.session_state.get('archive_notes', []))}개")
+                st.rerun()
+            except Exception as _e:
+                st.error(f"복원 실패: {_e}")
+
+    with st.expander("⚠️ 테스트 데이터 전체 초기화"):
+        st.warning("지식 아카이브, 검색 기록, 피드백, 분석 캐시, 초안 캐시가 모두 삭제돼요.")
+        st.button(
+            "🧹 전체 저장 데이터 초기화",
+            key="clear_all_saved_data",
+            type="primary",
+            use_container_width=True,
+            on_click=clear_all_saved_data,
+        )
+    st.divider()
+    st.markdown("### 🔗 엔티티 연결 · ERD")
 
     # ── 데이터 로드 ──
     _dm_projs    = st.session_state.get("projects", [])
@@ -15298,74 +15371,7 @@ if menu == "최근 검색 기록":
         st.info("아직 저장된 사용자 피드백이 없어요.")
 
     st.divider()
-    st.divider()
-    st.markdown("## 💾 백업 · 내보내기 / 가져오기")
-    st.error(
-        "⚠️ **중요** — 이 앱은 클라우드(Streamlit)에서 **새로 배포될 때마다 서버의 데이터가 초기화**돼요. "
-        "서버 안 백업(trustlens_backups)도 같이 사라져요.  \n"
-        "**그래서 내 PC로 '내보내기(다운로드)' 해두는 게 유일하게 안전한 방법이에요.** "
-        "기록이 사라졌다면, 예전에 내려받은 파일을 아래 '가져오기'로 복원하세요."
-    )
-
-    import json as _bk_json
-    _bk_data = collect_persisted_data()
-    _bk_notes = len(_bk_data.get("archive_notes", []))
-    _bk_str = _bk_json.dumps(_bk_data, ensure_ascii=False, indent=2)
-    _bk_c1, _bk_c2 = st.columns(2)
-    with _bk_c1:
-        st.markdown("**⬇️ 내보내기 (내 PC로 저장)**")
-        st.caption(f"현재 메모 {_bk_notes}개 · 개념·태그·프로젝트 전체 포함")
-        st.download_button(
-            "💾 백업 파일 다운로드",
-            data=_bk_str.encode("utf-8"),
-            file_name=f"jium_backup_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
-            mime="application/json",
-            use_container_width=True,
-            type="primary",
-        )
-        st.caption("💡 배포(업데이트) 전에 항상 한 번 받아두세요.")
-    with _bk_c2:
-        st.markdown("**⬆️ 가져오기 (백업 복원)**")
-        _bk_up = st.file_uploader("백업 .json 파일 선택", type=["json"], key="bk_restore_file")
-        _bk_merge = st.checkbox("기존 데이터에 합치기(merge) — 끄면 통째로 교체", value=False, key="bk_merge")
-        if _bk_up is not None and st.button("📥 이 파일로 복원", key="bk_do_restore", use_container_width=True):
-            try:
-                _loaded = _bk_json.loads(_bk_up.getvalue().decode("utf-8"))
-                _loaded = normalize_persisted_data(_loaded)
-                _list_keys = ("archive_notes", "tasks", "projects", "note_concept_links",
-                              "relations", "saved_analyses", "search_history",
-                              "pkm_custom_concepts", "project_sections", "project_steps",
-                              "entities", "folders")
-                if _bk_merge:
-                    for _k in _list_keys:
-                        _cur = st.session_state.get(_k, []) or []
-                        _new = _loaded.get(_k, []) or []
-                        _seen = {(_x.get("id") if isinstance(_x, dict) else _x) for _x in _cur}
-                        for _x in _new:
-                            _xid = _x.get("id") if isinstance(_x, dict) else _x
-                            if _xid not in _seen:
-                                _cur.append(_x)
-                        st.session_state[_k] = _cur
-                else:
-                    for _k, _v in _loaded.items():
-                        st.session_state[_k] = _v
-                save_persisted_data()
-                st.success(f"복원했어요! 메모 {len(st.session_state.get('archive_notes', []))}개")
-                st.rerun()
-            except Exception as _e:
-                st.error(f"복원 실패: {_e}")
-    st.divider()
-    st.caption("서버 저장: trustlens_data.json (배포 시 초기화됨 — 위 내보내기로 보존하세요)")
-
-    with st.expander("⚠️ 테스트 데이터 전체 초기화"):
-        st.warning("지식 아카이브, 검색 기록, 피드백, 분석 캐시, 초안 캐시가 모두 삭제돼요.")
-        st.button(
-            "🧹 전체 저장 데이터 초기화",
-            key="clear_all_saved_data",
-            type="primary",
-            use_container_width=True,
-            on_click=clear_all_saved_data,
-        )
+    st.caption("💾 백업·복원은 **사이드바 ⚙️ 관리 → 데이터 백업·관리**에서 할 수 있어요.")
     st.stop()
 
 # -----------------------------

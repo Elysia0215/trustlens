@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-04.5"  # 배포 식별용 — 코드 바꿔 push할 때마다 갱신
+APP_BUILD = "2026-06-04.6"  # 배포 식별용 — 코드 바꿔 push할 때마다 갱신
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -6200,6 +6200,7 @@ def render_knowledge_map_page():
             st.markdown("**🔧 필터**")
             _mm_show_tags = st.toggle("태그 노드", value=True, key="mm_show_tags")
             _mm_show_projects = st.toggle("프로젝트 노드", value=True, key="mm_show_projects")
+            _mm_show_tasks = st.toggle("할일 노드", value=True, key="mm_show_tasks")
             _mm_show_concepts = st.toggle("개념 노드", value=False, key="mm_show_concepts")
             st.divider()
             _mm_mode = st.radio("배치 모드", ["태그 중심", "프로젝트별 행성"], key="mm_mode")
@@ -6254,7 +6255,7 @@ def render_knowledge_map_page():
                     # 중심 노드
                     if _mm_show_projects:
                         node_x.append(0); node_y.append(0)
-                        node_text.append("🌌 TrustLens"); node_size.append(35)
+                        node_text.append("🌌 JIUM"); node_size.append(35)
                         node_color.append("#1f3f91"); node_hover.append("전체 지식 허브")
 
                     for pidx, proj_name in enumerate(_all_projects):
@@ -6331,11 +6332,32 @@ def render_knowledge_map_page():
                                 node_color.append("#8b5cf6")
                                 node_hover.append(f"개념: {cname} ({ccnt}회) — {proj_name}")
 
+                        # 이 프로젝트의 할일 노드 (프로젝트-할일 관계)
+                        if _mm_show_tasks:
+                            _proj_tasks = [t for t in st.session_state.get("tasks", [])
+                                           if isinstance(t, dict) and t.get("project", "") == proj_name][:6]
+                            n_tk = max(len(_proj_tasks), 1)
+                            for tkidx, _tk in enumerate(_proj_tasks):
+                                _tk_angle = angle - math.pi * 0.55 + (2 * math.pi * tkidx / n_tk) * 0.4 - math.pi * 0.2
+                                _tk_r = 1.6
+                                tkx = px_ + math.cos(_tk_angle) * _tk_r
+                                tky = py_ + math.sin(_tk_angle) * _tk_r
+                                edge_x += [px_, tkx, None]
+                                edge_y += [py_, tky, None]
+                                _tk_done = str(_tk.get("status", "")) in ("완료", "보관됨")
+                                _tk_title = str(_tk.get("title", "") or "할일")[:12]
+                                node_x.append(tkx); node_y.append(tky)
+                                node_text.append(("✅ " if _tk_done else "⬜ ") + _tk_title)
+                                node_size.append(12)
+                                node_color.append("#94a3b8" if _tk_done else "#f59e0b")
+                                node_hover.append(
+                                    f"할일: {_tk.get('title','')} · {_tk.get('status','')} — {proj_name}")
+
                 else:
                     # 태그 중심 배치
                     if _mm_show_projects:
                         node_x.append(0); node_y.append(0)
-                        node_text.append("🌌 TrustLens"); node_size.append(35)
+                        node_text.append("🌌 JIUM"); node_size.append(35)
                         node_color.append("#1f3f91"); node_hover.append("전체 지식 허브")
 
                     if _mm_show_tags:
@@ -6391,6 +6413,13 @@ def render_knowledge_map_page():
                 )
                 st.plotly_chart(fig, use_container_width=True)
                 st.caption(f"노드 {len(node_x)}개 · 연결선 {len([x for x in edge_x if x is None])}개")
+                st.markdown(
+                    "<div style='font-size:0.8em;color:#64748b;'>"
+                    "🟦 프로젝트 · <span style='color:#f59e0b'>⬜ 할일</span> · "
+                    "<span style='color:#3b82f6'>#태그</span> · "
+                    "<span style='color:#8b5cf6'>🧠 개념</span> — "
+                    "노드에 마우스를 올리면 상세가 보여요.</div>",
+                    unsafe_allow_html=True)
 
     with tab4:
         st.markdown("### 🧠 개인 지식 페이지")

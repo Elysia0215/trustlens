@@ -1409,6 +1409,7 @@ button[data-testid="collapsedControl"],
         ]),
         ("📝", "지식", "#a78bfa", [        # 보라
             ("archive",   "📚", "지식 라이브러리"),
+            ("concept_lib","🧠", "개념 라이브러리"),
             ("map",       "🕸️", "지식 맵"),
             ("tags",      "🏷️", "태그 관리"),
         ]),
@@ -1507,6 +1508,7 @@ button[data-testid="collapsedControl"],
         "result":   "분석 결과",
         "criteria": "신뢰도 근거",
         "archive":  "지식 라이브러리",
+        "concept_lib": "개념 라이브러리",
         "map":      "지식 맵",
         "tags":     "태그 관리",
         "projects": "프로젝트",
@@ -9474,6 +9476,202 @@ if menu == "지식 라이브러리":
             _con_notes = [_n for _n in notes_to_show if _pick_con in _note_concepts(_n)]
             st.caption(f"🧠 {_pick_con} · {len(_con_notes)}개")
             _render_note_cards(_con_notes, f"con_{_pick_con}")
+    st.stop()
+
+if menu == "개념 라이브러리":
+    st.markdown("## 🧠 개념 라이브러리")
+    st.caption("내 지식을 잇는 개념을 한 곳에서 관리해요. "
+               "이름 변경은 **별칭**으로, 삭제는 **숨기기**로 — 비파괴적으로 안전하게 정리해요.")
+
+    _cl_links = st.session_state.get("note_concept_links", [])
+    _cl_pkm = [c for c in st.session_state.get("pkm_custom_concepts", []) if isinstance(c, dict)]
+    _cl_notes = st.session_state.get("archive_notes", [])
+    _cl_hidden = set(st.session_state.get("hidden_concepts", []))
+
+    # canonical 기준 집계
+    _cl_info = {}
+    def _cl_get(_canon):
+        return _cl_info.setdefault(_canon, {"note_ids": set(), "created": ""})
+    for _l in _cl_links:
+        _canon = canonical_concept(_l.get("concept"))
+        if _canon and _l.get("note_id"):
+            _cl_get(_canon)["note_ids"].add(_l.get("note_id"))
+    for _n in _cl_notes:
+        for _cc in (_n.get("concepts", []) or []):
+            _canon = canonical_concept(_cc)
+            if _canon and _n.get("id"):
+                _cl_get(_canon)["note_ids"].add(_n.get("id"))
+    for _c in _cl_pkm:
+        _canon = canonical_concept(_c.get("name"))
+        if _canon:
+            _ci = _cl_get(_canon)
+            if not _ci["created"]:
+                _ci["created"] = _clean_text_value(_c.get("created_at")).strip()
+
+    _note_by_id = {n.get("id"): n for n in _cl_notes if isinstance(n, dict)}
+
+    def _cl_projects(_canon):
+        return concept_projects(_canon)
+    def _cl_scope_label(_canon):
+        _sc = concept_scope(_canon)
+        if _sc in ("shared", "global"):
+            return "🌍 여러 프로젝트에서 사용 중", _sc
+        return "⚪ 한 프로젝트", _sc
+
+    # ── 개념 상세 (허브 뷰) ──
+    _cl_open = _clean_text_value(st.session_state.get("concept_lib_open")).strip()
+    if _cl_open and _cl_open in _cl_info:
+        _ci = _cl_info[_cl_open]
+        _projs = sorted(_cl_projects(_cl_open))
+        _lbl, _sc = _cl_scope_label(_cl_open)
+        if st.button("← 목록으로", key="cl_back"):
+            st.session_state["concept_lib_open"] = None
+            st.rerun()
+        st.markdown(f"### 🧠 {_cl_open}")
+        _d1, _d2, _d3 = st.columns(3)
+        _d1.metric("연결 메모", f"{len(_ci['note_ids'])}개")
+        _d2.metric("연결 프로젝트", f"{len(_projs)}개")
+        _d3.metric("상태", "공유" if _sc != "owned" else "단독")
+        st.caption(_lbl + f" · scope = {_sc}")
+        if _projs:
+            st.markdown("**🪐 사용 중인 프로젝트**")
+            st.markdown(" ".join(
+                f"<span style='display:inline-block;background:#ede9fe;color:#6d28d9;"
+                f"border-radius:999px;padding:3px 10px;margin:2px;font-size:0.85em'>🪐 {p}</span>"
+                for p in _projs), unsafe_allow_html=True)
+        st.markdown("**📝 연결 메모 보기**")
+        _linked = [_note_by_id[i] for i in _ci["note_ids"] if i in _note_by_id]
+        _linked = sorted(_linked, key=lambda n: str(n.get("saved_at", "")), reverse=True)
+        if _linked:
+            for _li, _ln in enumerate(_linked[:20]):
+                with st.container(border=True):
+                    st.markdown(f"📝 **{_clean_text_value(_ln.get('title')).strip() or '제목 없음'}**")
+                    st.caption(f"📁 {_clean_text_value(_ln.get('project')).strip() or '미배정'} · 📅 {str(_ln.get('saved_at',''))[:10]}")
+                    if st.button("열기", key=f"cl_open_note_{_ln.get('id')}_{_li}", use_container_width=True):
+                        st.session_state["archive_open_note_id"] = _ln.get("id")
+                        st.query_params["page"] = "archive"
+                        st.rerun()
+            if len(_linked) > 20:
+                st.caption(f"외 {len(_linked)-20}개 메모가 더 있어요.")
+        else:
+            st.caption("아직 연결된 메모가 없어요.")
+        st.stop()
+
+    # ── 목록 모드 ──
+    _cl_show_hidden = st.toggle("🙈 숨긴 개념 보기", value=False, key="cl_show_hidden")
+    _cl_names = [c for c in _cl_info.keys()
+                 if _cl_show_hidden or c not in _cl_hidden]
+    st.caption(f"총 {len(_cl_names)}개 개념" + (f" · 숨김 {len(_cl_hidden)}개" if _cl_hidden else ""))
+
+    _f1, _f2, _f3 = st.columns([2, 1, 1])
+    with _f1:
+        _cl_q = st.text_input("🔍 개념 검색", key="cl_search", placeholder="개념명으로 검색")
+    with _f2:
+        _cl_sort = st.selectbox("정렬", ["연결 많은순", "이름순", "프로젝트 많은순"], key="cl_sort")
+    with _f3:
+        _cl_scope_f = st.selectbox("범위", ["전체", "🌍 공유", "⚪ 단독"], key="cl_scope_f")
+
+    # 필터·정렬
+    _rows = []
+    for _canon in _cl_names:
+        if _cl_q.strip() and _cl_q.strip().lower() not in _canon.lower():
+            continue
+        _projs = _cl_projects(_canon)
+        _sc = concept_scope(_canon)
+        if _cl_scope_f == "🌍 공유" and _sc == "owned":
+            continue
+        if _cl_scope_f == "⚪ 단독" and _sc != "owned":
+            continue
+        _rows.append((_canon, len(_cl_info[_canon]["note_ids"]), len(_projs), _sc))
+    if _cl_sort == "연결 많은순":
+        _rows.sort(key=lambda r: -r[1])
+    elif _cl_sort == "이름순":
+        _rows.sort(key=lambda r: r[0])
+    else:
+        _rows.sort(key=lambda r: -r[2])
+
+    if not _rows:
+        st.info("표시할 개념이 없어요. 메모를 쓰면 개념이 자동으로 쌓여요.")
+        st.stop()
+
+    _LIMIT = 50
+    _selected = []
+    for _canon, _nc, _pc, _sc in _rows[:_LIMIT]:
+        _c1, _c2 = st.columns([0.06, 0.94])
+        with _c1:
+            if st.checkbox("", key=f"cl_chk_{_canon}", label_visibility="collapsed"):
+                _selected.append(_canon)
+        with _c2:
+            _scope_txt = "🌍 여러 프로젝트에서 사용 중" if _sc != "owned" else "⚪ 한 프로젝트"
+            _hid = " · 🙈 숨김" if _canon in _cl_hidden else ""
+            _lc, _rc = st.columns([0.8, 0.2])
+            with _lc:
+                st.markdown(
+                    f"**🧠 {_canon}**  \n"
+                    f"<span style='color:#64748b;font-size:0.85em'>메모 {_nc} · 프로젝트 {_pc} · {_scope_txt}{_hid}</span>",
+                    unsafe_allow_html=True)
+            with _rc:
+                if st.button("🔍 상세", key=f"cl_detail_{_canon}", use_container_width=True):
+                    st.session_state["concept_lib_open"] = _canon
+                    st.rerun()
+    if len(_rows) > _LIMIT:
+        st.caption(f"상위 {_LIMIT}개만 표시 중 · 검색으로 좁혀보세요 (총 {len(_rows)}개)")
+
+    # ── 선택 항목 일괄 액션 ──
+    st.divider()
+    if not _selected:
+        st.caption("☑ 개념을 선택하면 이름 변경·병합·숨기기·공유 전환을 할 수 있어요.")
+    else:
+        st.markdown(f"**선택한 {len(_selected)}개 개념 작업**")
+        _act = st.radio("작업 선택", ["✏️ 이름 변경(별칭)", "🔗 병합", "🙈 숨기기", "🌍 공유로 전환"],
+                        horizontal=True, key="cl_action")
+        if _act == "✏️ 이름 변경(별칭)":
+            st.caption("비파괴 — 새 이름을 대표로 하고, 기존 이름은 별칭으로 연결돼요. (1개 선택 시 권장)")
+            _newname = st.text_input("새 이름", key="cl_rename_new")
+            if st.button("이름 변경", key="cl_do_rename", type="primary", disabled=not _newname.strip()):
+                _n = 0
+                for _old in _selected:
+                    _n += add_concept_aliases(_newname.strip(), [_old])
+                save_persisted_data()
+                _flash(f"'{_newname.strip()}'(으)로 이름 변경(별칭 {_n}개 연결)했어요.")
+                st.rerun()
+        elif _act == "🔗 병합":
+            _tgt = st.text_input("이 이름으로 합치기 (대표 개념)", key="cl_merge_tgt")
+            if _tgt.strip():
+                _imp = concept_merge_impact(_selected)
+                st.caption(f"미리보기 — 영향: 메모 {_imp['notes']} · 작업 {_imp['tasks']} · 관계 {_imp['rels']}")
+            if st.button("병합", key="cl_do_merge", type="primary", disabled=not _tgt.strip()):
+                for _old in _selected:
+                    add_concept_aliases(_tgt.strip(), [_old])
+                save_persisted_data()
+                _flash(f"{len(_selected)}개를 '{_tgt.strip()}'(으)로 병합했어요.")
+                st.rerun()
+        elif _act == "🙈 숨기기":
+            st.caption("삭제가 아니라 숨김이에요. 위 '숨긴 개념 보기'에서 언제든 복구할 수 있어요.")
+            if st.button("선택 개념 숨기기", key="cl_do_hide", type="primary"):
+                _h = set(st.session_state.get("hidden_concepts", []))
+                _h |= set(_selected)
+                st.session_state["hidden_concepts"] = list(_h)
+                save_persisted_data()
+                _flash(f"{len(_selected)}개 개념을 숨겼어요.")
+                st.rerun()
+        else:  # 공유로 전환
+            st.caption("이 개념을 여러 프로젝트의 연결 근거(공유 개념)로 고정해요. (이동 시 한 프로젝트로 끌려가지 않음)")
+            if st.button("공유 개념으로 전환", key="cl_do_shared", type="primary"):
+                _names = {canonical_concept(x) for x in _selected}
+                for _c in st.session_state.get("pkm_custom_concepts", []):
+                    if isinstance(_c, dict) and canonical_concept(_c.get("name")) in _names:
+                        _c["scope"] = "shared"
+                # pkm에 없던 개념은 새로 등록(scope만)
+                _existing = {canonical_concept(c.get("name")) for c in st.session_state.get("pkm_custom_concepts", []) if isinstance(c, dict)}
+                for _nm in _names:
+                    if _nm and _nm not in _existing:
+                        st.session_state.setdefault("pkm_custom_concepts", []).append(
+                            {"name": _nm, "folder": "내 개념", "scope": "shared",
+                             "created_at": datetime.now().strftime("%Y-%m-%d %H:%M")})
+                save_persisted_data()
+                _flash(f"{len(_selected)}개를 공유 개념으로 전환했어요.")
+                st.rerun()
     st.stop()
 
 if menu == "프로젝트":

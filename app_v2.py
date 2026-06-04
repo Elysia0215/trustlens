@@ -10095,23 +10095,7 @@ if menu == "데이터 관리":
             "☁️ **Supabase 클라우드 저장 연결됨** — 작성한 데이터는 자동으로 보존돼요. "
             "그래도 중요한 시점엔 아래 '내보내기'로 내 PC에 한 부 받아두면 안전해요."
         )
-        with st.expander("🔧 저장/로드 진단 (개발용)"):
-            from collections import Counter as _DbgCnt
-            # (A) Supabase가 지금 실제로 들고 있는 것 (캐시 우회, 직접 조회)
-            _sb_now = _sb_load()
-            _sb_notes = (_sb_now or {}).get("archive_notes", []) if isinstance(_sb_now, dict) else []
-            _sb_dates = _DbgCnt(str(n.get("saved_at", ""))[:10] for n in _sb_notes)
-            # (B) 현재 앱 세션(메모리)이 들고 있는 것
-            _ss_notes = st.session_state.get("archive_notes", [])
-            _ss_dates = _DbgCnt(str(n.get("saved_at", ""))[:10] for n in _ss_notes)
-            st.write({
-                "supabase_load_ok": isinstance(_sb_now, dict),
-                "supabase_note_count": len(_sb_notes),
-                "supabase_dates": dict(_sb_dates),
-                "session_note_count": len(_ss_notes),
-                "session_dates": dict(_ss_dates),
-            })
-            st.caption("supabase_dates = 클라우드에 실제 저장된 메모 날짜별 개수 / session_dates = 지금 화면 메모리")
+        st.caption("🛠 데이터 저장/로드 진단은 **⚙️ 관리 → 설정 → 맨 아래 개발자 진단**에서 볼 수 있어요.")
     else:
         st.error(
             "⚠️ **중요** — 클라우드 저장(Supabase)이 아직 연결되지 않았어요. "
@@ -13816,6 +13800,68 @@ if menu == "설정":
             _flash("설정을 기본값으로 되돌렸어요.")
             st.rerun()
     st.caption("✅ = 지금 바로 반영 · 🔜 = 저장만 되고 곧 적용 예정. 변경 후 **설정 저장**을 눌러야 다음 실행에도 유지돼요. (세계관은 즉시 적용)")
+
+    # ══════════════════════════════════════════════════════════
+    # 🛠 개발자 진단 (상설) — 데이터 저장/로드 상태를 한눈에. 캡처해서 공유용.
+    # ══════════════════════════════════════════════════════════
+    st.divider()
+    with st.expander("🛠 개발자 진단 (저장·로드 상태)"):
+        st.caption("데이터가 안 보이거나 사라질 때, 이 내용을 캡처해서 개발자에게 주세요.")
+        from collections import Counter as _DevCnt
+        # 1) Supabase 연결
+        _dev_connected = bool(_sb_client())
+        # 2) Supabase 실데이터 (직접 조회)
+        _dev_sb = _sb_load() if _dev_connected else None
+        _dev_sb_ok = isinstance(_dev_sb, dict)
+        _dev_sb_notes = (_dev_sb or {}).get("archive_notes", []) if _dev_sb_ok else []
+        _dev_sb_dates = _DevCnt(str(n.get("saved_at", ""))[:10] for n in _dev_sb_notes)
+        # 3) 현재 세션(메모리)
+        _dev_ss_notes = st.session_state.get("archive_notes", [])
+        _dev_ss_dates = _DevCnt(str(n.get("saved_at", ""))[:10] for n in _dev_ss_notes)
+        # 4) note_type 분포 (수동/데일리/분석 구분 확인용)
+        _dev_types = _DevCnt(str(n.get("note_type") or n.get("content_type") or "unknown")
+                             for n in _dev_ss_notes)
+        # 5) 패키지/시크릿
+        try:
+            import supabase as _devpkg
+            _dev_pkg = getattr(_devpkg, "__version__", "unknown")
+        except Exception as _e:
+            _dev_pkg = f"import 실패: {_e}"
+        try:
+            _dev_secret_keys = list(st.secrets.keys())
+        except Exception:
+            _dev_secret_keys = []
+
+        st.write({
+            "supabase_connected": _dev_connected,
+            "supabase_pkg": _dev_pkg,
+            "secrets_keys": _dev_secret_keys,
+            "supabase_load_ok": _dev_sb_ok,
+            "supabase_note_count": len(_dev_sb_notes),
+            "supabase_dates": dict(sorted(_dev_sb_dates.items())),
+            "session_note_count": len(_dev_ss_notes),
+            "session_dates": dict(sorted(_dev_ss_dates.items())),
+            "session_note_types": dict(_dev_types),
+            "last_sb_stage": _SB_DEBUG.get("stage"),
+            "last_sb_error": _SB_DEBUG.get("error"),
+        })
+        _dc1, _dc2 = st.columns(2)
+        with _dc1:
+            if st.button("🔄 Supabase 연결 캐시 비우기", key="dev_sb_clear", use_container_width=True):
+                _sb_client.clear()
+                st.rerun()
+        with _dc2:
+            if st.button("💾 지금 세션을 Supabase에 강제 저장", key="dev_force_save",
+                         use_container_width=True, type="primary"):
+                _ok = _sb_save(collect_persisted_data())
+                if _ok:
+                    st.success("강제 저장 완료. supabase_dates를 다시 확인하세요.")
+                else:
+                    st.error(f"저장 실패: {_SB_DEBUG.get('error')}")
+        st.caption(
+            "해석: **session_dates엔 있는데 supabase_dates엔 없으면** → 저장이 클라우드까지 "
+            "안 간 것. **둘 다 있는데 화면 목록에서 안 보이면** → 표시(필터) 문제."
+        )
     st.stop()
 
 

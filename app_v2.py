@@ -4575,9 +4575,19 @@ def build_reco(note):
     _projects = [p for p in st.session_state.get("projects", [])
                  if isinstance(p, dict) and _clean_text_value(p.get("name")).strip()]
 
-    # ── 🧠 개념 추천 ── 자동 추출 → canonical → 이미 연결된 건 제외
+    # 성장형 엔진: 이미 적용(applied)·무시(ignored)한 추천은 다시 제안하지 않음
+    _applied = note.get("reco_applied", {}) or {}
+    _ignored = note.get("reco_ignored", {}) or {}
+    def _excluded(_type, _val):
+        return _val in (_applied.get(_type, []) or []) or _val in (_ignored.get(_type, []) or [])
+    _ex_con = {canonical_concept(x) for x in (_applied.get("concepts", []) or []) + (_ignored.get("concepts", []) or [])}
+    _ex_tag = {str(x).replace("#", "").strip() for x in (_applied.get("tags", []) or []) + (_ignored.get("tags", []) or [])}
+    _ex_task = set((_applied.get("tasks", []) or []) + (_ignored.get("tasks", []) or []))
+    _ex_rel = set((_applied.get("related_notes", []) or []) + (_ignored.get("related_notes", []) or []))
+
+    # ── 🧠 개념 추천 ── 자동 추출 → canonical → 이미 연결/적용/무시된 건 제외
     _auto = canonical_concepts(extract_local_concepts(_body, _own_tags, limit=10))
-    _already = {canonical_concept(c) for c in (note.get("concepts", []) or [])}
+    _already = {canonical_concept(c) for c in (note.get("concepts", []) or [])} | _ex_con
     _existing_all = {canonical_concept(l.get("concept")) for l in _links if l.get("concept")}
     _con_reco = []
     for _c in _auto:
@@ -4601,7 +4611,7 @@ def build_reco(note):
     _tag_reco = []
     _cand = sorted(_tag_freq.items(), key=lambda x: (0 if x[0] in _body else 1, -x[1]))
     for _t, _f in _cand:
-        if _t in _own_tags:
+        if _t in _own_tags or _t in _ex_tag:
             continue
         if _t in _body or _f >= 3:
             _tag_reco.append({"name": _t,
@@ -4653,6 +4663,8 @@ def build_reco(note):
     for _n in _notes:
         if _n.get("id") == _own_id:
             continue
+        if (_clean_text_value(_n.get("title")).strip() or "제목 없음") in _ex_rel:
+            continue  # 이미 적용/무시한 관련 메모는 제외
         _ncs = {canonical_concept(c) for c in (_n.get("concepts", []) or [])}
         _nts = {str(t).replace("#", "").strip() for t in (_n.get("tags", []) or [])}
         _sc = _my_cset & _ncs
@@ -4678,6 +4690,8 @@ def build_reco(note):
             continue
         if any(_x in _ls for _x in _NON_ACTION_HINTS):  # 고민/필요/중요 등은 작업 아님
             continue
+        if _ls in _ex_task:  # 이미 적용/무시한 작업은 제외
+            continue
         if any(_k in _ls for _k in _TASK_KEYWORDS) and any(_s in _ls for _s in _ACTION_SUFFIX):
             _tasks.append({"title": _ls, "reason": "본문에서 할 일(행동) 발견"})
         if len(_tasks) >= 4:
@@ -4687,60 +4701,145 @@ def build_reco(note):
             "related_notes": _related, "tasks": _tasks}
 
 
-def render_reco_preview(note):
-    """추천 결과 미리보기 (1단계: 데이터 반영 없이 후보만 보여줌)."""
+def _reco_record(note, kind, values, status):
+    """추천 상태(applied/ignored)를 메모에 기록 — 성장형 엔진이 재추천 안 하게."""
+    _key = "reco_applied" if status == "applied" else "reco_ignored"
+    _store = note.setdefault(_key, {})
+    _cur = _store.setdefault(kind, [])
+    for _v in values:
+        if _v not in _cur:
+            _cur.append(_v)
+
+
+def _reco_apply(note, kind, values):
+    """선택된 추천을 실제 데이터에 반영 (비파괴·승인 기반)."""
+    _now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    if kind == "concepts":
+        _links = st.session_state.setdefault("note_concept_links", [])
+        _exist = {(l.get("note_id"), canonical_concept(l.get("concept"))) for l in _links}
+        _nc = note.setdefault("concepts", [])
+        for _c in values:
+            if (note.get("id"), canonical_concept(_c)) not in _exist:
+                _links.append({"note_id": note.get("id"), "concept": _c, "linked_at": _now})
+            if _c not in _nc:
+                _nc.append(_c)
+    elif kind == "tags":
+        _t = note.setdefault("tags", [])
+        for _v in values:
+            if _v not in _t:
+                _t.append(_v)
+    elif kind == "project":
+        if values:
+            note["project"] = values[0]
+    elif kind == "related_notes":
+        _rels = st.session_state.setdefault("relations", [])
+        _src = _clean_text_value(note.get("title")).strip() or "제목 없음"
+        for _v in values:
+            if not any(r.get("source_name") == _src and r.get("target_name") == _v for r in _rels):
+                _rels.append({"id": _new_id("rel")[4:], "source_name": _src, "target_name": _v,
+                              "source_type": "note", "target_type": "note",
+                              "relation_type": "관련", "created_at": _now})
+    elif kind == "tasks":
+        for _v in values:
+            create_task(_v, project=_clean_text_value(note.get("project")).strip())
+    _reco_record(note, kind, values, "applied")
+
+
+def render_reco_center(note, key_prefix="reco"):
+    """🔗 AI 연결 추천 센터 — 후보 표시 + 선택 적용/무시 + 실제 반영.
+    성장형 엔진: 적용·무시한 건 build_reco가 자동 제외."""
     _r = build_reco(note)
     if not _r:
         return
     _total = (len(_r.get("concepts", [])) + len(_r.get("tags", []))
               + (1 if _r.get("project") else 0) + len(_r.get("related_notes", []))
               + len(_r.get("tasks", [])))
-    st.markdown("#### 🔗 JIUM이 찾은 연결 후보")
+    _grown = bool(note.get("reco_applied") or note.get("reco_ignored"))
+    st.markdown("#### 🔄 변경된 연결 제안" if _grown else "#### 🔗 JIUM이 찾은 연결")
     if _total == 0:
-        st.caption("아직 연결 후보가 없어요. 기록이 더 쌓이면 JIUM이 연결을 찾아줘요.")
+        st.caption("새로 발견된 연결이 없어요. 내용을 더 적으면 JIUM이 새 연결을 찾아줘요.")
         return
-    st.caption("⚠️ 미리보기예요 — 아직 실제로 연결되진 않았어요. (추천 품질 확인용)")
+    st.caption("체크한 항목을 적용하거나 무시할 수 있어요. (무시한 건 다시 추천 안 해요)")
+    _nid = note.get("id")
+    _sel = {"concepts": [], "tags": [], "project": [], "related_notes": [], "tasks": []}
 
     def _esc(_v):
         import html as _h
         return _h.escape(str(_v))
 
     if _r["concepts"]:
-        st.markdown("**🧠 개념 추천**")
-        st.markdown(" ".join(
-            f"<span style='display:inline-block;background:#ede9fe;color:#6d28d9;border-radius:999px;"
-            f"padding:3px 10px;margin:2px;font-size:0.85em'>{_esc(c['name'])} "
-            f"<span style='color:#a78bfa;font-size:0.85em'>· {_esc(c['reason'])}</span></span>"
-            for c in _r["concepts"]), unsafe_allow_html=True)
+        st.markdown("**🧠 개념**")
+        _cc = st.columns(2)
+        for _i, _c in enumerate(_r["concepts"]):
+            with _cc[_i % 2]:
+                if st.checkbox(f"{_c['name']}  ·  {_c['reason']}",
+                               value=True, key=f"{key_prefix}_con_{_nid}_{_i}"):
+                    _sel["concepts"].append(_c["name"])
     if _r["tags"]:
-        st.markdown("**🏷 태그 추천**")
-        st.markdown(" ".join(
-            f"<span style='display:inline-block;background:#dcfce7;color:#15803d;border-radius:999px;"
-            f"padding:3px 10px;margin:2px;font-size:0.85em'>#{_esc(t['name'])} "
-            f"<span style='color:#4ade80;font-size:0.85em'>· {_esc(t['reason'])}</span></span>"
-            for t in _r["tags"]), unsafe_allow_html=True)
+        st.markdown("**🏷 태그**")
+        _tc = st.columns(2)
+        for _i, _t in enumerate(_r["tags"]):
+            with _tc[_i % 2]:
+                if st.checkbox(f"#{_t['name']}  ·  {_t['reason']}",
+                               value=True, key=f"{key_prefix}_tag_{_nid}_{_i}"):
+                    _sel["tags"].append(_t["name"])
     if _r["project"]:
         _p = _r["project"]
-        st.markdown(
-            f"**📁 프로젝트 추천**  \n"
-            f"<span style='color:#1e293b'>「{_esc(_p['best'])}」에 넣으면 좋아요</span> "
-            f"<span style='color:#64748b;font-size:0.85em'>· 근거: {_esc(_p['reason'])}</span>",
-            unsafe_allow_html=True)
+        if st.checkbox(f"📁 「{_p['best']}」 프로젝트에 넣기  ·  {_p['reason']}",
+                       value=True, key=f"{key_prefix}_proj_{_nid}"):
+            _sel["project"].append(_p["best"])
     if _r["related_notes"]:
-        st.markdown("**🔗 관련 메모 추천**")
-        for _n in _r["related_notes"]:
-            st.markdown(
-                f"<div style='padding:4px 0;color:#1e293b'>📝 {_esc(_n['title'])} "
-                f"<span style='color:#64748b;font-size:0.85em'>· {_esc(_n['reason'])}</span></div>",
-                unsafe_allow_html=True)
+        st.markdown("**🔗 관련 메모**")
+        for _i, _n in enumerate(_r["related_notes"]):
+            if st.checkbox(f"📝 {_n['title']}  ·  {_n['reason']}",
+                           value=True, key=f"{key_prefix}_rel_{_nid}_{_i}"):
+                _sel["related_notes"].append(_n["title"])
     if _r["tasks"]:
-        st.markdown("**✅ 작업 추천**")
-        for _t in _r["tasks"]:
-            st.markdown(
-                f"<div style='padding:4px 0;color:#1e293b'>☑ {_esc(_t['title'])} "
-                f"<span style='color:#64748b;font-size:0.85em'>· {_esc(_t['reason'])}</span></div>",
-                unsafe_allow_html=True)
-    st.caption("👍 추천 품질을 확인하는 단계예요. 다음 단계에서 [모두 적용]/[선택 적용] 버튼이 붙어요.")
+        st.markdown("**✅ 작업**")
+        for _i, _t in enumerate(_r["tasks"]):
+            if st.checkbox(f"☑ {_t['title']}  ·  {_t['reason']}",
+                           value=True, key=f"{key_prefix}_task_{_nid}_{_i}"):
+                _sel["tasks"].append(_t["title"])
+
+    _all = {"concepts": [c["name"] for c in _r["concepts"]],
+            "tags": [t["name"] for t in _r["tags"]],
+            "project": [_r["project"]["best"]] if _r["project"] else [],
+            "related_notes": [n["title"] for n in _r["related_notes"]],
+            "tasks": [t["title"] for t in _r["tasks"]]}
+
+    def _do_apply(_picked):
+        _n = 0
+        for _k, _vals in _picked.items():
+            if _vals:
+                _reco_apply(note, _k, _vals)
+                _n += len(_vals)
+        save_persisted_data()
+        _flash(f"✅ {_n}개 연결을 내 세계에 반영했어요!")
+        st.rerun()
+
+    _b1, _b2, _b3 = st.columns(3)
+    with _b1:
+        if st.button("🚀 모두 적용", key=f"{key_prefix}_apply_all_{_nid}",
+                     type="primary", use_container_width=True):
+            _do_apply(_all)
+    with _b2:
+        if st.button("✅ 선택 적용", key=f"{key_prefix}_apply_sel_{_nid}",
+                     use_container_width=True):
+            _do_apply(_sel)
+    with _b3:
+        if st.button("🙈 선택 무시", key=f"{key_prefix}_ignore_{_nid}",
+                     use_container_width=True):
+            for _k, _vals in _sel.items():
+                if _vals:
+                    _reco_record(note, _k, _vals, "ignored")
+            save_persisted_data()
+            _flash("무시한 항목은 다시 추천하지 않아요.")
+            st.rerun()
+
+
+# 하위호환: 기존 호출명 유지
+def render_reco_preview(note):
+    render_reco_center(note)
 
 
 def render_readable_markdown(text, *, empty="메모 내용이 없어요.", max_chars=None):

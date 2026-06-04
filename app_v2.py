@@ -4641,11 +4641,14 @@ def render_recent_analysis_cards(limit=5):
                 score = item.get("score", 0)
                 mode = item.get("input_mode", "링크로 조회하기")
                 source = display_source_label(item.get("url", ""))
+                # URL이 길면 카드 밖으로 넘치므로 잘라서 표시
+                _src_short = source if len(str(source)) <= 26 else str(source)[:24] + "…"
                 cache_key = item.get("cache_key") or f'{item.get("url", "")}::{item.get("content_type", "unknown")}'
 
                 st.markdown(f'<div class="recent-card-title">{title}</div>', unsafe_allow_html=True)
                 st.markdown(
-                    f'<div class="recent-card-meta">{item.get("time","")}<br>{mode}<br>{score}점 · {source}</div>',
+                    f'<div class="recent-card-meta" style="overflow-wrap:anywhere;word-break:break-all;">'
+                    f'{item.get("time","")}<br>{mode}<br>{score}점 · {_src_short}</div>',
                     unsafe_allow_html=True,
                 )
                 st.button(
@@ -15615,8 +15618,34 @@ def render_home_mini_knowledge_graph(theme_key):
     st.plotly_chart(_fig, use_container_width=True, config={"displayModeBar": False})
 
 
+# ── 스크롤 복원 (JS 앵커) — 버튼 클릭 후 맨 위로 튀지 않게. fragment 미사용, rerun 유지 ──
+def scroll_anchor(_name):
+    """이 위치에 보이지 않는 앵커를 심어둠. request_scroll(_name) 후 여기로 되돌아옴."""
+    st.markdown(f"<span id='tl-anchor-{_name}'></span>", unsafe_allow_html=True)
+
+def request_scroll(_name):
+    """다음 rerun 후 tl-anchor-{_name} 위치로 스크롤 복원을 예약."""
+    st.session_state["_scroll_to"] = _name
+
+def apply_scroll_restore():
+    """예약된 스크롤이 있으면 JS로 해당 앵커로 이동(부모 문서). 1회성."""
+    _t = st.session_state.pop("_scroll_to", None)
+    if not _t:
+        return
+    try:
+        import streamlit.components.v1 as _stc
+        _stc.html(
+            "<script>setTimeout(function(){"
+            "try{var el=window.parent.document.getElementById('tl-anchor-" + str(_t) + "');"
+            "if(el){el.scrollIntoView({block:'start'});}}catch(e){}}, 60);</script>",
+            height=0)
+    except Exception:
+        pass
+
+
 def render_home_universe():
     """🪐 내 지식 우주 — 프로젝트=행성(메모·개념·작업 수에 비례한 크기). 홈 축약판."""
+    scroll_anchor("univ")
     _projs = [
         p for p in st.session_state.get("projects", [])
         if isinstance(p, dict) and _clean_text_value(p.get("name")).strip()
@@ -15892,6 +15921,7 @@ def render_home_universe():
             ):
                 st.session_state["home_univ_pick"] = _pl["name"]
                 st.session_state["univ_sat_view"] = "memo"  # 새 행성 선택 시 기본 탭
+                request_scroll("univ")
                 st.rerun()
     with _pick_cols[-1]:
         _all_label = f"{'✨ ' if _sel_planet is None else ''}🌌 전체"
@@ -15903,6 +15933,7 @@ def render_home_universe():
             help="전체 우주 요약을 보고, 프로젝트에 아직 배정되지 않은 지식을 지구 발사대에서 정리해요.",
         ):
             st.session_state["home_univ_pick"] = None
+            request_scroll("univ")
             st.rerun()
     _sel_planet = _clean_text_value(st.session_state.get("home_univ_pick")).strip()
 
@@ -15969,6 +16000,7 @@ def render_home_universe():
                     help=f"이 행성의 {_snm} 목록을 아래 행성 상세에서 펼쳐 봐요.",
                 ):
                     st.session_state["univ_sat_view"] = _skey
+                    request_scroll("univ")
                     st.rerun()
         st.caption("👆 카드를 누르면 아래 **행성 상세**에 그 목록이 펼쳐져요.")
         # 위 카드에서 고른 종류의 목록 — 카드 바로 아래에 펼쳐 보여줌(클릭 시 멀리 안 가게)
@@ -16028,6 +16060,7 @@ def render_home_universe():
                                          type=("primary" if _tag_pick == _t else "secondary")):
                                 st.session_state[f"univ_tag_pick_{_sel_planet}"] = (
                                     None if _tag_pick == _t else _t)
+                                request_scroll("univ")
                                 st.rerun()
                     if _tag_pick:
                         _tagged = [
@@ -16581,6 +16614,8 @@ except Exception as _univ_err:
     st.error("🪐 내 지식 우주/지구 발사대 렌더 중 오류가 났어요. 아래 상세를 확인하세요.")
     st.exception(_univ_err)
     st.code(_univ_tb.format_exc())
+# 우주맵 버튼 클릭 후 맨 위로 튀지 않게 — 앵커(univ)로 스크롤 복원
+apply_scroll_restore()
 st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 # 뇌지도는 우주맵과 역할이 겹쳐 홈에선 접어둠 (필요할 때만 펼침)
 with st.expander("🧠 전체 지식 뇌지도 (펼치기)", expanded=False):

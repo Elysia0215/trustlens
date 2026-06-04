@@ -15354,11 +15354,11 @@ st.markdown(
          box-shadow:0 8px 24px {_THM['shadow']};">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
         <div>
-          <div style="font-size:0.85rem;opacity:0.85;letter-spacing:1px;">🧠 내 지식 세계 · {_THM['name']}</div>
-          <div style="font-size:1.7rem;font-weight:900;margin-top:2px;">
+          <div style="font-size:0.85rem;letter-spacing:1px;color:rgba(255,255,255,0.85)!important;">🧠 내 지식 세계 · {_THM['name']}</div>
+          <div style="font-size:1.7rem;font-weight:900;margin-top:2px;color:#ffffff!important;text-shadow:0 1px 4px rgba(0,0,0,0.35);">
             Lv.{_brain_level} {_cur_name} {_cur_emoji}
           </div>
-          <div style="opacity:0.9;font-size:0.9rem;margin-top:2px;">
+          <div style="font-size:0.9rem;margin-top:2px;color:rgba(255,255,255,0.92)!important;text-shadow:0 1px 3px rgba(0,0,0,0.3);">
             Brain Point {_brain_points:,} · 다음 «{_next_name}»까지 {_to_next:,}P
           </div>
         </div>
@@ -15902,6 +15902,33 @@ def render_home_universe():
             st.session_state["home_univ_pick"] = None
             st.rerun()
     _sel_planet = _clean_text_value(st.session_state.get("home_univ_pick")).strip()
+
+    # 공통 헬퍼 — 행성 상세(if)·전체/발사대(else) 양쪽에서 모두 사용 (NameError 방지)
+    import html as _univ_html
+
+    def _univ_esc(_v):
+        return _univ_html.escape(_clean_text_value(_v).strip() or "미지정")
+
+    def _univ_chip(_text, _bg="#eef2ff", _fg="#3730a3", _prefix=""):
+        _label = _univ_esc(_text)
+        return (
+            f"<span style='display:inline-block;margin:3px 5px 3px 0;padding:4px 9px;"
+            f"border-radius:999px;background:{_bg};color:{_fg};font-size:12px;"
+            f"font-weight:800;border:1px solid rgba(99,102,241,0.18);'>{_prefix}{_label}</span>"
+        )
+
+    def _task_badge(_status):
+        _s = _clean_text_value(_status).strip()
+        if "완료" in _s:
+            return "✅", "#dcfce7", "#166534"
+        if "진행" in _s:
+            return "🔵", "#dbeafe", "#1d4ed8"
+        if "검토" in _s:
+            return "🟣", "#f3e8ff", "#7e22ce"
+        if "보류" in _s:
+            return "⏸️", "#fef3c7", "#92400e"
+        return "⬜", "#f1f5f9", "#475569"
+
     _sel_obj = next((p for p in _planets if p["name"] == _sel_planet), None)
     if _sel_obj:
         _sel_planet = _sel_obj["name"]
@@ -15941,31 +15968,6 @@ def render_home_universe():
                     st.session_state["univ_sat_view"] = _skey
                     st.rerun()
         st.caption("👆 카드를 누르면 아래 **행성 상세**에 그 목록이 펼쳐져요.")
-        import html as _univ_html
-
-        def _univ_esc(_v):
-            return _univ_html.escape(_clean_text_value(_v).strip() or "미지정")
-
-        def _univ_chip(_text, _bg="#eef2ff", _fg="#3730a3", _prefix=""):
-            _label = _univ_esc(_text)
-            return (
-                f"<span style='display:inline-block;margin:3px 5px 3px 0;padding:4px 9px;"
-                f"border-radius:999px;background:{_bg};color:{_fg};font-size:12px;"
-                f"font-weight:800;border:1px solid rgba(99,102,241,0.18);'>{_prefix}{_label}</span>"
-            )
-
-        def _task_badge(_status):
-            _s = _clean_text_value(_status).strip()
-            if "완료" in _s:
-                return "✅", "#dcfce7", "#166534"
-            if "진행" in _s:
-                return "🔵", "#dbeafe", "#1d4ed8"
-            if "검토" in _s:
-                return "🟣", "#f3e8ff", "#7e22ce"
-            if "보류" in _s:
-                return "⏸️", "#fef3c7", "#92400e"
-            return "⬜", "#f1f5f9", "#475569"
-
         # 위 카드에서 고른 종류의 목록 — 카드 바로 아래에 펼쳐 보여줌(클릭 시 멀리 안 가게)
         def _render_sat_list():
             _view_label = {"memo": "📝 메모", "concept": "🧠 개념",

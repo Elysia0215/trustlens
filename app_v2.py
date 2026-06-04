@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-04.14"  # 배포 식별용
+APP_BUILD = "2026-06-04.15"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -5858,64 +5858,24 @@ def render_knowledge_map_page():
             f"background:linear-gradient(90deg,{_color},{_color}00);'></div></div>",
             unsafe_allow_html=True)
 
-    # 🔹 기본 탐색 도구 (항상 노출)
-    _km_section("🔹 기본 탐색 도구")
-    _basic_catalog = [
-        ("📚", "노트", "메모 보기"),
-        ("🧠", "개념", "핵심 개념 찾기"),
-        ("🕸", "관계", "연결 구조 보기"),
-        ("📈", "성장", "학습 흐름 보기"),
-    ]
-    _bc_cols = st.columns(4)
-    for _bi, (_em, _nm, _desc) in enumerate(_basic_catalog):
-        with _bc_cols[_bi]:
-            with st.container(border=True):
-                st.markdown(
-                    f"<div style='text-align:center'>"
-                    f"<div style='font-size:1.4em'>{_em}</div>"
-                    f"<b>{_nm}</b><br>"
-                    f"<span style='color:#64748b;font-size:0.8em'>{_desc}</span></div>",
-                    unsafe_allow_html=True)
-
-    # 🔬 고급 분석 도구 (토글 — 기본 접힘)
-    _km_section("🔬 고급 분석 도구", "#7c3aed")
+    # 🕸️ 지식맵 = 도구 목록이 아니라 '탐색 공간'. 진입하면 바로 그래프.
+    st.caption("내 생각이 어떻게 연결되는지 보는 공간이에요. **🕸️ 지식그래프**가 기본, **🪐 프로젝트맵**은 보조예요.")
     _km_adv = st.toggle(
-        "고급 기능 6개 더 보기 (노션보드·태그맵·지식페이지·브레인스토밍·프로젝트맵·타임라인)",
+        "🔬 다른 보기 더 보기 (개념·관계·성장·노션보드·지식페이지·타임라인)",
         value=False, key="km_adv_view",
-        help="기본 4개는 '무엇을 볼까', 고급 6개는 '어떻게 볼까'. 가끔 쓰는 분석 도구예요.")
-    if _km_adv:
-        _adv_catalog = [
-            ("🧩", "노션보드", "카드로 정리"),
-            ("🕸️", "태그맵", "태그로 탐색"),
-            ("🧠", "지식페이지", "위키처럼 읽기"),
-            ("🤖", "브레인스토밍", "AI 아이디어"),
-            ("🗺️", "프로젝트맵", "연결 시각화"),
-            ("🕰️", "타임라인", "시간순 보기"),
-        ]
-        _adv_cols = st.columns(6)
-        for _ai2, (_em, _nm, _desc) in enumerate(_adv_catalog):
-            with _adv_cols[_ai2]:
-                with st.container(border=True):
-                    st.markdown(
-                        f"<div style='text-align:center'>"
-                        f"<div style='font-size:1.3em'>{_em}</div>"
-                        f"<b style='font-size:0.85em'>{_nm}</b><br>"
-                        f"<span style='color:#64748b;font-size:0.74em'>{_desc}</span></div>",
-                        unsafe_allow_html=True)
-    else:
-        st.caption("끄면 아래 탭은 기본 4개(노트·개념·관계·성장)만 보여요.")
-        # 기본 모드: 5번째 이후(고급) 탭 버튼만 숨김 — 탭/본문은 그대로 생성(기능 삭제 없음)
+        help="개념·관계·성장 등은 같은 지식의 다른 표현이라 부가 뷰로 접어뒀어요. 기본은 지식그래프·노트·프로젝트맵·브레인스토밍 4개예요.")
+    if not _km_adv:
+        # 기본 모드: 5번째 이후 탭 버튼만 숨김 — 탭/본문은 그대로(기능 삭제 없음)
         st.markdown(
             """<style>
             div[data-testid="stTabs"] div[data-baseweb="tab-list"] > button:nth-child(n+5){display:none !important;}
             </style>""",
             unsafe_allow_html=True)
-    # 기본 4뷰를 앞에, 고급 6뷰는 뒤에 (본문 코드는 그대로 두고 순서·이름만 정리)
-    (tab1, tab5, tab8, tab9,
-     tab2, tab3, tab4, tab6, tab7, tab10) = st.tabs([
-        "📚 노트", "🧠 개념", "🕸 관계", "📈 성장",
-        "🧩 노션 보드", "🕸️ 태그맵", "🧠 지식 페이지",
-        "🤖 브레인스토밍", "🗺️ 프로젝트맵", "🕰️ 타임라인"])
+    # 대표 시각화(지식그래프)를 맨 앞에 — 변수명은 그대로 두고 표시 순서·이름만 재배치
+    (tab3, tab1, tab7, tab6,
+     tab5, tab8, tab9, tab2, tab4, tab10) = st.tabs([
+        "🕸️ 지식그래프", "📚 노트", "🪐 프로젝트맵", "🤖 브레인스토밍",
+        "🧠 개념", "🕸 관계", "📈 성장", "🧩 노션 보드", "🧠 지식 페이지", "🕰️ 타임라인"])
 
     with tab1:
         _toc_mode = st.radio(

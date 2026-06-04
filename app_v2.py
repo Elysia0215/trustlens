@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-04.9"  # 배포 식별용
+APP_BUILD = "2026-06-04.10"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -15770,16 +15770,84 @@ _dash_active_proj = [p for p in _dash_projects if "진행" in str(p.get("status"
 _dash_today_tasks = [t for t in _dash_tasks if str(t.get("due_date", ""))[:10] == _dash_today]
 _dash_open_tasks = [t for t in _dash_tasks if str(t.get("status", "")) not in ("완료", "보관됨")]
 
+# ── 🌍 오늘의 세계 (대시보드 히어로) ──
+from collections import Counter as _DashCnt
+_dash_links = st.session_state.get("note_concept_links", [])
+_dash_cc = _DashCnt()
+for _l in _dash_links:
+    _c = canonical_concept(_l.get("concept")) if _l.get("concept") else None
+    if _c:
+        _dash_cc[_c] += 1
+_dash_ai_conn = sum(1 for _c, _n in _dash_cc.items() if _n >= 2)  # 2개 이상 메모에 연결된 개념 = 발견된 연결
+
+def _wstat(num, label):
+    return (
+        f"<div style='text-align:center;padding:0 14px;'>"
+        f"<div style='font-size:1.7rem;font-weight:900;color:#fff;"
+        f"text-shadow:0 1px 3px rgba(0,0,0,0.35);line-height:1.1;'>{num}</div>"
+        f"<div style='font-size:0.78rem;color:#e0e7ff;'>{label}</div></div>"
+    )
+
 st.markdown(
     f"""
     <div style="background:linear-gradient(135deg,#1e3a8a,#3b82f6);border-radius:18px;
-         padding:22px 28px;margin-bottom:18px;color:white;">
-      <div style="font-size:1.6rem;font-weight:900;">🏠 오늘의 대시보드</div>
-      <div style="opacity:0.85;margin-top:2px;">{_dash_today} · 오늘도 좋은 지식 쌓아봐요</div>
+         padding:22px 28px 20px;margin-bottom:14px;color:white;">
+      <div style="font-size:1.55rem;font-weight:900;text-shadow:0 1px 3px rgba(0,0,0,0.3);">🌍 오늘의 세계</div>
+      <div style="opacity:0.9;margin:2px 0 16px;font-size:0.9rem;">{_dash_today} · 메모를 남기면 JIUM이 연결해 드려요</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-start;
+           border-top:1px solid rgba(255,255,255,0.18);padding-top:14px;">
+        {_wstat(len(_dash_notes), "📝 메모")}
+        {_wstat(len(_dash_projects), "📁 프로젝트")}
+        {_wstat(len(_dash_open_tasks), "✅ 할 일")}
+        {_wstat(len(_dash_concepts), "🧠 개념")}
+        {_wstat(_dash_ai_conn, "🔗 발견된 연결")}
+      </div>
     </div>
     """,
     unsafe_allow_html=True,
 )
+
+# 대시보드 핵심 행동 버튼 (가장 크게: 새 메모)
+_cta1, _cta2, _cta3 = st.columns([2, 1, 1])
+with _cta1:
+    if st.button("➕ 새 메모 쓰기", type="primary", use_container_width=True, key="dash_new_memo"):
+        st.query_params["page"] = "new"
+        st.rerun()
+with _cta2:
+    if st.button("🌍 내 세계 보기", use_container_width=True, key="dash_view_map"):
+        st.query_params["page"] = "map"
+        st.rerun()
+with _cta3:
+    if st.button("📚 지식 라이브러리", use_container_width=True, key="dash_view_lib"):
+        st.query_params["page"] = "archive"
+        st.rerun()
+st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+
+# 🧠 루미가 발견한 연결 (대시보드 설명 카드)
+if _dash_ai_conn:
+    _lumi_top_c, _lumi_top_n = _dash_cc.most_common(1)[0]
+    _lumi_note_ids = {_l.get("note_id") for _l in _dash_links
+                      if canonical_concept(_l.get("concept")) == _lumi_top_c}
+    _lumi_titles = [str(_n.get("title", "")).strip() for _n in _dash_notes
+                    if _n.get("id") in _lumi_note_ids and str(_n.get("title", "")).strip()][:3]
+    _lumi_titles_html = " · ".join(f"「{_t[:18]}」" for _t in _lumi_titles) or "여러 메모"
+    st.markdown(
+        f"""
+        <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-left:4px solid #8b5cf6;
+             border-radius:12px;padding:14px 18px;margin-bottom:12px;">
+          <div style="font-weight:800;color:#6d28d9;margin-bottom:4px;">🧠 루미가 발견한 연결</div>
+          <div style="color:#334155;font-size:0.92rem;line-height:1.6;">
+            <b>‘{_lumi_top_c}’</b> 개념이 <b>{_lumi_top_n}개</b>의 메모에서 반복해서 나타났어요.<br>
+            <span style="color:#64748b;font-size:0.85rem;">{_lumi_titles_html}</span>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if st.button(f"🕸️ '{_lumi_top_c}' 연결을 지식맵에서 보기", key="dash_lumi_map", use_container_width=True):
+        st.query_params["page"] = "map"
+        st.rerun()
+    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
 
 
 # 루미 캐릭터 선택지 (사용자가 고를 수 있는 아바타)

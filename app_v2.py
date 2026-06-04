@@ -76,7 +76,12 @@ def _sb_save(data):
     if not _c:
         return False
     try:
-        _c.table("jium_store").upsert({"id": "main", "data": data}).execute()
+        from datetime import timezone as _tz
+        _c.table("jium_store").upsert({
+            "id": "main",
+            "data": data,
+            "updated_at": datetime.now(_tz.utc).isoformat(),
+        }).execute()
         _SB_DEBUG.update(stage="save_ok", error=None)
         return True
     except Exception as _e:

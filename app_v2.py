@@ -11927,9 +11927,9 @@ if menu == "통합 검색":
     # ══════════════════════════════════════════════════════════
     st.markdown("""
 <div style="background:linear-gradient(135deg,#334155,#0ea5e9);border-radius:16px;
-     padding:26px 30px 20px;margin-bottom:20px;color:white;">
-    <div style="font-size:1.8rem;font-weight:900;margin-bottom:4px;">🔍 통합 검색</div>
-    <div style="opacity:0.9;line-height:1.5;">
+     padding:26px 30px 20px;margin-bottom:20px;">
+    <div style="font-size:1.8rem;font-weight:900;margin-bottom:4px;color:#ffffff;text-shadow:0 1px 4px rgba(0,0,0,0.45);">🔍 통합 검색</div>
+    <div style="line-height:1.5;color:#f1f5f9;text-shadow:0 1px 3px rgba(0,0,0,0.4);">
         메모·분석·프로젝트·작업·개념·연구노트를 한 번에 찾아요.
     </div>
 </div>

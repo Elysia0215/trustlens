@@ -15552,16 +15552,16 @@ with st.container(border=True):
 
 st.markdown(
     f"""
-    <div style="background:{_THM['gradient']};
-         border-radius:18px;padding:20px 26px;margin-bottom:16px;color:white;
-         box-shadow:0 8px 24px {_THM['shadow']};">
+    <div style="background:linear-gradient(135deg,#eef2ff,#f5f3ff);
+         border:1px solid #c7d2fe;border-left:6px solid #6366f1;
+         border-radius:18px;padding:20px 26px;margin-bottom:16px;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
         <div>
-          <div style="font-size:0.85rem;letter-spacing:1px;color:rgba(255,255,255,0.85)!important;">🧠 내 지식 세계 · {_THM['name']}</div>
-          <div style="font-size:1.7rem;font-weight:900;margin-top:2px;color:#ffffff!important;text-shadow:0 1px 4px rgba(0,0,0,0.35);">
+          <div style="font-size:0.85rem;letter-spacing:1px;color:#6366f1;">🧠 내 지식 세계 · {_THM['name']}</div>
+          <div style="font-size:1.7rem;font-weight:900;margin-top:2px;color:#1e293b;">
             Lv.{_brain_level} {_cur_name} {_cur_emoji}
           </div>
-          <div style="font-size:0.9rem;margin-top:2px;color:rgba(255,255,255,0.92)!important;text-shadow:0 1px 3px rgba(0,0,0,0.3);">
+          <div style="font-size:0.9rem;margin-top:2px;color:#4f46e5;">
             Brain Point {_brain_points:,} · 다음 «{_next_name}»까지 {_to_next:,}P
           </div>
         </div>

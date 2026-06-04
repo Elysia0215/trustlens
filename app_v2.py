@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-04.16"  # 배포 식별용
+APP_BUILD = "2026-06-04.17"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -17590,10 +17590,18 @@ for _ci in range(0, len(_recent_cards), 2):
         _t2, _n2, _l2, _e2 = _recent_cards[_ci + 1]
         _render_recent_card(_gc2, _t2, _n2, _l2, _e2)
 
-# 🌍 홈(대시보드)에서는 아래 URL 신뢰도 분석 폼을 숨겨 화면을 짧게 — '새 메모' 페이지/고급 모드에서만 노출
+# 🔗 링크/글 가져와서 분석하기 — 홈에선 버튼으로 펼침(화면 짧게), result/고급은 항상 노출
 _input_page = st.query_params.get("page", "home")
-if _input_page not in ("new", "result") and not get_setting("show_advanced"):
-    st.stop()
+if _input_page not in ("result",) and not get_setting("show_advanced"):
+    if not st.session_state.get("home_show_import"):
+        st.divider()
+        st.markdown("#### 🔗 링크·글 가져와서 분석하기")
+        st.caption("URL이나 붙여넣은 글을 AI가 요약·신뢰도·개념 후보로 정리해 지식 메모로 저장해요.")
+        if st.button("🔗 링크·글 가져오기 열기", use_container_width=True, type="primary",
+                     key="home_open_import"):
+            st.session_state["home_show_import"] = True
+            st.rerun()
+        st.stop()
 
 st.divider()
 

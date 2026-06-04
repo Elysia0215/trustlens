@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-04.10"  # 배포 식별용
+APP_BUILD = "2026-06-04.11"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -68,15 +68,20 @@ def _sb_load_status():
     _c = _sb_client()
     if not _c:
         return ("noclient", None)
-    try:
-        _r = _c.table("jium_store").select("data").eq("id", "main").limit(1).execute()
-        _rows = _r.data or []
-        if _rows:
-            return ("ok", _rows[0].get("data") or {})
-        return ("empty", None)
-    except Exception as _e:
-        _SB_DEBUG.update(stage="load_failed", error=f"{type(_e).__name__}: {_e}")
-        return ("error", None)
+    import time as _time
+    _last_err = None
+    for _attempt in range(3):  # transient 네트워크/콜드스타트 대비 재시도
+        try:
+            _r = _c.table("jium_store").select("data").eq("id", "main").limit(1).execute()
+            _rows = _r.data or []
+            if _rows:
+                return ("ok", _rows[0].get("data") or {})
+            return ("empty", None)
+        except Exception as _e:
+            _last_err = _e
+            _time.sleep(0.4 * (_attempt + 1))
+    _SB_DEBUG.update(stage="load_failed", error=f"{type(_last_err).__name__}: {_last_err}")
+    return ("error", None)
 
 
 def _sb_load():
@@ -86,12 +91,17 @@ def _sb_load():
 
 
 def _sb_save(data):
-    # ⛔ 읽기 실패한 세션에서는 저장 금지 — 옛 데이터로 클라우드를 덮어쓰는 사고 방지
+    # ⛔ 읽기 실패한 세션에서는 저장 금지 — 옛 데이터로 클라우드를 덮어쓰는 사고 방지.
+    #    단, transient 1회 실패로 세션이 영구 차단되지 않도록 저장 직전 1회 재검증 후 자동 해제.
     try:
         if st.session_state.get("_persist_blocked"):
-            _SB_DEBUG.update(stage="save_blocked",
-                             error="이 세션은 클라우드 읽기 실패 상태 → 저장 차단(데이터 보호)")
-            return False
+            _st, _ = _sb_load_status()
+            if _st in ("ok", "empty"):
+                st.session_state["_persist_blocked"] = False  # 클라우드 다시 읽히면 차단 해제
+            else:
+                _SB_DEBUG.update(stage="save_blocked",
+                                 error="클라우드 읽기 실패 지속 → 저장 차단(데이터 보호)")
+                return False
     except Exception:
         pass
     _c = _sb_client()
@@ -17513,22 +17523,25 @@ def _wg_render():
         elif _expand_pct is not None:
             st.caption(f"💡 이번 달에만 지식 세계가 {_expand_pct}% 넓어졌어요. 아는 만큼 보여요.")
 
-try:
-    _wg_render()
-except Exception:
-    pass
-st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+# 성장 리포트 — 홈을 짧게: 기본 접힘 (자세히는 펼쳐서)
+with st.expander("🌍 세계 성장 리포트 (펼치기)", expanded=False):
+    try:
+        _wg_render()
+    except Exception:
+        pass
+st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
-try:
-    render_home_universe()
-except Exception as _univ_err:
-    import traceback as _univ_tb
-    st.error("🪐 내 지식 우주/지구 발사대 렌더 중 오류가 났어요. 아래 상세를 확인하세요.")
-    st.exception(_univ_err)
-    st.code(_univ_tb.format_exc())
-# 우주맵 버튼 클릭 후 맨 위로 튀지 않게 — 앵커(univ)로 스크롤 복원
-apply_scroll_restore()
-st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+# 내 지식 우주 — 전용 '🕸️ 지식 지도' 페이지가 따로 있어 홈에선 접어둠
+with st.expander("🪐 내 지식 우주 · 지구 발사대 (펼치기)", expanded=False):
+    try:
+        render_home_universe()
+    except Exception as _univ_err:
+        import traceback as _univ_tb
+        st.error("🪐 내 지식 우주/지구 발사대 렌더 중 오류가 났어요. 아래 상세를 확인하세요.")
+        st.exception(_univ_err)
+        st.code(_univ_tb.format_exc())
+    apply_scroll_restore()
+st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 # 뇌지도는 우주맵과 역할이 겹쳐 홈에선 접어둠 (필요할 때만 펼침)
 with st.expander("🧠 전체 지식 뇌지도 (펼치기)", expanded=False):
     render_home_mini_knowledge_graph(_brain_theme_key)
@@ -17598,6 +17611,11 @@ for _ci in range(0, len(_recent_cards), 2):
     if _ci + 1 < len(_recent_cards):
         _t2, _n2, _l2, _e2 = _recent_cards[_ci + 1]
         _render_recent_card(_gc2, _t2, _n2, _l2, _e2)
+
+# 🌍 홈(대시보드)에서는 아래 URL 신뢰도 분석 폼을 숨겨 화면을 짧게 — '새 메모' 페이지/고급 모드에서만 노출
+_input_page = st.query_params.get("page", "home")
+if _input_page not in ("new", "result") and not get_setting("show_advanced"):
+    st.stop()
 
 st.divider()
 

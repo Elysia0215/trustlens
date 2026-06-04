@@ -10096,18 +10096,34 @@ if menu == "데이터 관리":
             "이 상태에서는 **새로 배포될 때마다 서버 데이터가 초기화**될 수 있어요.  \n"
             "**내 PC로 '내보내기(다운로드)' 해두는 게 유일하게 안전한 방법이에요.**"
         )
+        if st.button("🔄 연결 다시 시도 (캐시 비우기)", key="sb_retry"):
+            _sb_client.clear()
+            st.rerun()
         with st.expander("🔧 연결 진단 (개발용)"):
+            # 캐시 우회: secrets를 직접 읽어 실제 값 유무 확인
             try:
-                _keys = list(st.secrets.keys())
+                _sec = st.secrets.get("supabase", {})
+                _u, _k = _sec.get("url"), _sec.get("key")
+                _direct = {
+                    "url_present": bool(_u),
+                    "url_len": len(_u) if _u else 0,
+                    "key_present": bool(_k),
+                    "key_len": len(_k) if _k else 0,
+                    "key_prefix": (_k[:14] if _k else None),
+                }
             except Exception as _e:
-                _keys = f"secrets 접근 실패: {_e}"
+                _direct = f"secrets 직접 읽기 실패: {_e}"
+            # 패키지 import 가능 여부
+            try:
+                import supabase as _sbpkg
+                _pkg = getattr(_sbpkg, "__version__", "unknown")
+            except Exception as _e:
+                _pkg = f"import 실패: {_e}"
             st.write({
-                "secrets_keys": _keys,
-                "has_supabase_section": ("supabase" in (st.secrets.keys() if hasattr(st.secrets, "keys") else [])),
-                "url_set": _SB_DEBUG.get("url_set"),
-                "key_set": _SB_DEBUG.get("key_set"),
-                "stage": _SB_DEBUG.get("stage"),
-                "error": _SB_DEBUG.get("error"),
+                "secrets_direct": _direct,
+                "supabase_pkg": _pkg,
+                "cached_stage": _SB_DEBUG.get("stage"),
+                "cached_error": _SB_DEBUG.get("error"),
             })
 
     import json as _bk_json

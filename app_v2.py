@@ -15968,10 +15968,10 @@ def render_home_universe():
 
         st.markdown(
             "<div style='margin-top:18px;padding:14px 16px;border-radius:14px;"
-            "background:linear-gradient(135deg,#0f172a,#1e293b);"
-            "border:1px solid rgba(148,163,184,0.35);'>"
-            "<div style='font-size:18px;font-weight:900;color:#f1f5f9 !important;'>🛰️ 행성 상세</div>"
-            "<div style='font-size:13px;color:#cbd5e1 !important;margin-top:4px;'>"
+            "background:linear-gradient(135deg,#eef2ff,#f5f3ff);"
+            "border:1px solid #c7d2fe;'>"
+            "<div style='font-size:18px;font-weight:900;color:#3730a3;'>🛰️ 행성 상세</div>"
+            "<div style='font-size:13px;color:#4f46e5;margin-top:4px;'>"
             "메모·개념·태그·작업을 한눈에 보고 바로 이어가요.</div></div>",
             unsafe_allow_html=True)
         with st.expander("ℹ️ 이 화면 설명", expanded=False):
@@ -16223,10 +16223,10 @@ def render_home_universe():
         st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
         st.markdown(
             "<div style='padding:16px 18px;border-radius:16px;"
-            "background:linear-gradient(135deg,#111827,#1f2937 55%,#312e81);"
-            "border:1px solid rgba(165,180,252,0.45);'>"
-            "<div style='font-size:20px;font-weight:950;color:#ffffff !important;'>🌎🚀 지구 발사대</div>"
-            "<div style='font-size:13px;color:#c7d2fe !important;margin-top:5px;'>"
+            "background:linear-gradient(135deg,#eef2ff,#ede9fe);"
+            "border:1px solid #c4b5fd;'>"
+            "<div style='font-size:20px;font-weight:950;color:#5b21b6;'>🌎🚀 지구 발사대</div>"
+            "<div style='font-size:13px;color:#6d28d9;margin-top:5px;'>"
             "아직 행성에 배정되지 않은 지식을 모아 목적 행성으로 발사해요.</div></div>",
             unsafe_allow_html=True)
         with st.expander("ℹ️ 지구 발사대 사용법", expanded=False):

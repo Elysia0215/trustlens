@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-04.3"  # 배포 식별용 — 코드 바꿔 push할 때마다 갱신
+APP_BUILD = "2026-06-04.4"  # 배포 식별용 — 코드 바꿔 push할 때마다 갱신
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -13869,6 +13869,23 @@ if menu == "설정":
         st.write(_dev_counts)
         st.markdown("##### 4) 환경·버전")
         st.write(_dev_env)
+
+        st.markdown("##### 📋 전체 로그 (복사용)")
+        st.caption("아래 박스 오른쪽 위 복사 아이콘을 눌러 통째로 복사해서 주세요.")
+        _dev_report = {
+            "app_build": APP_BUILD,
+            "supabase_connected": _dev_connected,
+            "supabase_load_ok": _dev_sb_ok,
+            "secrets_keys": _dev_secret_keys,
+            "last_sb_stage": _SB_DEBUG.get("stage"),
+            "last_sb_error": _SB_DEBUG.get("error"),
+            "supabase_dates": dict(sorted(_dev_sb_dates.items())),
+            "session_dates": dict(sorted(_dev_ss_dates.items())),
+            "session_note_types": dict(_dev_types),
+            "entity_counts": _dev_counts,
+            "env": _dev_env,
+        }
+        st.code(json.dumps(_dev_report, ensure_ascii=False, indent=2), language="json")
 
         st.markdown("##### 5) 빠른 링크")
         st.markdown(

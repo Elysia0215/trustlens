@@ -13558,12 +13558,25 @@ if menu == "데일리 노트":
                     else:
                         _ds = f"{_cy:04d}-{_cm:02d}-{_day:02d}"
                         _cnt = len(_dn_by_date.get(_ds, []))
-                        _lbl = f"{_day} ·{_cnt}" if _cnt else f"{_day}"
-                        if st.button(_lbl, key=f"dn_cal_{_ds}", use_container_width=True,
-                                     type=("primary" if _ds == _dn_str else "secondary")):
+                        _is_today = (_ds == _dn_str)
+                        # 날짜 숫자(버튼) — 옵시디언처럼 숫자만
+                        if st.button(str(_day), key=f"dn_cal_{_ds}", use_container_width=True,
+                                     type=("primary" if _is_today else "secondary"),
+                                     help=(f"메모 {_cnt}개" if _cnt else "메모 없음")):
                             st.session_state["_dn_pending"] = _dn_date(_cy, _cm, _day)
                             st.rerun()
-        st.caption("숫자 옆 ·N = 그날 메모 수. 날짜를 누르면 그날 기록으로 이동해요.")
+                        # 숫자 아래 점(메모 수) — 메모 있는 날만 초록 점
+                        if _cnt:
+                            _dots = "●" * min(_cnt, 4) + ("⁺" if _cnt > 4 else "")
+                            st.markdown(
+                                f"<div style='text-align:center;color:#22c55e;"
+                                f"font-size:0.55em;line-height:1;margin-top:-6px;'>{_dots}</div>",
+                                unsafe_allow_html=True)
+                        else:
+                            st.markdown(
+                                "<div style='height:8px;margin-top:-6px;'></div>",
+                                unsafe_allow_html=True)
+        st.caption("● = 그날 메모 수. 날짜를 누르면 그날 기록으로 이동해요.")
 
     _dn_ctx, _dn_left, _dn_right = st.columns([1, 1.6, 1.1])
 

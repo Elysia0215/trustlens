@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-04.7"  # 배포 식별용
+APP_BUILD = "2026-06-04.8"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -6207,6 +6207,10 @@ def render_knowledge_map_page():
             st.divider()
             _mm_max_tags = st.slider("태그 최대 개수", 5, 30, 16, 1, key="mm_max_tags")
             _mm_min_count = st.slider("최소 연결 수", 1, 10, 1, 1, key="mm_min_count")
+            _mm_memos_per_proj = st.slider("프로젝트당 메모 수 (전체 관계)", 3, 20, 5, 1,
+                                           key="mm_memos_per_proj",
+                                           help="🌐 전체 관계 모드에서 프로젝트별로 보여줄 최근 메모 수")
+            _mm_show_reledges = st.toggle("메모↔메모 관계선", value=True, key="mm_show_reledges")
             st.divider()
             _mm_proj_filter = st.multiselect(
                 "프로젝트 필터",
@@ -6243,6 +6247,7 @@ def render_knowledge_map_page():
 
                 node_x, node_y, node_text, node_size, node_color, node_hover = [], [], [], [], [], []
                 edge_x, edge_y = [], []
+                _rel_edge_x, _rel_edge_y = [], []
 
                 # ── 배치 모드 ──
                 if _mm_mode == "🌐 전체 관계":
@@ -6253,6 +6258,7 @@ def render_knowledge_map_page():
                     _tasks_all = [t for t in st.session_state.get("tasks", []) if isinstance(t, dict)]
                     _projs = _all_projects
                     n_proj = max(len(_projs), 1)
+                    _memo_pos = {}   # 메모 id/제목 → (x,y) : 관계선 그릴 때 사용
                     # 중심 JIUM
                     node_x.append(0); node_y.append(0)
                     node_text.append("🌌 JIUM"); node_size.append(34)
@@ -6266,8 +6272,10 @@ def render_knowledge_map_page():
                         node_x.append(_ppx); node_y.append(_ppy)
                         node_text.append(f"📁 {_pn}"); node_size.append(20)
                         node_color.append(_C_PROJ); node_hover.append(f"프로젝트: {_pn} · 메모 {len(_pmemos)}개")
-                        # 프로젝트의 메모(연구노트) — 대표 N개
-                        _pmemos_top = _pmemos[:_mm_max_tags // 2 or 5][:6]
+                        # 프로젝트의 메모(연구노트) — 최근 N개 (슬라이더)
+                        _pmemos_sorted = sorted(
+                            _pmemos, key=lambda it: str(it.get("saved_at", "")), reverse=True)
+                        _pmemos_top = _pmemos_sorted[:_mm_memos_per_proj]
                         n_m = max(len(_pmemos_top), 1)
                         for _mi, _mo in enumerate(_pmemos_top):
                             _ma = _pa + (2 * math.pi * _mi / n_m) * 0.45 - math.pi * 0.22
@@ -6281,6 +6289,12 @@ def render_knowledge_map_page():
                             node_text.append(f"📝 {_mtitle}"); node_size.append(13)
                             node_color.append(_C_MEMO)
                             node_hover.append(f"메모: {_mo.get('title','')} — {_pn}")
+                            # 관계선용 위치 기록 (id·제목 둘 다 키로)
+                            if _mid:
+                                _memo_pos[str(_mid)] = (_mx, _my)
+                            _mt_full = str(_mo.get("title", "")).strip()
+                            if _mt_full:
+                                _memo_pos[_mt_full] = (_mx, _my)
                             # 이 메모의 잎: 개념·태그·작업 (합쳐서 최대 6개)
                             _leaves = []
                             for _c in (_mo.get("concepts", []) or [])[:3]:
@@ -6309,6 +6323,21 @@ def render_knowledge_map_page():
                                     node_text.append(f"⬜ {_lv[:10]}"); node_color.append(_C_TASK)
                                     node_hover.append(f"작업: {_lv}")
                                 node_size.append(9)
+
+                    # ── 메모 ↔ 메모 관계선 (relations) ──
+                    if _mm_show_reledges:
+                        for _rel in st.session_state.get("relations", []):
+                            if not isinstance(_rel, dict):
+                                continue
+                            _s = str(_rel.get("source_id") or _rel.get("source_name") or "").strip()
+                            _t = str(_rel.get("target_id") or _rel.get("target_name") or "").strip()
+                            _sn = str(_rel.get("source_name") or "").strip()
+                            _tn = str(_rel.get("target_name") or "").strip()
+                            _sp = _memo_pos.get(_s) or _memo_pos.get(_sn)
+                            _tp = _memo_pos.get(_t) or _memo_pos.get(_tn)
+                            if _sp and _tp:
+                                _rel_edge_x += [_sp[0], _tp[0], None]
+                                _rel_edge_y += [_sp[1], _tp[1], None]
 
                 elif _mm_mode == "프로젝트별 행성":
                     # 프로젝트를 행성처럼 원형 배치, 각 행성 주변에 태그 위성
@@ -6458,6 +6487,13 @@ def render_knowledge_map_page():
                     line=dict(width=1, color="#c7d9f5"),
                     hoverinfo="none", showlegend=False
                 ))
+                # 메모↔메모 관계선 (점선 보라 — 구조선과 구분)
+                if _rel_edge_x:
+                    fig.add_trace(go.Scatter(
+                        x=_rel_edge_x, y=_rel_edge_y, mode="lines",
+                        line=dict(width=1.4, color="#a855f7", dash="dot"),
+                        hoverinfo="none", showlegend=False
+                    ))
                 # 노드
                 fig.add_trace(go.Scatter(
                     x=node_x, y=node_y,
@@ -6484,7 +6520,8 @@ def render_knowledge_map_page():
                     "<span style='color:#2563eb'>● 메모/연구노트</span> · "
                     "<span style='color:#8b5cf6'>● 개념</span> · "
                     "<span style='color:#f59e0b'>● 태그</span> · "
-                    "<span style='color:#eab308'>● 작업</span> — "
+                    "<span style='color:#eab308'>● 작업</span> · "
+                    "<span style='color:#a855f7'>┈ 메모↔메모 관계</span> — "
                     "노드에 마우스를 올리면 상세가 보여요.</div>",
                     unsafe_allow_html=True)
 

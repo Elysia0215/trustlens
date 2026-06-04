@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-04.15"  # 배포 식별용
+APP_BUILD = "2026-06-04.16"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -781,7 +781,17 @@ def collect_persisted_data():
 def save_persisted_data():
     data = collect_persisted_data()
     # 1) Supabase 우선 저장 (영구 — 재배포/재시작에도 생존)
-    _sb_save(data)
+    _connected = bool(_sb_client())
+    _ok = _sb_save(data)
+    # ⚠️ 클라우드 연결돼 있는데 저장 실패하면 '조용한 손실'이므로 분명히 경고
+    try:
+        if _connected and not _ok:
+            st.session_state["_cloud_save_failed"] = True
+            st.toast("⚠️ 클라우드 저장 실패! 데이터가 위험해요. 설정→🛠 개발자 진단을 확인하세요.", icon="⚠️")
+        elif _connected and _ok:
+            st.session_state["_cloud_save_failed"] = False
+    except Exception:
+        pass
     # 2) 로컬 파일 백업(폴백) — Supabase 미설정/실패 시 기존 동작 유지
     try:
         with DATA_FILE.open("w", encoding="utf-8") as f:
@@ -1860,6 +1870,11 @@ init_state()
 normalize_custom_concepts()
 sync_legacy_data_to_entities()
 hydrate_last_result_from_cache()
+
+# ⚠️ 직전 저장이 클라우드까지 못 갔으면 모든 화면 상단에 경고 (조용한 손실 방지)
+if st.session_state.get("_cloud_save_failed"):
+    st.error("⚠️ **방금 저장이 클라우드(Supabase)까지 가지 못했어요.** 데이터가 재시작 시 사라질 수 있어요. "
+             "잠시 후 다시 저장하거나, **설정 → 🛠 개발자 진단 → 🔁 왕복 테스트**로 연결을 확인하세요.")
 
 st.markdown(
     '''
@@ -15753,17 +15768,22 @@ _dash_ai_conn = sum(1 for _c, _n in _dash_cc.items() if _n >= 2)  # 2개 이상 
 def _wstat(num, label):
     return (
         f"<div style='text-align:center;padding:0 14px;'>"
-        f"<div style='font-size:1.7rem;font-weight:900;color:#ffffff !important;"
+        f"<div style='font-size:1.7rem;font-weight:900;"
         f"text-shadow:0 1px 3px rgba(0,0,0,0.35);line-height:1.1;'>{num}</div>"
-        f"<div style='font-size:0.78rem;color:#e0e7ff !important;'>{label}</div></div>"
+        f"<div class='wlabel' style='font-size:0.78rem;'>{label}</div></div>"
     )
 
 st.markdown(
     f"""
-    <div style="background:linear-gradient(135deg,#1e3a8a,#3b82f6);border-radius:18px;
-         padding:22px 28px 20px;margin-bottom:14px;color:white;">
+    <style>
+    /* Streamlit Cloud 테마가 inline color를 덮어써서, 클래스 특이도로 흰색 강제 */
+    .jium-hero, .jium-hero * {{ color:#ffffff !important; }}
+    .jium-hero .wlabel {{ color:#dbeafe !important; opacity:0.95; }}
+    </style>
+    <div class="jium-hero" style="background:linear-gradient(135deg,#1e3a8a,#3b82f6);border-radius:18px;
+         padding:22px 28px 20px;margin-bottom:14px;">
       <div style="font-size:1.55rem;font-weight:900;text-shadow:0 1px 3px rgba(0,0,0,0.3);">🌍 오늘의 세계</div>
-      <div style="opacity:0.9;margin:2px 0 16px;font-size:0.9rem;">{_dash_today} · 메모를 남기면 JIUM이 연결해 드려요</div>
+      <div style="margin:2px 0 16px;font-size:0.9rem;" class="wlabel">{_dash_today} · 메모를 남기면 JIUM이 연결해 드려요</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-start;
            border-top:1px solid rgba(255,255,255,0.18);padding-top:14px;">
         {_wstat(len(_dash_notes), "📝 메모")}

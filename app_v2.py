@@ -15628,16 +15628,19 @@ def request_scroll(_name):
     st.session_state["_scroll_to"] = _name
 
 def apply_scroll_restore():
-    """예약된 스크롤이 있으면 JS로 해당 앵커로 이동(부모 문서). 1회성."""
+    """예약된 스크롤이 있으면 JS로 해당 앵커로 이동(부모 문서).
+    Streamlit이 rerun 후 늦게 맨 위로 스크롤하므로 재시도 루프로 덮어씀."""
     _t = st.session_state.pop("_scroll_to", None)
     if not _t:
         return
     try:
         import streamlit.components.v1 as _stc
         _stc.html(
-            "<script>setTimeout(function(){"
-            "try{var el=window.parent.document.getElementById('tl-anchor-" + str(_t) + "');"
-            "if(el){el.scrollIntoView({block:'start'});}}catch(e){}}, 60);</script>",
+            "<script>(function(){var n=0;var id='tl-anchor-" + str(_t) + "';"
+            "function go(){n++;try{var d=window.parent.document;"
+            "var el=d.getElementById(id);"
+            "if(el){el.scrollIntoView({block:'start',behavior:'auto'});}}catch(e){}"
+            "if(n<25){setTimeout(go,80);}}go();})();</script>",
             height=0)
     except Exception:
         pass
@@ -15645,7 +15648,6 @@ def apply_scroll_restore():
 
 def render_home_universe():
     """🪐 내 지식 우주 — 프로젝트=행성(메모·개념·작업 수에 비례한 크기). 홈 축약판."""
-    scroll_anchor("univ")
     _projs = [
         p for p in st.session_state.get("projects", [])
         if isinstance(p, dict) and _clean_text_value(p.get("name")).strip()
@@ -15906,6 +15908,7 @@ def render_home_universe():
         for _pl in _planets:
             st.markdown(f"🪐 **{_pl['name']}** · 📝 {_pl['memos']} 🧠 {_pl['concepts']} ✅ {_pl['tasks']}")
     # 🪐 행성 선택 — 지도 클릭과 버튼 모두 home_univ_pick 하나로 동기화
+    scroll_anchor("univ")  # 행성/위성/태그 클릭 후 이 위치(버튼 영역)로 복원
     st.markdown("**🪐 행성을 골라 위성(메모·개념·태그·작업)을 펼쳐봐요**")
     _pick_cols = st.columns(min(5, len(_planets)) + 1)
     for _i, _pl in enumerate(_planets[:5]):

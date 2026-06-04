@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-04.12"  # 배포 식별용
+APP_BUILD = "2026-06-04.13"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -16364,44 +16364,39 @@ with st.expander("📖 성장 기준 보기 (레벨 · 업적)"):
     ])
     st.dataframe(_ms_df, use_container_width=True, hide_index=True, height=300)
 
-# ── 🏠 내 지식 공간 (꾸미기 v1) ──
-# 해금한 업적을 테마별 "공간"에 진열한다. 잠긴 아이템은 흐리게 표시.
-st.markdown(
-    f"<div style='margin:18px 0 8px 0;font-weight:800;font-size:1.05rem;'>"
-    f"🏠 내 지식 공간 · {_THM['name']}</div>",
-    unsafe_allow_html=True,
-)
-_space_caption = f"업적을 해금하면 공간에 아이템이 하나씩 채워져요. ({_got_ms}/{_total_ms} 진열됨)"
-st.caption(_space_caption)
-
-_item_html = []
-for _mid, _val, _thr2, _rname, _remoji in _MILESTONES:
-    _is_open = _mid in _unlocked
-    if _is_open:
-        _item_html.append(
-            f'<div style="flex:0 0 auto;text-align:center;width:92px;padding:12px 6px;'
-            f'border-radius:14px;background:{_THM["gradient"]};color:#fff;'
-            f'box-shadow:0 4px 12px {_THM["shadow"]};">'
-            f'<div style="font-size:1.9rem;line-height:1.1;">{_remoji}</div>'
-            f'<div style="font-size:12px;font-weight:700;margin-top:4px;">{_rname}</div>'
-            f'</div>'
-        )
-    else:
-        _rem = max(0, _thr2 - _val)
-        _item_html.append(
-            f'<div style="flex:0 0 auto;text-align:center;width:92px;padding:12px 6px;'
-            f'border-radius:14px;background:#f1f5f9;border:1px dashed #cbd5e1;'
-            f'color:#94a3b8;opacity:0.65;">'
-            f'<div style="font-size:1.9rem;line-height:1.1;filter:grayscale(1);">🔒</div>'
-            f'<div style="font-size:12px;font-weight:700;margin-top:4px;">{_rname}</div>'
-            f'<div style="font-size:10px;margin-top:2px;">{_rem} 남음</div>'
-            f'</div>'
-        )
-st.markdown(
-    f'<div style="display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 4px 0;">'
-    f'{"".join(_item_html)}</div>',
-    unsafe_allow_html=True,
-)
+# ── 🏠 내 지식 공간 (업적 진열) — 홈에선 토글 한 줄, 펼치면 전체 ──
+_space_open = st.toggle(f"🏠 내 지식 공간 · 업적 {_got_ms}/{_total_ms} 진열 (펼치기)",
+                        value=False, key="home_show_space")
+if _space_open:
+    st.caption(f"업적을 해금하면 공간에 아이템이 하나씩 채워져요. ({_got_ms}/{_total_ms} 진열됨)")
+    _item_html = []
+    for _mid, _val, _thr2, _rname, _remoji in _MILESTONES:
+        _is_open = _mid in _unlocked
+        if _is_open:
+            _item_html.append(
+                f'<div style="flex:0 0 auto;text-align:center;width:92px;padding:12px 6px;'
+                f'border-radius:14px;background:{_THM["gradient"]};color:#fff;'
+                f'box-shadow:0 4px 12px {_THM["shadow"]};">'
+                f'<div style="font-size:1.9rem;line-height:1.1;">{_remoji}</div>'
+                f'<div style="font-size:12px;font-weight:700;margin-top:4px;">{_rname}</div>'
+                f'</div>'
+            )
+        else:
+            _rem = max(0, _thr2 - _val)
+            _item_html.append(
+                f'<div style="flex:0 0 auto;text-align:center;width:92px;padding:12px 6px;'
+                f'border-radius:14px;background:#f1f5f9;border:1px dashed #cbd5e1;'
+                f'color:#94a3b8;opacity:0.65;">'
+                f'<div style="font-size:1.9rem;line-height:1.1;filter:grayscale(1);">🔒</div>'
+                f'<div style="font-size:12px;font-weight:700;margin-top:4px;">{_rname}</div>'
+                f'<div style="font-size:10px;margin-top:2px;">{_rem} 남음</div>'
+                f'</div>'
+            )
+    st.markdown(
+        f'<div style="display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 4px 0;">'
+        f'{"".join(_item_html)}</div>',
+        unsafe_allow_html=True,
+    )
 
 st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 

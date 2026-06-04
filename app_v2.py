@@ -2050,6 +2050,44 @@ def canonical_concepts(names):
     return out
 
 
+# ── 개념 scope (owned/shared) — 비파괴: 저장된 scope 우선, 없으면 연결 프로젝트 수로 자동 판정 ──
+def concept_projects(name):
+    """이 개념(canonical 기준)이 연결된 서로 다른 프로젝트 집합."""
+    _canon = canonical_concept(name)
+    if not _canon:
+        return set()
+    _projs = set()
+    _notes = st.session_state.get("archive_notes", [])
+    _note_proj = {
+        n.get("id"): _clean_text_value(n.get("project")).strip()
+        for n in _notes if isinstance(n, dict)
+    }
+    for _l in st.session_state.get("note_concept_links", []):
+        if canonical_concept(_l.get("concept")) == _canon:
+            _p = (_clean_text_value(_l.get("project")).strip()
+                  or _note_proj.get(_l.get("note_id"), ""))
+            if _p:
+                _projs.add(_p)
+    for _c in st.session_state.get("pkm_custom_concepts", []):
+        if isinstance(_c, dict) and canonical_concept(_c.get("name")) == _canon:
+            _p = _clean_text_value(_c.get("project")).strip()
+            if _p:
+                _projs.add(_p)
+    return _projs
+
+
+def concept_scope(name):
+    """개념 scope 반환. 저장된 scope(owned/shared/global) 있으면 우선,
+    없으면 연결 프로젝트 ≥2 → 'shared', 아니면 'owned' (비파괴 자동 판정)."""
+    _canon = canonical_concept(name)
+    for _c in st.session_state.get("pkm_custom_concepts", []):
+        if isinstance(_c, dict) and canonical_concept(_c.get("name")) == _canon:
+            _s = _clean_text_value(_c.get("scope")).strip().lower()
+            if _s in ("owned", "shared", "global"):
+                return _s
+    return "shared" if len(concept_projects(name)) >= 2 else "owned"
+
+
 def add_concept_aliases(canonical, aliases):
     """대표 개념에 별칭 등록 (비파괴적). 자기 자신/중복/빈값 제외. 등록 수 반환."""
     canonical = (clean_concept(canonical) or str(canonical).strip())
@@ -15397,17 +15435,18 @@ def render_home_universe():
         _nm = _clean_text_value(_p.get("name")).strip()
         _pn = [n for n in _notes if _clean_text_value(n.get("project")).strip() == _nm]
         _pn_ids = {n.get("id") for n in _pn}
+        # canonical(별칭) 적용 — '일본 여행/일본여행' 표기차로 항로가 끊기지 않게
         _cset = {
-            _clean_text_value(l.get("concept")).strip() for l in _links
+            canonical_concept(l.get("concept")) for l in _links
             if (
                 l.get("note_id") in _pn_ids
                 or _clean_text_value(l.get("project")).strip() == _nm
-            ) and _clean_text_value(l.get("concept")).strip()
+            ) and canonical_concept(l.get("concept"))
         } | {
-            _clean_text_value(c.get("name")).strip() for c in _concepts
+            canonical_concept(c.get("name")) for c in _concepts
             if isinstance(c, dict)
             and _clean_text_value(c.get("project")).strip() == _nm
-            and _clean_text_value(c.get("name")).strip()
+            and canonical_concept(c.get("name"))
         }
         _tset = {str(t).replace("#", "").strip() for n in _pn
                  for t in (n.get("tags", []) or []) if str(t).strip()}
@@ -15791,8 +15830,10 @@ def render_home_universe():
                         if _cn in _carried or _lk.get("note_id") in _mv_sel_notes:
                             _lk["project"] = _mv_dest
                             _lk["updated_at"] = _mv_now
+                    # 공유(shared/global) 개념은 여러 프로젝트의 연결 근거라 강제 이동하지 않음(비파괴)
                     for _c in st.session_state.get("pkm_custom_concepts", []):
-                        if isinstance(_c, dict) and _clean_text_value(_c.get("name")).strip() in _carried:
+                        _cnm = _clean_text_value(_c.get("name")).strip() if isinstance(_c, dict) else ""
+                        if _cnm in _carried and concept_scope(_cnm) == "owned":
                             _c["project"] = _mv_dest
                             _c["updated_at"] = _mv_now
                     save_persisted_data()
@@ -16098,8 +16139,10 @@ def render_home_universe():
                     if _concept_name in _launch_carried or _lk.get("note_id") in _sel_note_ids:
                         _lk["project"] = _dest
                         _lk["updated_at"] = _now
+                # 공유(shared/global) 개념은 연결 근거라 강제 이동하지 않음(비파괴)
                 for _c in st.session_state.get("pkm_custom_concepts", []):
-                    if isinstance(_c, dict) and _clean_text_value(_c.get("name")).strip() in _launch_carried:
+                    _cnm = _clean_text_value(_c.get("name")).strip() if isinstance(_c, dict) else ""
+                    if _cnm in _launch_carried and concept_scope(_cnm) == "owned":
                         _c["project"] = _dest
                         _c["updated_at"] = _now
                 for _key in _sel_section_keys:

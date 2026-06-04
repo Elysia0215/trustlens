@@ -15627,7 +15627,7 @@ def render_home_universe():
                 help="이 프로젝트 행성을 선택해서 연결된 메모·개념·태그·작업을 아래에 펼쳐요.",
             ):
                 st.session_state["home_univ_pick"] = _pl["name"]
-                st.rerun()
+                st.session_state["univ_sat_view"] = "memo"  # 새 행성 선택 시 기본 탭
     with _pick_cols[-1]:
         _all_label = f"{'✨ ' if _sel_planet is None else ''}🌌 전체"
         if st.button(
@@ -15638,7 +15638,6 @@ def render_home_universe():
             help="전체 우주 요약을 보고, 프로젝트에 아직 배정되지 않은 지식을 지구 발사대에서 정리해요.",
         ):
             st.session_state["home_univ_pick"] = None
-            st.rerun()
     _sel_planet = _clean_text_value(st.session_state.get("home_univ_pick")).strip()
     _sel_obj = next((p for p in _planets if p["name"] == _sel_planet), None)
     if _sel_obj:
@@ -15677,7 +15676,6 @@ def render_home_universe():
                     help=f"이 행성의 {_snm} 목록을 아래 행성 상세에서 펼쳐 봐요.",
                 ):
                     st.session_state["univ_sat_view"] = _skey
-                    st.rerun()
         st.caption("👆 카드를 누르면 아래 **행성 상세**에 그 목록이 펼쳐져요.")
         import html as _univ_html
 
@@ -16253,6 +16251,12 @@ try:
 except Exception:
     pass
 st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+
+# 우주맵을 fragment로 감싸 내부 버튼(행성/위성 선택)이 전체 페이지를 새로고침하지
+# 않게 함 → 클릭 시 맨 위로 스크롤되는 문제 해결. (없는 버전이면 일반 함수로 동작)
+_frag = getattr(st, "fragment", None) or getattr(st, "experimental_fragment", None)
+if _frag is not None:
+    render_home_universe = _frag(render_home_universe)
 
 try:
     render_home_universe()

@@ -607,7 +607,8 @@ def get_brain_theme_config(theme_key):
     return _BRAIN_THEMES.get(theme_key, _BRAIN_THEMES["default"])
 
 
-def save_persisted_data():
+def collect_persisted_data():
+    """현재 session_state를 영속 데이터 dict로 모은다 (저장·내보내기 공용)."""
     _backfill_db_fields()
     data = {
         "archive_notes": st.session_state.get("archive_notes", []),
@@ -647,7 +648,11 @@ def save_persisted_data():
         "relations": st.session_state.get("relations", []),
         "folders": st.session_state.get("folders", []),
     }
-    data = normalize_persisted_data(data)
+    return normalize_persisted_data(data)
+
+
+def save_persisted_data():
+    data = collect_persisted_data()
     try:
         with DATA_FILE.open("w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -15104,8 +15109,63 @@ if menu == "최근 검색 기록":
 
     st.divider()
     st.divider()
-    st.markdown("## 💾 로컬 백업")
-    st.caption("저장 데이터는 trustlens_data.json에 저장되고, 날짜별 백업은 trustlens_backups 폴더에 생성돼요.")
+    st.markdown("## 💾 백업 · 내보내기 / 가져오기")
+    st.error(
+        "⚠️ **중요** — 이 앱은 클라우드(Streamlit)에서 **새로 배포될 때마다 서버의 데이터가 초기화**돼요. "
+        "서버 안 백업(trustlens_backups)도 같이 사라져요.  \n"
+        "**그래서 내 PC로 '내보내기(다운로드)' 해두는 게 유일하게 안전한 방법이에요.** "
+        "기록이 사라졌다면, 예전에 내려받은 파일을 아래 '가져오기'로 복원하세요."
+    )
+
+    import json as _bk_json
+    _bk_data = collect_persisted_data()
+    _bk_notes = len(_bk_data.get("archive_notes", []))
+    _bk_str = _bk_json.dumps(_bk_data, ensure_ascii=False, indent=2)
+    _bk_c1, _bk_c2 = st.columns(2)
+    with _bk_c1:
+        st.markdown("**⬇️ 내보내기 (내 PC로 저장)**")
+        st.caption(f"현재 메모 {_bk_notes}개 · 개념·태그·프로젝트 전체 포함")
+        st.download_button(
+            "💾 백업 파일 다운로드",
+            data=_bk_str.encode("utf-8"),
+            file_name=f"jium_backup_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
+            mime="application/json",
+            use_container_width=True,
+            type="primary",
+        )
+        st.caption("💡 배포(업데이트) 전에 항상 한 번 받아두세요.")
+    with _bk_c2:
+        st.markdown("**⬆️ 가져오기 (백업 복원)**")
+        _bk_up = st.file_uploader("백업 .json 파일 선택", type=["json"], key="bk_restore_file")
+        _bk_merge = st.checkbox("기존 데이터에 합치기(merge) — 끄면 통째로 교체", value=False, key="bk_merge")
+        if _bk_up is not None and st.button("📥 이 파일로 복원", key="bk_do_restore", use_container_width=True):
+            try:
+                _loaded = _bk_json.loads(_bk_up.getvalue().decode("utf-8"))
+                _loaded = normalize_persisted_data(_loaded)
+                _list_keys = ("archive_notes", "tasks", "projects", "note_concept_links",
+                              "relations", "saved_analyses", "search_history",
+                              "pkm_custom_concepts", "project_sections", "project_steps",
+                              "entities", "folders")
+                if _bk_merge:
+                    for _k in _list_keys:
+                        _cur = st.session_state.get(_k, []) or []
+                        _new = _loaded.get(_k, []) or []
+                        _seen = {(_x.get("id") if isinstance(_x, dict) else _x) for _x in _cur}
+                        for _x in _new:
+                            _xid = _x.get("id") if isinstance(_x, dict) else _x
+                            if _xid not in _seen:
+                                _cur.append(_x)
+                        st.session_state[_k] = _cur
+                else:
+                    for _k, _v in _loaded.items():
+                        st.session_state[_k] = _v
+                save_persisted_data()
+                st.success(f"복원했어요! 메모 {len(st.session_state.get('archive_notes', []))}개")
+                st.rerun()
+            except Exception as _e:
+                st.error(f"복원 실패: {_e}")
+    st.divider()
+    st.caption("서버 저장: trustlens_data.json (배포 시 초기화됨 — 위 내보내기로 보존하세요)")
 
     with st.expander("⚠️ 테스트 데이터 전체 초기화"):
         st.warning("지식 아카이브, 검색 기록, 피드백, 분석 캐시, 초안 캐시가 모두 삭제돼요.")

@@ -24,12 +24,60 @@ MAX_NOTE_INLINE_ORIGINAL_CHARS = 12000  # 메모 본문에 직접 붙이는 "원
 MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이(비용 제한)
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
+# ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
+@st.cache_resource(show_spinner=False)
+def _sb_client():
+    """st.secrets['supabase'] 설정 + supabase 패키지 있으면 클라이언트 반환, 없으면 None."""
+    try:
+        _cfg = st.secrets.get("supabase", {})
+        _url, _key = _cfg.get("url"), _cfg.get("key")
+        if not _url or not _key:
+            return None
+        from supabase import create_client
+        return create_client(_url, _key)
+    except Exception:
+        return None
+
+
+def _sb_load():
+    _c = _sb_client()
+    if not _c:
+        return None
+    try:
+        _r = _c.table("jium_store").select("data").eq("id", "main").limit(1).execute()
+        _rows = _r.data or []
+        if _rows and _rows[0].get("data"):
+            return _rows[0]["data"]
+    except Exception:
+        return None
+    return None
+
+
+def _sb_save(data):
+    _c = _sb_client()
+    if not _c:
+        return False
+    try:
+        _c.table("jium_store").upsert({"id": "main", "data": data}).execute()
+        return True
+    except Exception:
+        return False
+
+
 def load_persisted_data():
+    # 1) Supabase 우선
+    _sb = _sb_load()
+    if _sb is not None:
+        return _sb
+    # 2) 로컬 파일(시드) 폴백 — Supabase 비어있으면 시드를 1회 이관
     if not DATA_FILE.exists():
         return {}
     try:
         with DATA_FILE.open("r", encoding="utf-8") as f:
-            return json.load(f)
+            _data = json.load(f)
+        if _sb_client():
+            _sb_save(_data)  # 최초 1회 시드 이관
+        return _data
     except Exception:
         return {}
 
@@ -653,6 +701,9 @@ def collect_persisted_data():
 
 def save_persisted_data():
     data = collect_persisted_data()
+    # 1) Supabase 우선 저장 (영구 — 재배포/재시작에도 생존)
+    _sb_save(data)
+    # 2) 로컬 파일 백업(폴백) — Supabase 미설정/실패 시 기존 동작 유지
     try:
         with DATA_FILE.open("w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -662,8 +713,8 @@ def save_persisted_data():
         backup_file = backup_dir / f"trustlens_backup_{datetime.now().strftime('%Y%m%d')}.json"
         with backup_file.open("w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        st.warning(f"저장 파일을 쓰는 중 문제가 생겼어요: {e}")
+    except Exception:
+        pass  # 로컬 쓰기 실패해도 Supabase에 저장됐으면 OK
 
 st.markdown("""
 <style>
@@ -13372,6 +13423,46 @@ if menu == "데일리 노트":
                     st.rerun()
     else:
         st.caption("아직 기록한 날이 없어요. 아래에서 오늘 메모를 적어보세요.")
+
+    # ── 📅 월간 캘린더 보기 (토글) — 점이 있는 날에 기록 ──
+    if st.toggle("📅 월간 캘린더로 보기", key="dn_show_cal"):
+        import calendar as _dn_calmod
+        from datetime import timedelta
+        _cy, _cm = _dn_sel.year, _dn_sel.month
+        _mv1, _mv2, _mv3 = st.columns([1, 2, 1])
+        with _mv1:
+            if st.button("◀ 이전달", key="dn_cal_prev", use_container_width=True):
+                _pm = _dn_date(_cy, _cm, 1) - timedelta(days=1)
+                st.session_state["_dn_pending"] = _pm.replace(day=1)
+                st.rerun()
+        with _mv2:
+            st.markdown(f"<div style='text-align:center;font-weight:800;'>{_cy}년 {_cm}월</div>",
+                        unsafe_allow_html=True)
+        with _mv3:
+            _nm_first = (_dn_date(_cy, _cm, 28) + timedelta(days=7)).replace(day=1)
+            if st.button("다음달 ▶", key="dn_cal_next", use_container_width=True):
+                st.session_state["_dn_pending"] = _nm_first
+                st.rerun()
+        _hdr = st.columns(7)
+        for _i, _wd in enumerate(["월", "화", "수", "목", "금", "토", "일"]):
+            _hdr[_i].markdown(
+                f"<div style='text-align:center;color:#94a3b8;font-size:0.8em'>{_wd}</div>",
+                unsafe_allow_html=True)
+        for _wk in _dn_calmod.monthcalendar(_cy, _cm):
+            _wcols = st.columns(7)
+            for _i, _day in enumerate(_wk):
+                with _wcols[_i]:
+                    if _day == 0:
+                        st.markdown("&nbsp;", unsafe_allow_html=True)
+                    else:
+                        _ds = f"{_cy:04d}-{_cm:02d}-{_day:02d}"
+                        _cnt = len(_dn_by_date.get(_ds, []))
+                        _lbl = f"{_day} ·{_cnt}" if _cnt else f"{_day}"
+                        if st.button(_lbl, key=f"dn_cal_{_ds}", use_container_width=True,
+                                     type=("primary" if _ds == _dn_str else "secondary")):
+                            st.session_state["_dn_pending"] = _dn_date(_cy, _cm, _day)
+                            st.rerun()
+        st.caption("숫자 옆 ·N = 그날 메모 수. 날짜를 누르면 그날 기록으로 이동해요.")
 
     _dn_ctx, _dn_left, _dn_right = st.columns([1, 1.6, 1.1])
 

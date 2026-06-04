@@ -4,3 +4,4 @@ beautifulsoup4==4.12.3
 python-dotenv==1.0.1
 pandas
 plotly
+supabase==2.6.0

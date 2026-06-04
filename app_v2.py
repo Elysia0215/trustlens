@@ -10099,32 +10099,6 @@ if menu == "데이터 관리":
         if st.button("🔄 연결 다시 시도 (캐시 비우기)", key="sb_retry"):
             _sb_client.clear()
             st.rerun()
-        with st.expander("🔧 연결 진단 (개발용)"):
-            # 캐시 우회: secrets를 직접 읽어 실제 값 유무 확인
-            try:
-                _sec = st.secrets.get("supabase", {})
-                _u, _k = _sec.get("url"), _sec.get("key")
-                _direct = {
-                    "url_present": bool(_u),
-                    "url_len": len(_u) if _u else 0,
-                    "key_present": bool(_k),
-                    "key_len": len(_k) if _k else 0,
-                    "key_prefix": (_k[:14] if _k else None),
-                }
-            except Exception as _e:
-                _direct = f"secrets 직접 읽기 실패: {_e}"
-            # 패키지 import 가능 여부
-            try:
-                import supabase as _sbpkg
-                _pkg = getattr(_sbpkg, "__version__", "unknown")
-            except Exception as _e:
-                _pkg = f"import 실패: {_e}"
-            st.write({
-                "secrets_direct": _direct,
-                "supabase_pkg": _pkg,
-                "cached_stage": _SB_DEBUG.get("stage"),
-                "cached_error": _SB_DEBUG.get("error"),
-            })
 
     import json as _bk_json
     _bk_data = collect_persisted_data()

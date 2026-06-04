@@ -13,7 +13,7 @@ import plotly.express as px
 
 load_dotenv()
 
-st.set_page_config(page_title="TrustLens", page_icon="🔍", layout="wide")
+st.set_page_config(page_title="JIUM", page_icon="🌍", layout="wide")
 
 DATA_FILE = Path("trustlens_data.json")
 
@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-04.8"  # 배포 식별용
+APP_BUILD = "2026-06-04.9"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -584,6 +584,8 @@ def _backfill_db_fields():
 
 # ── ⚙️ 설정 Control Center 기본값 ──────────────────────────────
 APP_SETTINGS_DEFAULTS = {
+    # 🧪 고급 모드 (전문가용 메뉴 노출)
+    "show_advanced": False,
     # 🎨 화면
     "ui_density": "보통",          # 여유 / 보통 / 촘촘
     "ui_font_scale": "보통",       # 작게 / 보통 / 크게
@@ -1523,43 +1525,48 @@ button[data-testid="collapsedControl"],
 
     # ─── 메뉴 구조 ───
     # (그룹 이모지, 그룹명, 포인트색, [항목들])
+    # 🌍 행동 중심 IA — 사용자가 보는 1차 객체는 메모·프로젝트·작업.
+    #    개념·태그·관계·분석 등은 '🧪 고급 모드'로 숨김(설정에서 켬). 기능은 그대로 유지.
+    _show_adv = bool(st.session_state.get("app_settings", {}).get("show_advanced", False))
     _NAV_STRUCTURE = [
-        ("🏠", "홈", "#38bdf8", [          # 하늘
+        ("🌍", "내 세계", "#34d399", [        # 초록
             ("home",      "🏠", "대시보드"),
-            ("daily",     "📅", "데일리 노트"),
-            ("search",    "🔍", "통합 검색"),
-            ("new",       "➕", "빠른 작성"),
-        ]),
-        ("📝", "지식", "#a78bfa", [        # 보라
             ("archive",   "📚", "지식 라이브러리"),
-            ("concept_lib","🧠", "개념 라이브러리"),
-            ("map",       "🕸️", "지식 맵"),
-            ("tags",      "🏷️", "태그 관리"),
+            ("projects",  "📁", "프로젝트"),
+            ("tasks",     "✅", "작업"),
+            ("map",       "🕸️", "지식 지도"),
+            ("search",    "🔍", "통합 검색"),
         ]),
-        ("📁", "프로젝트", "#34d399", [    # 초록
-            ("projects",  "📂", "프로젝트"),
-            ("tasks",     "✅", "작업 관리"),
+        ("✍️", "기록하기", "#38bdf8", [       # 하늘
+            ("new",       "➕", "새 메모"),
+            ("daily",     "📅", "데일리 노트"),
         ]),
-        ("🤖", "AI", "#fb923c", [          # 주황
+        ("🤖", "루미", "#fb923c", [           # 주황
             ("ai",        "🧠", "지식 AI"),
-            ("brain",     "💡", "AI 브레인스토밍"),
+            ("brain",     "💡", "브레인스토밍"),
             ("pattern",   "📈", "패턴 분석"),
         ]),
-        ("📊", "분석", "#f87171", [        # 빨강
-            ("result",    "📊", "분석 결과"),
-            ("criteria",  "🔍", "신뢰도 근거"),
-            ("saved",     "🗃️", "분석결과 아카이브"),
-        ]),
-        ("⚙️", "관리", "#94a3b8", [        # 회색
+        ("⚙️", "설정", "#94a3b8", [           # 회색
             ("settings",  "⚙️", "설정"),
-            ("data",      "💾", "데이터 백업·관리"),
-            ("entity",    "🔎", "엔터티 상세"),
-            ("history",   "🕒", "최근 검색 기록"),
+            ("data",      "💾", "데이터·백업"),
+            ("guide",     "📘", "가이드북"),
             ("changelog", "🆕", "패치 노트"),
         ]),
     ]
+    if _show_adv:
+        _NAV_STRUCTURE.append(
+            ("🧪", "고급 모드", "#a78bfa", [   # 보라 — AI가 관리하는 객체/전문가 기능
+                ("concept_lib", "🧠", "개념 라이브러리"),
+                ("tags",        "🏷️", "태그 관리"),
+                ("entity",      "🔎", "엔터티 상세"),
+                ("result",      "📊", "분석 결과"),
+                ("criteria",    "🔍", "신뢰도 근거"),
+                ("saved",       "🗃️", "분석결과 아카이브"),
+                ("history",     "🕒", "최근 검색 기록"),
+            ])
+        )
 
-    # 가이드북은 '도움말'이라 관리 안에 숨기지 않고 메인급 독립 메뉴(관리 그룹 바로 위)로 노출
+    # 가이드북은 설정 그룹에 포함됨(아래 standalone 주입 제거)
     _NAV_GUIDE = ("guide", "📘", "가이드북")
 
     _cur_page = st.query_params.get("page", "home")
@@ -1569,8 +1576,8 @@ button[data-testid="collapsedControl"],
   <div class="tl-brand-logo">
     <div class="tl-brand-icon">🛡️</div>
     <div>
-      <div class="tl-brand-name">TrustLens</div>
-      <div class="tl-brand-sub">Grow Your Knowledge World</div>
+      <div class="tl-brand-name">JIUM</div>
+      <div class="tl-brand-sub">생각을 잇다 · 세계를 짓다</div>
     </div>
   </div>
 </div>
@@ -1579,16 +1586,6 @@ button[data-testid="collapsedControl"],
     # ─── 네비게이션 (details/summary 기반 — 새로고침 없음) ───
     _nav_html_parts = []
     for _grp_icon, _grp_name, _grp_color, _grp_items in _NAV_STRUCTURE:
-        # 관리 그룹 직전에 📘 가이드북을 메인급 독립 메뉴로 끼워 넣기
-        if _grp_name == "관리":
-            _g_active = "active" if _cur_page == _NAV_GUIDE[0] else ""
-            _nav_html_parts.append(
-                f'<a href="?page={_NAV_GUIDE[0]}" target="_self" '
-                f'class="tl-nav-item tl-nav-standalone {_g_active}">'
-                f'<span class="ni-icon">{_NAV_GUIDE[1]}</span>'
-                f'<span class="ni-label">{_NAV_GUIDE[2]}</span></a>'
-                f'<div class="tl-nav-divider"></div>'
-            )
         # 현재 페이지가 이 그룹에 속하면 기본 열림
         _grp_page_keys = [i[0] for i in _grp_items]
         _open_attr = "open" if _cur_page in _grp_page_keys else ""
@@ -13901,6 +13898,17 @@ if menu == "설정":
         ["🎨 화면", "🌌 세계관", "🤖 루미", "🧠 Second Brain", "🔔 알림", "📊 실험실"])
 
     with _scr:
+        st.markdown("#### 🧪 고급 모드")
+        st.caption("끄면 사이드바가 **내 세계 · 기록하기 · 루미 · 설정** 4가지로 단순해져요. "
+                   "켜면 개념·태그·관계·분석 같은 전문가 메뉴가 다시 나타나요. (기능은 사라지지 않아요)")
+        _prev_adv = bool(get_setting("show_advanced"))
+        _tog("🧪 고급 모드 켜기 (전문가 메뉴 표시)", "show_advanced",
+             help="개념 라이브러리·태그 관리·엔터티 상세·신뢰도 근거·분석 아카이브·최근 검색 기록")
+        if bool(_settings.get("show_advanced")) != _prev_adv:
+            st.session_state["app_settings"] = _settings
+            save_persisted_data()
+            st.rerun()
+        st.divider()
         st.markdown("#### 🎨 화면")
         st.caption("🔜 카드 밀도·글자 크기·애니메이션은 지금은 **저장만** 돼요(곧 화면에 반영).")
         _seg("카드 밀도 🔜", "ui_density", ["여유", "보통", "촘촘"])

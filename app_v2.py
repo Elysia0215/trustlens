@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-04.4"  # 배포 식별용 — 코드 바꿔 push할 때마다 갱신
+APP_BUILD = "2026-06-04.5"  # 배포 식별용 — 코드 바꿔 push할 때마다 갱신
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -57,22 +57,43 @@ def _sb_client():
         return None
 
 
-def _sb_load():
+def _sb_load_status():
+    """Supabase에서 main 행을 읽고 상태를 함께 반환.
+    반환: (status, data)
+      - "ok"      : 행이 있고 데이터 정상 (data=dict, 빈 dict일 수도 있음)
+      - "empty"   : 연결됐지만 main 행이 아예 없음 (최초 시드 필요)
+      - "error"   : 연결됐지만 읽기 실패 (절대 덮어쓰면 안 됨)
+      - "noclient": Supabase 미설정/미연결 (오프라인)
+    """
     _c = _sb_client()
     if not _c:
-        return None
+        return ("noclient", None)
     try:
         _r = _c.table("jium_store").select("data").eq("id", "main").limit(1).execute()
         _rows = _r.data or []
-        if _rows and _rows[0].get("data"):
-            return _rows[0]["data"]
+        if _rows:
+            return ("ok", _rows[0].get("data") or {})
+        return ("empty", None)
     except Exception as _e:
         _SB_DEBUG.update(stage="load_failed", error=f"{type(_e).__name__}: {_e}")
-        return None
-    return None
+        return ("error", None)
+
+
+def _sb_load():
+    """호환용: 정상이면 data, 아니면 None."""
+    _status, _data = _sb_load_status()
+    return _data if _status == "ok" else None
 
 
 def _sb_save(data):
+    # ⛔ 읽기 실패한 세션에서는 저장 금지 — 옛 데이터로 클라우드를 덮어쓰는 사고 방지
+    try:
+        if st.session_state.get("_persist_blocked"):
+            _SB_DEBUG.update(stage="save_blocked",
+                             error="이 세션은 클라우드 읽기 실패 상태 → 저장 차단(데이터 보호)")
+            return False
+    except Exception:
+        pass
     _c = _sb_client()
     if not _c:
         return False
@@ -90,22 +111,42 @@ def _sb_save(data):
         return False
 
 
-def load_persisted_data():
-    # 1) Supabase 우선
-    _sb = _sb_load()
-    if _sb is not None:
-        return _sb
-    # 2) 로컬 파일(시드) 폴백 — Supabase 비어있으면 시드를 1회 이관
+def _read_local_file():
     if not DATA_FILE.exists():
         return {}
     try:
         with DATA_FILE.open("r", encoding="utf-8") as f:
-            _data = json.load(f)
-        if _sb_client():
-            _sb_save(_data)  # 최초 1회 시드 이관
-        return _data
+            return json.load(f)
     except Exception:
         return {}
+
+
+def load_persisted_data():
+    _status, _data = _sb_load_status()
+    try:
+        st.session_state["_persist_source"] = _status
+        st.session_state["_persist_blocked"] = False
+    except Exception:
+        pass
+
+    if _status == "ok":
+        # 클라우드가 진실의 원천 — 절대 로컬로 덮어쓰지 않음
+        return _data
+    if _status == "empty":
+        # 행이 정말 없을 때만 1회 시드 이관
+        _local = _read_local_file()
+        if _local:
+            _sb_save(_local)
+        return _local
+    if _status == "error":
+        # 연결됐지만 읽기 실패 → 이번 세션은 저장 차단(클라우드 보호), 화면엔 로컬로 임시 표시
+        try:
+            st.session_state["_persist_blocked"] = True
+        except Exception:
+            pass
+        return _read_local_file()
+    # noclient(오프라인) → 로컬만 사용
+    return _read_local_file()
 
 
 def _clean_text_value(value):
@@ -13855,6 +13896,8 @@ if menu == "설정":
         st.write({
             "supabase_connected": _dev_connected,
             "supabase_load_ok": _dev_sb_ok,
+            "persist_source": st.session_state.get("_persist_source"),
+            "persist_blocked": st.session_state.get("_persist_blocked"),
             "secrets_keys": _dev_secret_keys,
             "last_sb_stage": _SB_DEBUG.get("stage"),
             "last_sb_error": _SB_DEBUG.get("error"),
@@ -13876,6 +13919,8 @@ if menu == "설정":
             "app_build": APP_BUILD,
             "supabase_connected": _dev_connected,
             "supabase_load_ok": _dev_sb_ok,
+            "persist_source": st.session_state.get("_persist_source"),
+            "persist_blocked": st.session_state.get("_persist_blocked"),
             "secrets_keys": _dev_secret_keys,
             "last_sb_stage": _SB_DEBUG.get("stage"),
             "last_sb_error": _SB_DEBUG.get("error"),

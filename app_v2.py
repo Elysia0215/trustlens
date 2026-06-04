@@ -10095,6 +10095,23 @@ if menu == "데이터 관리":
             "☁️ **Supabase 클라우드 저장 연결됨** — 작성한 데이터는 자동으로 보존돼요. "
             "그래도 중요한 시점엔 아래 '내보내기'로 내 PC에 한 부 받아두면 안전해요."
         )
+        with st.expander("🔧 저장/로드 진단 (개발용)"):
+            from collections import Counter as _DbgCnt
+            # (A) Supabase가 지금 실제로 들고 있는 것 (캐시 우회, 직접 조회)
+            _sb_now = _sb_load()
+            _sb_notes = (_sb_now or {}).get("archive_notes", []) if isinstance(_sb_now, dict) else []
+            _sb_dates = _DbgCnt(str(n.get("saved_at", ""))[:10] for n in _sb_notes)
+            # (B) 현재 앱 세션(메모리)이 들고 있는 것
+            _ss_notes = st.session_state.get("archive_notes", [])
+            _ss_dates = _DbgCnt(str(n.get("saved_at", ""))[:10] for n in _ss_notes)
+            st.write({
+                "supabase_load_ok": isinstance(_sb_now, dict),
+                "supabase_note_count": len(_sb_notes),
+                "supabase_dates": dict(_sb_dates),
+                "session_note_count": len(_ss_notes),
+                "session_dates": dict(_ss_dates),
+            })
+            st.caption("supabase_dates = 클라우드에 실제 저장된 메모 날짜별 개수 / session_dates = 지금 화면 메모리")
     else:
         st.error(
             "⚠️ **중요** — 클라우드 저장(Supabase)이 아직 연결되지 않았어요. "

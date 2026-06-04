@@ -1914,6 +1914,9 @@ _GENERIC_CONCEPTS = {
     # 관측된 잡개념·기능어 (보수적 확장)
     "테스트", "위해", "통해", "또한", "그것", "이것", "저것", "무엇", "때문",
     "여러", "각각", "모두", "전체", "일부", "기타", "내일", "어제", "지금",
+    # 사용자 튜닝 기준(2026-06-04): 일반어/추상어는 개념에서 제외
+    "외부", "내부", "구조", "하단", "상단", "정리", "분리", "고민", "필요",
+    "중요", "처럼", "우선", "기준", "방향", "느낌", "상태", "수준", "관점",
 }
 
 
@@ -4542,8 +4545,14 @@ def extract_local_concepts(text, tags=None, limit=18):
 # ════════════════════════════════════════════════════════════════
 # 🔗 AI 연결 추천 (로컬 규칙 기반) — 1단계: 계산 + 미리보기만(데이터 반영 X)
 # ════════════════════════════════════════════════════════════════
+# 명확한 행동만 작업으로 (정리/작성/조사 등 문맥 의존어는 기본 제외 — 오탐 줄이기)
 _TASK_KEYWORDS = ("예약", "확인", "신청", "등록", "구매", "사기", "보내", "제출",
-                  "정리", "작성", "조사", "준비", "예매", "결제", "신고", "문의")
+                  "예매", "결제", "신고", "문의", "발송", "접수", "신청하", "회신")
+# 비행동 표현 — 이런 단어가 들어간 줄은 작업으로 안 잡음
+_NON_ACTION_HINTS = ("고민", "필요", "중요", "생각", "같다", "같아", "듯", "인 것",
+                     "려고", "할까", "어떨", "느낌")
+# 진짜 행동 어미 — 작업으로 인정하려면 액션 키워드 + 이런 형태여야
+_ACTION_SUFFIX = ("하기", "하고", "해야", "하자", "할", "했", "해", "예약", "확인")
 
 def build_reco(note):
     """메모 하나에 대한 연결 후보를 로컬 규칙으로 계산한다. (순수 함수, 데이터 변경 없음)
@@ -4583,14 +4592,16 @@ def build_reco(note):
             _tc = str(_t).replace("#", "").strip()
             if _tc:
                 _tag_freq[_tc] = _tag_freq.get(_tc, 0) + 1
+    # 본문에 실제 등장한 태그 먼저, 그다음 빈출 태그(보조). 최대 5개.
     _tag_reco = []
-    for _t, _f in sorted(_tag_freq.items(), key=lambda x: -x[1]):
+    _cand = sorted(_tag_freq.items(), key=lambda x: (0 if x[0] in _body else 1, -x[1]))
+    for _t, _f in _cand:
         if _t in _own_tags:
             continue
         if _t in _body or _f >= 3:
             _tag_reco.append({"name": _t,
                               "reason": ("본문에 등장" if _t in _body else f"자주 쓰는 태그({_f}회)")})
-        if len(_tag_reco) >= 6:
+        if len(_tag_reco) >= 5:
             break
 
     # ── 📁 프로젝트 추천 ── 이 메모의 개념·태그가 가장 많이 겹치는 프로젝트
@@ -4654,12 +4665,16 @@ def build_reco(note):
     _related.sort(key=lambda x: -x["score"])
     _related = _related[:5]
 
-    # ── ✅ 작업 추천 ── 본문 줄에서 액션 키워드
+    # ── ✅ 작업 추천 ── 명확한 행동만 (비행동 표현 제외 + 액션 어미 요구)
     _tasks = []
     for _line in re.split(r"[\n.·•\-]", _body):
         _ls = _line.strip()
-        if 4 <= len(_ls) <= 40 and any(_k in _ls for _k in _TASK_KEYWORDS):
-            _tasks.append({"title": _ls, "reason": "본문에서 할 일 패턴 발견"})
+        if not (4 <= len(_ls) <= 40):
+            continue
+        if any(_x in _ls for _x in _NON_ACTION_HINTS):  # 고민/필요/중요 등은 작업 아님
+            continue
+        if any(_k in _ls for _k in _TASK_KEYWORDS) and any(_s in _ls for _s in _ACTION_SUFFIX):
+            _tasks.append({"title": _ls, "reason": "본문에서 할 일(행동) 발견"})
         if len(_tasks) >= 4:
             break
 

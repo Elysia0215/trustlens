@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-04.17"  # 배포 식별용
+APP_BUILD = "2026-06-04.18"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -9202,6 +9202,14 @@ if menu == "새 엔터티":
 
     # ─── 메모 ───
     elif _wz_type == "📝 메모":
+        with st.expander("🔗 링크·글 가져와서 AI 초안 만들기 (펼치기)"):
+            st.caption("URL이나 붙여넣은 글을 AI가 요약·신뢰도·개념 후보로 정리해 메모 초안을 만들어줘요. "
+                       "아래 버튼을 누르면 가져오기 화면이 열려요.")
+            if st.button("🔗 링크·글 가져오기 열기", key="wz_m_import", use_container_width=True, type="primary"):
+                st.session_state["home_show_import"] = True
+                st.query_params["page"] = "home"
+                st.rerun()
+
         c1, c2 = st.columns(2)
         with c1:
             _wm_title = st.text_input("메모 제목 *", key="wz_m_title", placeholder="예: 속초 여행 정리")

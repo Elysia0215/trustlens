@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-08.3"  # 배포 식별용
+APP_BUILD = "2026-06-08.4"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -14207,6 +14207,15 @@ if menu == "가이드북":
 </div>
 """, unsafe_allow_html=True)
 
+    # 섹션 구분이 한눈에 보이도록 색깔 띠 헤더 (모바일 가독성)
+    st.markdown("<style>.gb-band,.gb-band *{color:#ffffff !important;}</style>", unsafe_allow_html=True)
+    def _gb_band(num, title, color):
+        st.markdown(
+            f"<div class='gb-band' style='background:{color};border-radius:12px;"
+            f"padding:12px 18px;margin:26px 0 12px;font-weight:800;font-size:1.08rem;"
+            f"box-shadow:0 3px 10px {color}44;'>{num}&nbsp;&nbsp;{title}</div>",
+            unsafe_allow_html=True)
+
     # ── 1) 왜 쓰는가 — 기능보다 먼저 '왜'를 (감성 카피) ──
     st.markdown(
         "<div style='background:linear-gradient(135deg,#f0f9ff,#faf5ff);border:1px solid #bae6fd;"
@@ -14220,7 +14229,7 @@ if menu == "가이드북":
         unsafe_allow_html=True)
 
     # ── 2) 3분 시작하기 — 용어보다 먼저 '경험' ──
-    st.markdown("#### 🚀 3분만에 시작하기")
+    _gb_band("STEP 1", "🚀 3분만에 시작하기", "#16a34a")
     _quickstart = [
         ("1️⃣", "메모를 하나 적는다", "✍️ 기록하기 → 새 메모, 또는 📅 데일리 노트에 떠오른 생각을 그냥 적어요. (링크·글도 가져와서 AI 초안으로 만들 수 있어요)"),
         ("2️⃣", "JIUM이 개념·태그를 자동 연결한다", "적은 내용에서 핵심 개념·태그가 자동으로 뽑혀 비슷한 기록끼리 이어져요. (직접 만들 필요 없어요)"),
@@ -14237,7 +14246,7 @@ if menu == "가이드북":
     st.divider()
 
     # ── 3) 핵심 용어 — 경험을 설명한 뒤에 용어 ──
-    st.markdown("#### 📖 핵심 용어 5가지")
+    _gb_band("STEP 2", "📖 핵심 용어", "#8b5cf6")
     _terms = [
         ("📝", "메모", "가장 작은 생각 기록 한 조각."),
         ("📚", "연구노트", "여러 메모를 묶어 정리한 노트."),
@@ -14260,7 +14269,7 @@ if menu == "가이드북":
     st.divider()
 
     # ── 메뉴 한눈에 (행동 중심 4그룹) ──
-    st.markdown("#### 🧭 메뉴 한눈에 — 4가지만 기억하세요")
+    _gb_band("STEP 3", "🧭 메뉴 한눈에 — 4가지만 기억하세요", "#0ea5e9")
     _menu_groups = [
         ("🌍", "내 세계", "#16a34a", "대시보드 · 지식 라이브러리 · 프로젝트 · 작업 · 지식 지도",
          "지금까지 쌓인 내 지식을 보는 곳. 🕸️ 지식 지도가 핵심이에요."),
@@ -14283,7 +14292,7 @@ if menu == "가이드북":
     st.divider()
 
     # ── 4) 기능 설명 (아래 탭) ──
-    st.markdown("#### 🧭 기능 자세히 보기")
+    _gb_band("STEP 4", "🧭 기능 자세히 보기", "#f97316")
 
     _g0, _g1, _g6, _g2, _g3, _g4, _g5 = st.tabs([
         "🗺 사용 흐름·활용 레벨",

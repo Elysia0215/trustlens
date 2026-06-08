@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-08.1"  # 배포 식별용
+APP_BUILD = "2026-06-08.2"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -1309,6 +1309,10 @@ div[data-testid="stVerticalBlock"] > div:has(.big-action-button.red-action) + di
 </style>
 """, unsafe_allow_html=True)
 
+# 부팅 시 영속 데이터 1회 로드 → 사이드바(고급 모드 등)가 init_state보다 먼저 읽을 수 있게 캐시
+if "_persisted_boot" not in st.session_state:
+    st.session_state["_persisted_boot"] = load_persisted_data()
+
 with st.sidebar:
     # ─── query param 기반 네비게이션 ───
     _qp = st.query_params.get("page", "home")
@@ -1547,7 +1551,9 @@ button[data-testid="collapsedControl"],
     # (그룹 이모지, 그룹명, 포인트색, [항목들])
     # 🌍 행동 중심 IA — 사용자가 보는 1차 객체는 메모·프로젝트·작업.
     #    개념·태그·관계·분석 등은 '🧪 고급 모드'로 숨김(설정에서 켬). 기능은 그대로 유지.
-    _show_adv = bool(st.session_state.get("app_settings", {}).get("show_advanced", False))
+    _boot_settings = (st.session_state.get("_persisted_boot") or {}).get("app_settings", {}) or {}
+    _show_adv = bool(st.session_state.get("app_settings", {}).get(
+        "show_advanced", _boot_settings.get("show_advanced", False)))
     _NAV_STRUCTURE = [
         ("🌍", "내 세계", "#34d399", [        # 초록
             ("home",      "🏠", "대시보드"),
@@ -1672,7 +1678,8 @@ button[data-testid="collapsedControl"],
 # Session State
 # -----------------------------
 def init_state():
-    persisted = normalize_persisted_data(load_persisted_data())
+    persisted = normalize_persisted_data(
+        st.session_state.get("_persisted_boot") or load_persisted_data())
     defaults = {
         "last_result": None,
         "last_final_url": None,

@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-04.18"  # 배포 식별용
+APP_BUILD = "2026-06-04.19"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -9127,8 +9127,8 @@ if menu == "새 엔터티":
 
     _wz_type = st.radio(
         "무엇을 만들까요?",
-        ["📁 프로젝트", "✅ 작업", "🧠 개념", "📝 메모", "📂 폴더"],
-        horizontal=True, key="wz_type"
+        ["📝 메모", "✅ 작업", "🧠 개념", "📁 프로젝트", "📂 폴더"],
+        index=0, horizontal=True, key="wz_type"
     )
     st.divider()
 

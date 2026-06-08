@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-04.22"  # 배포 식별용
+APP_BUILD = "2026-06-04.23"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -9209,6 +9209,20 @@ if menu == "새 엔터티":
 
     # ─── 메모 ───
     elif _wz_type == "📝 메모":
+        # 🔗 링크·글로 빠르게 시작 — 제목 위, 주황 띠로 눈에 띄게
+        st.markdown(
+            "<div style='background:linear-gradient(135deg,#f59e0b,#f97316);color:#ffffff !important;"
+            "font-weight:800;padding:9px 16px;border-radius:10px 10px 0 0;margin-top:4px;'>"
+            "🔗 링크·글로 빠르게 시작하기</div>",
+            unsafe_allow_html=True)
+        with st.expander("🔗 링크·글 가져와서 AI 초안 만들기 (펼치기)"):
+            st.caption("URL이나 붙여넣은 글을 AI가 요약·신뢰도·개념 후보로 정리해 메모 초안을 만들어줘요.")
+            if st.button("🔗 링크·글 가져오기 열기", key="wz_m_import", use_container_width=True):
+                st.session_state["home_show_import"] = True
+                st.query_params["page"] = "home"
+                st.rerun()
+        st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+
         c1, c2 = st.columns(2)
         with c1:
             _wm_title = st.text_input("메모 제목 *", key="wz_m_title", placeholder="예: 속초 여행 정리")
@@ -9239,12 +9253,6 @@ if menu == "새 엔터티":
         _wm_new_cons = st.text_input("새 개념 추가 (쉼표 구분)", key="wz_m_cons_new",
                                      placeholder="목록에 없는 개념을 바로 입력. 예: 그래프 구조, 임베딩")
         st.caption("💡 비워둬도 저장 시 메모 내용에서 핵심 개념이 자동으로 뽑혀 연결돼요.")
-        with st.expander("🔗 링크·글 가져와서 AI 초안 만들기 (펼치기)"):
-            st.caption("URL이나 붙여넣은 글을 AI가 요약·신뢰도·개념 후보로 정리해 메모 초안을 만들어줘요.")
-            if st.button("🔗 링크·글 가져오기 열기", key="wz_m_import", use_container_width=True):
-                st.session_state["home_show_import"] = True
-                st.query_params["page"] = "home"
-                st.rerun()
         if st.button("✅ 메모 만들기", key="wz_m_save", type="primary", use_container_width=True):
             if _wm_title.strip() and _wm_note.strip():
                 _tags = list(dict.fromkeys(
@@ -15824,12 +15832,6 @@ with _cta3:
     if st.button("📚 지식 라이브러리", use_container_width=True, key="dash_view_lib"):
         st.query_params["page"] = "archive"
         st.rerun()
-# 새 메모 바로 밑 — 링크·글 가져오기 토글 (성장 리포트처럼 그 자리 열고/닫기, 새로고침 X)
-st.markdown(
-    "<div style='margin-top:8px;font-weight:700;color:#c2410c;'>🔗 링크·글 가져와서 메모 만들기</div>"
-    "<div style='font-size:0.82rem;color:#9a3412;margin-bottom:2px;'>URL이나 글을 AI가 정리해 메모 초안으로 만들어줘요.</div>",
-    unsafe_allow_html=True)
-st.toggle("열기 / 닫기", key="home_show_import")
 st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
 # 🧠 루미가 발견한 연결 (대시보드 설명 카드)
@@ -17519,13 +17521,15 @@ def _wg_render():
 
 # 홈을 짧게: 성장 리포트/우주맵은 토글로 접어둠 (expander로 감싸면 내부 expander와 중첩 오류 → 토글 사용)
 st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-_home_t1, _home_t2, _home_t3 = st.columns(3)
+_home_t1, _home_t2, _home_t3, _home_t4 = st.columns(4)
 with _home_t1:
     _home_show_growth = st.toggle("🌍 성장 리포트", value=False, key="home_show_growth")
 with _home_t2:
     _home_show_univ = st.toggle("🪐 내 지식 우주", value=False, key="home_show_univ")
 with _home_t3:
     _home_show_brain = st.toggle("🧠 뇌지도", value=False, key="home_show_brain")
+with _home_t4:
+    st.toggle("🔗 링크·글 가져오기", value=False, key="home_show_import")
 
 if _home_show_growth:
     try:

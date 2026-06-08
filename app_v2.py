@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-04.23"  # 배포 식별용
+APP_BUILD = "2026-06-04.24"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -10843,8 +10843,9 @@ if menu == "데이터 관리":
                         st.rerun()
 
         st.divider()
-        _rel_type = st.radio("관계 종류", ["📁 프로젝트 → 🧠 개념", "📁 프로젝트 → ✅ 작업",
-                                           "📝 메모 → 🧠 개념", "🧠 개념 → 🧠 개념"],
+        _rel_type = st.radio("관계 종류", ["📝 메모 → 📝 메모", "📝 메모 → 🧠 개념",
+                                           "📁 프로젝트 → ✅ 작업", "📁 프로젝트 → 🧠 개념",
+                                           "🧠 개념 → 🧠 개념"],
                              horizontal=True, key="dm_rel_type")
 
         # 관계 타입 (공통)
@@ -10995,6 +10996,43 @@ if menu == "데이터 관리":
                                     l for l in _dm_links if not (l.get("note_id")==_note_id and l.get("concept")==_cn3)]
                                 _del_relation(_sel_note_r, _cn3)
                                 save_persisted_data(); _flash("변경사항을 저장했어요"); st.rerun()
+
+        elif _rel_type == "📝 메모 → 📝 메모":
+            # 관련 메모(연구노트성) 연결 — 그래프의 메모↔메모 점선 근거
+            with _rl_left:
+                st.markdown("**📝 기준 메모 선택**")
+                _sel_note_b = st.selectbox("", _note_titles or ["(없음)"],
+                    key="dm_r_note_base", label_visibility="collapsed")
+                _nb_obj = next((n for n in _dm_notes if n.get("title","제목 없음")==_sel_note_b), {})
+                _nb_name = _nb_obj.get("title","제목 없음")
+                _linked_notes = {r.get("target_name") for r in st.session_state.get("relations", [])
+                                 if r.get("source_name")==_nb_name and r.get("target_type")=="note"}
+                _linked_notes |= {r.get("source_name") for r in st.session_state.get("relations", [])
+                                  if r.get("target_name")==_nb_name and r.get("source_type")=="note"}
+                st.divider()
+                st.markdown("**연결된 메모**")
+                if _linked_notes:
+                    for _ln in sorted(_linked_notes):
+                        st.markdown(f"📝 {_ln}")
+                else:
+                    st.caption("연결된 메모 없음")
+            with _rl_right:
+                st.markdown("**📝 메모 목록 — 체크해서 연결/해제**")
+                _other_notes = [t for t in _note_titles if t != _nb_name]
+                if not _other_notes:
+                    st.caption("연결할 다른 메모가 없어요.")
+                else:
+                    _nb_cols = st.columns(2)
+                    for _ni, _nt in enumerate(_other_notes):
+                        with _nb_cols[_ni % 2]:
+                            _ntc = st.checkbox(_nt[:30], value=(_nt in _linked_notes),
+                                key=f"dm_rel_nn_{_ni}_{_nt[:12]}")
+                            if _ntc and _nt not in _linked_notes:
+                                _add_relation("note", _nb_name, "note", _nt, _rel_kind)
+                                save_persisted_data(); _flash("메모를 연결했어요"); st.rerun()
+                            elif not _ntc and _nt in _linked_notes:
+                                _del_relation(_nb_name, _nt); _del_relation(_nt, _nb_name)
+                                save_persisted_data(); _flash("연결을 해제했어요"); st.rerun()
 
         else:  # 개념 → 개념
             with _rl_left:
@@ -17521,15 +17559,13 @@ def _wg_render():
 
 # 홈을 짧게: 성장 리포트/우주맵은 토글로 접어둠 (expander로 감싸면 내부 expander와 중첩 오류 → 토글 사용)
 st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
-_home_t1, _home_t2, _home_t3, _home_t4 = st.columns(4)
+_home_t1, _home_t2, _home_t3 = st.columns(3)
 with _home_t1:
     _home_show_growth = st.toggle("🌍 성장 리포트", value=False, key="home_show_growth")
 with _home_t2:
     _home_show_univ = st.toggle("🪐 내 지식 우주", value=False, key="home_show_univ")
 with _home_t3:
     _home_show_brain = st.toggle("🧠 뇌지도", value=False, key="home_show_brain")
-with _home_t4:
-    st.toggle("🔗 링크·글 가져오기", value=False, key="home_show_import")
 
 if _home_show_growth:
     try:
@@ -17613,11 +17649,20 @@ for _ci in range(0, len(_recent_cards), 2):
         _t2, _n2, _l2, _e2 = _recent_cards[_ci + 1]
         _render_recent_card(_gc2, _t2, _n2, _l2, _e2)
 
-# 🔗 링크/글 가져오기 — 홈에선 상단 주황 버튼으로 펼침(기본 접힘). result/고급은 항상 노출
+# 🔗 링크/글 가져오기 — 토글을 폼 바로 위에 두어 인접하게(멀리 떨어지지 않게) + 주황 띠로 강조
 _input_page = st.query_params.get("page", "home")
 if _input_page not in ("result",) and not get_setting("show_advanced"):
-    if not st.session_state.get("home_show_import"):
-        st.stop()  # 접힘: 상단 '🔗 링크·글 가져와서 메모 만들기' 토글로 열어요
+    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+    st.markdown(
+        "<div style='background:linear-gradient(135deg,#f59e0b,#f97316);color:#ffffff !important;"
+        "font-weight:800;padding:10px 16px;border-radius:12px;margin-bottom:6px;"
+        "box-shadow:0 3px 10px rgba(249,115,22,0.28);'>"
+        "🔗 링크·글 가져와서 메모 만들기 &nbsp;<span style='font-weight:500;opacity:0.95;'>"
+        "— URL이나 글을 AI가 정리해 메모 초안으로</span></div>",
+        unsafe_allow_html=True)
+    _imp_open = st.toggle("열기 / 닫기", key="home_show_import")
+    if not _imp_open:
+        st.stop()  # 접힘
 
 st.divider()
 

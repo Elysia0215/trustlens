@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-04.21"  # 배포 식별용
+APP_BUILD = "2026-06-04.22"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -4356,6 +4356,13 @@ def render_result(result, extracted_text=None, final_url=None):
 
     # 전체 너비 메모 편집 영역
     st.divider()
+    st.markdown(
+        "<div style='background:linear-gradient(135deg,#eff6ff,#e0e7ff);border:1px solid #bfdbfe;"
+        "border-left:5px solid #2563eb;border-radius:12px;padding:12px 16px;margin:4px 0 12px;'>"
+        "<b style='color:#1d4ed8;font-size:1.02rem;'>📁 저장 위치 정하기</b>"
+        "<div style='color:#475569;font-size:0.86rem;margin-top:2px;'>"
+        "이 메모를 <b>어느 프로젝트·섹션·단계</b>에 넣을지 골라요. (지식맵 연결에 쓰여요)</div></div>",
+        unsafe_allow_html=True)
     proj_col, sec_col, step_col = st.columns(3)
     _projects = st.session_state.get("projects", [])
     _proj_names = [p["name"] for p in _projects]
@@ -15803,10 +15810,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 🔗 링크 가져오기 트리거(상단 주황 버튼)로 왔으면 가져오기 펼침
-if st.query_params.get("import") == "1":
-    st.session_state["home_show_import"] = True
-
 # 대시보드 핵심 행동 버튼 (가장 크게: 새 메모)
 _cta1, _cta2, _cta3 = st.columns([2, 1, 1])
 with _cta1:
@@ -15821,14 +15824,12 @@ with _cta3:
     if st.button("📚 지식 라이브러리", use_container_width=True, key="dash_view_lib"):
         st.query_params["page"] = "archive"
         st.rerun()
-# 새 메모 바로 밑 — 눈에 띄는 주황 '링크·글 가져오기' (HTML이라 색 자유, 기본 접힘)
+# 새 메모 바로 밑 — 링크·글 가져오기 토글 (성장 리포트처럼 그 자리 열고/닫기, 새로고침 X)
 st.markdown(
-    '<a href="?import=1" target="_self" style="display:block;text-align:center;'
-    'background:linear-gradient(135deg,#f59e0b,#f97316);color:#ffffff !important;'
-    'font-weight:800;padding:11px;border-radius:12px;text-decoration:none;'
-    'margin:8px 0 4px;box-shadow:0 3px 10px rgba(249,115,22,0.3);">'
-    '🔗 링크·글 가져와서 메모 만들기</a>',
+    "<div style='margin-top:8px;font-weight:700;color:#c2410c;'>🔗 링크·글 가져와서 메모 만들기</div>"
+    "<div style='font-size:0.82rem;color:#9a3412;margin-bottom:2px;'>URL이나 글을 AI가 정리해 메모 초안으로 만들어줘요.</div>",
     unsafe_allow_html=True)
+st.toggle("열기 / 닫기", key="home_show_import")
 st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
 # 🧠 루미가 발견한 연결 (대시보드 설명 카드)
@@ -17612,12 +17613,7 @@ for _ci in range(0, len(_recent_cards), 2):
 _input_page = st.query_params.get("page", "home")
 if _input_page not in ("result",) and not get_setting("show_advanced"):
     if not st.session_state.get("home_show_import"):
-        st.stop()  # 접힘: 상단의 '🔗 링크·글 가져와서 메모 만들기' 버튼으로 열어요
-    # 펼침 상태: 접기 버튼 제공
-    if st.button("🔼 가져오기 접기", key="home_close_import"):
-        st.session_state["home_show_import"] = False
-        st.query_params.pop("import", None)
-        st.rerun()
+        st.stop()  # 접힘: 상단 '🔗 링크·글 가져와서 메모 만들기' 토글로 열어요
 
 st.divider()
 

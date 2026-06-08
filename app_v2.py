@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-08.2"  # 배포 식별용
+APP_BUILD = "2026-06-08.3"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -1321,7 +1321,7 @@ with st.sidebar:
 
     _SIDEBAR_CSS = """
 <style>
-/* ══ TrustLens 다크 네이비 사이드바 ══ */
+/* ══ JIUM 다크 네이비 사이드바 ══ */
 
 section[data-testid="stSidebar"] {
     background: #1a2f6e !important;
@@ -3016,7 +3016,7 @@ def analyze_with_groq(text, url, selected_type):
         }
 
     prompt = f"""
-너는 TrustLens라는 정보 신뢰도 분석 서비스의 AI 분석 엔진이다.
+너는 JIUM라는 정보 신뢰도 분석 서비스의 AI 분석 엔진이다.
 아래 웹페이지 본문을 분석하고 반드시 순수 JSON만 반환해라.
 마크다운, 설명문, 코드블록을 절대 붙이지 마라.
 
@@ -3070,7 +3070,7 @@ URL:
 8. 태그에는 # 기호를 붙이지 말고 단어만 넣어라.
 9. summary는 실제 본문 내용을 바탕으로 3문장으로 써라. "네이버 블로그 포스팅입니다" 같은 일반 문장은 금지한다.
 10. 사용자가 추가한 커스텀 신뢰도 기준이 있으면 해당 기준도 판단에 참고해라.
-11. 단, 커스텀 기준은 보조 기준이며 기본 TrustLens 기준을 완전히 대체하지 않는다.
+11. 단, 커스텀 기준은 보조 기준이며 기본 JIUM 기준을 완전히 대체하지 않는다.
 
 반환 JSON 형식:
 {{
@@ -3132,7 +3132,7 @@ URL:
     result["content_type"] = content_type
     result["trust_score"] = calculate_score_by_type(result.get("score_breakdown", {}), content_type)
     if not result.get("archive_title"):
-        result["archive_title"] = "TrustLens 분석 메모"
+        result["archive_title"] = "JIUM 분석 메모"
     # 🛠️ 디버그: study 분기 추적용 (render_result 하단 expander에서 표시)
     result["_debug"] = {
         "selected_type": selected_type,
@@ -3156,7 +3156,7 @@ def make_basic_note_draft(result, final_url=None, selected_tags=None):
     ad_text = {"low": "낮음", "mid": "주의", "high": "위험"}.get(ad_risk, ad_risk)
     content_label = CONTENT_TYPE_LABELS.get(content_type, content_type)
 
-    return f"""# {result.get('archive_title', 'TrustLens 정보 정리 노트')}
+    return f"""# {result.get('archive_title', 'JIUM 정보 정리 노트')}
 
 ## 1. 기본 정보
 - 출처: {display_source_label(final_url)}
@@ -3381,7 +3381,7 @@ def generate_note_draft_with_groq(original_text, result, final_url, template_typ
         }.get(template_type, "보고서 형식으로 정리해라.")
 
         prompt = f"""
-너는 TrustLens의 지식 아카이브 메모 작성 보조 AI다.
+너는 JIUM의 지식 아카이브 메모 작성 보조 AI다.
 아래 원문 전체를 보고, 사용자가 나중에 다시 열람하기 좋은 메모 초안을 만들어라.
 단순 요약이 아니라 원문의 중요한 내용을 최대한 빠짐없이 구조화해서 정리해라.
 광고성 판단, 신뢰도 판단은 이미 끝났으므로 여기서는 '내용 정리'에 집중해라.
@@ -3450,7 +3450,7 @@ def save_note_to_archive(note_key, result, final_url, selected_tags):
 
     import uuid as _uuid
     note_id = str(_uuid.uuid4())[:8]
-    note_title = result.get("archive_title", "TrustLens 메모")
+    note_title = result.get("archive_title", "JIUM 메모")
     _now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
     # project_id 조회
     _note_proj_name = st.session_state.get("note_project_name", "기본 프로젝트")
@@ -3545,7 +3545,7 @@ def save_current_analysis_to_archive(result, final_url, selected_tags=None, memo
     selected_tags = selected_tags or []
     saved_item = {
         "url": final_url or "",
-        "title": result.get("archive_title", "TrustLens 분석"),
+        "title": result.get("archive_title", "JIUM 분석"),
         "content_type": result.get("content_type", "unknown"),
         "score": result.get("trust_score", 0),
         "ad_risk": result.get("ad_risk", "mid"),
@@ -3690,7 +3690,7 @@ def save_user_feedback(result, final_url, rating_key, useful_key, wrong_key, mis
 
     feedback = {
         "url": final_url or "",
-        "title": result.get("archive_title", "TrustLens 분석"),
+        "title": result.get("archive_title", "JIUM 분석"),
         "content_type": result.get("content_type", "unknown"),
         "score": result.get("trust_score", 0),
         "rating": rating,
@@ -3903,7 +3903,7 @@ def render_score_dashboard(breakdown: dict, content_type: str):
 def render_feedback_section(result, final_url, score):
     """사용자 피드백 + AI vs 사용자 비교 (신뢰도 보조 영역)."""
     st.markdown('<div class="feedback-shell">', unsafe_allow_html=True)
-    st.markdown("### ⭐ 사용자 피드백으로 TrustLens 개선하기")
+    st.markdown("### ⭐ 사용자 피드백으로 JIUM 개선하기")
     st.caption("AI 분석에 사용자의 집단 검증을 더해요. AI 점수와 사람의 신뢰 판단 차이가 이후 보정 데이터가 됩니다.")
 
     feedback_base = final_url or "current"
@@ -3941,7 +3941,7 @@ def render_feedback_section(result, final_url, score):
     # 상위에서 expander 안에 렌더되므로 중첩 expander 금지 → 체크박스 토글로 대체
     if st.checkbox("✍️ 자세한 피드백 남기기", key=f"detail_fb_{feedback_base}"):
         st.text_area("틀렸거나 어색한 부분", placeholder="예: 맛집 후기인데 공식 출처 기준이 보이면 어색함 / 점수가 너무 낮음", height=90, key=wrong_key)
-        st.text_area("자유 피드백", placeholder="TrustLens가 다음 분석에서 더 잘 판단했으면 하는 기준을 적어주세요.", height=90, key=memo_key)
+        st.text_area("자유 피드백", placeholder="JIUM이 다음 분석에서 더 잘 판단했으면 하는 기준을 적어주세요.", height=90, key=memo_key)
     else:
         # 키가 항상 존재하도록 기본값 보장 (저장 시 KeyError 방지)
         st.session_state.setdefault(wrong_key, "")
@@ -7621,7 +7621,7 @@ def render_project_page():
     with st.expander("➕ 새 프로젝트 만들기", expanded=False):
         c1, c2 = st.columns(2)
         with c1:
-            p_name = st.text_input("프로젝트명 *", key="new_proj_name", placeholder="예: 팀플 1, TrustLens, SQLD")
+            p_name = st.text_input("프로젝트명 *", key="new_proj_name", placeholder="예: 팀플 1, JIUM, SQLD")
             p_category = st.selectbox("대분류", ["학교/팀플", "개인개발", "자격증", "취업준비", "리서치", "기타"], key="new_proj_cat")
             p_status = st.selectbox("상태", ["예정", "진행 중", "완료", "보류"], key="new_proj_status")
         with c2:
@@ -9361,9 +9361,9 @@ if menu == "분석 결과":
 
 if menu == "신뢰도 근거":
     st.markdown("## 🔎 신뢰도 근거")
-    st.caption("TrustLens가 어떤 기준으로 신뢰도를 판단하는지 보고, 나만의 기준도 추가할 수 있어요.")
+    st.caption("JIUM이 어떤 기준으로 신뢰도를 판단하는지 보고, 나만의 기준도 추가할 수 있어요.")
 
-    st.markdown("### 🧭 TrustLens 기본 신뢰도 기준")
+    st.markdown("### 🧭 JIUM 기본 신뢰도 기준")
     for name, desc in DEFAULT_TRUST_CRITERIA:
         with st.expander(name, expanded=False):
             st.write(desc)
@@ -13918,14 +13918,14 @@ if menu == "데일리 노트":
 
 if menu == "설정":
     # ══════════════════════════════════════════════════════════
-    # ⚙️ TrustLens Control Center (설정 통합 허브)
+    # ⚙️ JIUM Control Center (설정 통합 허브)
     # ══════════════════════════════════════════════════════════
     st.markdown("""
 <div style="background:linear-gradient(135deg,#0f172a,#1e3a8a 60%,#3b82f6);
      border-radius:16px;padding:26px 30px 22px;margin-bottom:20px;color:white;">
     <div style="font-size:1.9rem;font-weight:900;margin-bottom:4px;">⚙️ Control Center</div>
     <div style="opacity:0.9;line-height:1.6;">
-        TrustLens의 모든 설정을 한 곳에서. 화면·세계관·루미·Second Brain 기능·알림·실험실을 켜고 끌 수 있어요.
+        JIUM의 모든 설정을 한 곳에서. 화면·세계관·루미·Second Brain 기능·알림·실험실을 켜고 끌 수 있어요.
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -14187,7 +14187,7 @@ if menu == "설정":
 
 if menu == "가이드북":
     # ══════════════════════════════════════════════════════════
-    # 📘 TrustLens 가이드북
+    # 📘 JIUM 가이드북
     # ══════════════════════════════════════════════════════════
     st.markdown("""
 <div style="
@@ -14287,7 +14287,7 @@ if menu == "가이드북":
 
     _g0, _g1, _g6, _g2, _g3, _g4, _g5 = st.tabs([
         "🗺 사용 흐름·활용 레벨",
-        "🚀 TrustLens란",
+        "🚀 JIUM이란",
         "🏠 홈·검색·AI",
         "🔍 분석·저장하기",
         "📁 프로젝트·작업",
@@ -14386,11 +14386,11 @@ if menu == "가이드북":
                                     unsafe_allow_html=True)
         st.info("👉 처음이라면 유형과 상관없이 **‘홈에서 오늘 한 줄’**부터. 쌓이면 자연스럽게 자기 흐름이 생겨요.")
 
-    # ─── 탭 1: TrustLens란 ───────────────────────────────────
+    # ─── 탭 1: JIUM이란 ───────────────────────────────────
     with _g1:
-        st.markdown("### 💡 TrustLens는 무엇인가요?")
+        st.markdown("### 💡 JIUM은 무엇인가요?")
         st.markdown("""
-TrustLens는 **AI 기반 개인 지식·프로젝트 운영체제(AI Knowledge OS)** 예요.
+JIUM은 **AI 기반 개인 지식·프로젝트 운영체제(AI Knowledge OS)** 예요.
 
 단순한 신뢰도 분석기가 아니라, 정보를 **메모로 만들고 → 프로젝트에 연결하고 → 개념·지식맵으로 정리하고 → 검색·AI로 다시 꺼내 쓰는** 전체 지식 사이클을 제공해요.
 
@@ -14437,7 +14437,7 @@ TrustLens는 **AI 기반 개인 지식·프로젝트 운영체제(AI Knowledge O
             st.markdown("""
 1. [console.groq.com](https://console.groq.com) 접속
 2. 회원가입 → API Keys → Create API Key
-3. TrustLens 사이드바 하단 설정 또는 `.env`에 붙여넣기
+3. JIUM 사이드바 하단 설정 또는 `.env`에 붙여넣기
 - 무료 플랜으로도 하루 수십 번 분석 가능해요.
 """)
         with st.expander("💾 데이터는 어디에 저장되나요?"):
@@ -14637,7 +14637,7 @@ STEP3 아래에서 **AI 초안 → 내 메모 정리 → 저장**으로 이어�
         with _g3a:
             st.markdown("#### 📂 프로젝트")
             st.markdown("""
-TrustLens에서 **프로젝트**는 연구/공부/업무 단위예요.
+JIUM에서 **프로젝트**는 연구/공부/업무 단위예요.
 
 **프로젝트 구조:**
 ```
@@ -15287,7 +15287,7 @@ if menu == "패치 노트":
             "badge": "E-3 완료",
             "problem": [
                 "프로젝트·작업·메모·개념이 각각 따로 보여 ‘무엇이 무엇과 연결됐는지’ 한눈에 안 보임",
-                "TrustLens가 ‘저장 앱’처럼 느껴지고 ‘지식 운영체제’라는 차별점이 드러나지 않음",
+                "JIUM이 ‘저장 앱’처럼 느껴지고 ‘지식 운영체제’라는 차별점이 드러나지 않음",
                 "개념 빈도·최근성 데이터를 쌓아만 두고 실제로 보여주는 화면이 없었음",
             ],
             "improvement": [
@@ -15638,7 +15638,7 @@ if menu == "패치 노트":
         st.markdown("""
 > 💼 **읽는 분께** — 아래는 채용 담당자·PM 관점에서 이 프로젝트의 문제정의·의사결정·성과를 빠르게 파악할 수 있도록 정리한 요약본이에요.
 """)
-        st.markdown("### 🛡️ TrustLens — AI 개인 지식 운영체제 (Knowledge OS)")
+        st.markdown("### 🛡️ JIUM — AI 개인 지식 운영체제 (Knowledge OS)")
         st.markdown("""
 > *"AI가 대신 생각하지 않는다. 더 나은 판단을 돕는다."*
 
@@ -18036,7 +18036,7 @@ if st.session_state.show_result and st.session_state.last_result:
 st.markdown("---")
 st.markdown(
     '<div style="text-align:center;color:#aaa;font-size:12px">'
-    'TrustLens MVP · AI가 대신 생각하지 않는다. 더 나은 판단을 돕는다.'
+    'JIUM MVP · AI가 대신 생각하지 않는다. 더 나은 판단을 돕는다.'
     '</div>',
     unsafe_allow_html=True,
 )

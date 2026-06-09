@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.8"  # 배포 식별용
+APP_BUILD = "2026-06-09.9"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -4706,40 +4706,112 @@ def date_color_group(date_text):
     return "오래된 기록"
 
 
-def extract_local_concepts(text, tags=None, limit=18):
-    """저장된 메모에서 반복적으로 등장하는 핵심 개념을 간단한 로컬 규칙으로 추출한다."""
+# ── 지식 노드 추출 엔진 (개념·태그 공용) ──
+# 조사: 단어 끝에서 떼어내 명사 어간만 남긴다 (긴 것부터)
+_KO_PARTICLES = ("으로서", "으로써", "에서는", "에게서", "이라고", "라고는", "으로는", "에서도",
+                 "이라는", "라는", "으로", "에서", "에게", "처럼", "부터", "까지", "보다", "마다",
+                 "조차", "에는", "에도", "으론", "이나", "나마", "이란", "이며", "이고", "에요",
+                 "예요", "은", "는", "이", "가", "을", "를", "에", "의", "도", "만", "와", "과",
+                 "로", "랑", "께", "고")
+# 메타/문서유형 — 개념 아님
+_META_WORDS = {"데일리노트", "데일리", "노트", "메모", "일기", "오늘", "어제", "내일", "기록",
+               "내용", "본문", "부분", "요약", "정리", "제목", "섹션", "단계", "아이디어",
+               "생각", "한일", "배운", "느낀", "오늘한일"}
+# 동사/형용사/연결어 stopword
+_VERB_STOP = {"그리고", "하지만", "그래서", "그러나", "또한", "있는", "없는", "있다", "없다",
+              "같다", "같아", "된다", "한다", "했다", "갔다", "왔다", "봤다", "였다", "이다",
+              "배운", "했던", "하는", "되는", "관련", "확인", "필요", "분석", "자료", "위해",
+              "통해", "대한", "대해", "에서", "에게", "정도", "경우", "다양", "여러", "모든"}
+
+def _strip_particle(w):
+    for _p in _KO_PARTICLES:
+        if w.endswith(_p) and len(w) - len(_p) >= 2:
+            return w[:-len(_p)]
+    return w
+
+def _is_verbish(w):
+    if w in _VERB_STOP:
+        return True
+    # 동사/형용사 어미로 끝나면 제외 (다/했/었/았/음/함/됨 등)
+    return (w.endswith("다") or w.endswith("했") or w.endswith("었") or w.endswith("았")
+            or w.endswith("음") or w.endswith("함") or w.endswith("됨") or w.endswith("는"))
+
+def _is_date_or_num(w):
+    if w.isdigit():
+        return True
+    return bool(re.fullmatch(r"\d{2,4}[-/.]\d{1,2}([-/.]\d{1,2})?", w))
+
+def _is_concept_node(w):
+    """명사/고유명사스러운 '지식 노드'만 통과 (동사·날짜·메타 제외)."""
+    w = w.strip()
+    if len(w) < 2:
+        return False
+    if _is_date_or_num(w):
+        return False
+    if w in _META_WORDS or w in _VERB_STOP:
+        return False
+    if re.fullmatch(r"[A-Za-z]{2,}", w):   # 영문 약어/용어는 통과
+        return True
+    if _is_verbish(w):
+        return False
+    return True
+
+def extract_local_concepts(text, tags=None, limit=18, allow_meta_tags=False):
+    """본문에서 '지식 노드'(명사·고유명사)를 추출한다. 동사/날짜/문서유형은 제외.
+    개념·태그가 같은 엔진을 공유한다(allow_meta_tags=True면 날짜/문서유형 태그는 유지)."""
     tags = tags or []
     text = str(text or "")
     candidates = []
-
-    for tag in tags:
-        clean = str(tag).replace("#", "").strip()
-        if len(clean) >= 2 and clean not in candidates:
-            candidates.append(clean)
 
     keyword_pool = [
         "CREST", "STP", "4P", "SWOT", "OAP", "ESG", "CSR", "O2O", "B2B", "B2C", "B2G",
         "개인정보보호법", "전자금융거래법", "전자서명법", "식품위생법", "사회적기업", "공공데이터",
         "블록체인", "위치기반", "결제시스템", "기부", "후원", "소액기부", "마케팅", "경쟁사",
         "시장규모", "시장세분화", "포지셔닝", "정량적 목표", "사용자", "소상공인", "공공기관",
-        "결식아동", "급식카드", "지역상권", "기술", "규제", "경제", "사회", "발표대본", "자료조사"
+        "결식아동", "급식카드", "지역상권", "발표대본", "자료조사"
     ]
     for word in keyword_pool:
         if word in text and word not in candidates:
             candidates.append(word)
 
-    # 한글/영문 혼합 명사 후보를 추가로 추출한다.
-    for word in re.findall(r"[A-Za-z]{2,}|[가-힣]{2,12}", text):
+    # 사용자가 단 태그도 후보로 (조사 제거 후, 명사만)
+    for tag in tags:
+        clean = _strip_particle(str(tag).replace("#", "").strip())
+        if allow_meta_tags and (_is_date_or_num(clean) or clean in _META_WORDS):
+            if clean not in candidates:
+                candidates.append(clean)
+        elif _is_concept_node(clean) and clean not in candidates:
+            candidates.append(clean)
+
+    # 본문 토큰 → 조사 제거 → 명사(지식 노드)만
+    for raw in re.findall(r"[A-Za-z]{2,}|[가-힣]{2,12}", text):
+        word = _strip_particle(raw)
         if word in candidates:
             continue
-        if word in ["그리고", "하지만", "있는", "없는", "관련", "내용", "부분", "확인", "필요", "분석", "자료"]:
-            continue
-        if len(word) >= 2:
+        if _is_concept_node(word):
             candidates.append(word)
         if len(candidates) >= limit:
             break
 
     return candidates[:limit]
+
+
+# 카테고리 이모지 (표시용 — best-effort 키워드 매칭)
+_CONCEPT_EMOJI_MAP = [
+    ("🏃", ("러닝", "조깅", "수영", "헬스", "운동", "축구", "농구", "요가", "등산", "라이딩")),
+    ("🎮", ("게임", "로얄", "클래시", "리그", "롤", "배그", "스팀")),
+    ("💻", ("코딩", "개발", "파이썬", "자바", "리액트", "알고리즘", "데이터", "AI", "모델", "서버", "API")),
+    ("📚", ("책", "독서", "공부", "강의", "수업", "논문", "자격증")),
+    ("✈️", ("여행", "휴양지", "공항", "항공권", "호텔", "리조트", "오키나와", "이시가키")),
+    ("💼", ("취업", "면접", "회사", "프로젝트", "업무", "마케팅", "PM", "스타트업")),
+    ("🍽️", ("맛집", "음식", "카페", "식당", "메뉴", "리뷰")),
+]
+def concept_emoji(name):
+    _n = str(name)
+    for _emo, _kws in _CONCEPT_EMOJI_MAP:
+        if any(_k in _n for _k in _kws):
+            return _emo
+    return "🧠"
 
 
 # ════════════════════════════════════════════════════════════════
@@ -9889,7 +9961,8 @@ if menu == "지식 라이브러리":
                     "<div style='font-weight:800;color:#1e293b;margin-bottom:6px;'>📑 목차</div>"
                     + _toc_html + "</div>", unsafe_allow_html=True)
             st.markdown("#### 📖 본문")
-            render_readable_markdown(_body_md)
+            with st.container(border=True):
+                render_readable_markdown(_body_md)
 
         # ✏️ 편집 / 🗑️ 삭제 — 본문 바로 밑(찾기 쉽게)
         with st.expander("✏️ 편집 / 🗑️ 삭제", expanded=False):
@@ -9942,7 +10015,7 @@ if menu == "지식 라이브러리":
             _con_chips = "".join(
                 f"<span style='display:inline-block;background:#ede9fe;color:#6d28d9;"
                 f"border:1px solid #ddd6fe;border-radius:999px;padding:3px 12px;"
-                f"margin:3px 4px 3px 0;font-size:0.88rem;font-weight:600;'>🧠 {_c}</span>"
+                f"margin:3px 4px 3px 0;font-size:0.88rem;font-weight:600;'>{concept_emoji(_c)} {_c}</span>"
                 for _c in _cons)
             st.markdown(_con_chips, unsafe_allow_html=True)
 

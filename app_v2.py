@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.29"  # 배포 식별용
+APP_BUILD = "2026-06-09.30"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -1621,7 +1621,7 @@ button[data-testid="collapsedControl"],
             ("archive",   "📚", "지식 라이브러리"),
             ("projects",  "📁", "프로젝트"),
             ("tasks",     "✅", "작업"),
-            ("map",       "🕸️", "지식 지도"),
+            ("map",       "🕸️", "지식 지도 / 개념 관리"),
             ("search",    "🔍", "통합 검색"),
         ]),
         ("✍️", "기록하기", "#38bdf8", [       # 하늘

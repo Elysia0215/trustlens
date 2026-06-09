@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.16"  # 배포 식별용
+APP_BUILD = "2026-06-09.17"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -1927,7 +1927,7 @@ sync_legacy_data_to_entities()
 hydrate_last_result_from_cache()
 
 # 🔠 설정의 '글자 크기'를 실제 적용 (설정 → 🎨 화면 → 글자 크기)
-_FONT_SCALE = {"작게": "0.9", "보통": "1.0", "크게": "1.15"}.get(get_setting("ui_font_scale"), "1.0")
+_FONT_SCALE = {"아주 작게": "0.82", "작게": "0.9", "보통": "1.0", "크게": "1.12", "아주 크게": "1.25"}.get(get_setting("ui_font_scale"), "1.0")
 if _FONT_SCALE != "1.0":
     st.markdown(
         f"<style>[data-testid='stMarkdownContainer'] p,"
@@ -10087,15 +10087,21 @@ if menu == "지식 라이브러리":
                           key=new_tags_key, help="입력 후 아래 저장 버튼을 눌러야 반영돼요.")
             # ✍️ 2열 편집 — 왼쪽 미리보기 / 오른쪽 수정 (빈 곳 클릭하면 왼쪽 반영)
             st.caption("✍️ 오른쪽에서 고친 뒤 **빈 곳을 클릭**하면 왼쪽 미리보기에 반영돼요. 최종 반영은 **💾 저장**.")
-            _fs_opts = ["작게", "보통", "크게"]
+            _fs_opts = ["아주 작게", "작게", "보통", "크게", "아주 크게"]
             _fs_cur = get_setting("ui_font_scale") if get_setting("ui_font_scale") in _fs_opts else "보통"
-            _fs_new = st.select_slider("🔠 메모 글씨 크기", _fs_opts, value=_fs_cur,
+            _fs_new = st.select_slider("🔠 메모 글씨 크기 (5단계)", _fs_opts, value=_fs_cur,
                                        key=f"edit_font_{original_index}")
             if _fs_new != _fs_cur:
                 _sset = st.session_state.setdefault("app_settings", {})
                 _sset["ui_font_scale"] = _fs_new
-                save_persisted_data()
-                st.rerun()
+                save_persisted_data()   # 저장만; rerun 없이 즉시 적용(스크롤 유지)
+            _FS_MAP = {"아주 작게": "0.82", "작게": "0.9", "보통": "1.0", "크게": "1.12", "아주 크게": "1.25"}
+            _fz = _FS_MAP.get(_fs_new, "1.0")
+            if _fz != "1.0":
+                st.markdown(
+                    f"<style>[data-testid='stMarkdownContainer'] p,"
+                    f"[data-testid='stMarkdownContainer'] li{{font-size:calc(1rem*{_fz})!important;}}</style>",
+                    unsafe_allow_html=True)
             _ed_prev, _ed_edit = st.columns(2)
             with _ed_edit:
                 st.markdown("**✏️ 수정**")
@@ -14293,7 +14299,7 @@ if menu == "설정":
         st.markdown("#### 🎨 화면")
         st.caption("🔜 카드 밀도·글자 크기·애니메이션은 지금은 **저장만** 돼요(곧 화면에 반영).")
         _seg("카드 밀도 🔜", "ui_density", ["여유", "보통", "촘촘"])
-        _seg("글자 크기", "ui_font_scale", ["작게", "보통", "크게"])
+        _seg("글자 크기", "ui_font_scale", ["아주 작게", "작게", "보통", "크게", "아주 크게"])
         _tog("✨ 애니메이션 🔜", "ui_animations", help="성장 연출·전환 애니메이션 (곧 적용)")
         st.caption("라이트/다크 등 색 테마는 우측 상단 ⋮ → Settings(Streamlit) 또는 .streamlit/config.toml에서 바꿔요.")
 

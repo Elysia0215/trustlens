@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.20"  # 배포 식별용
+APP_BUILD = "2026-06-09.21"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -14137,45 +14137,45 @@ if menu == "데일리 노트":
                                 unsafe_allow_html=True)
         st.caption("점 = 그날 메모 수 (큰 점 ● = 5개, 작은 점 • = 1개). 날짜를 누르면 그날 기록으로 이동해요.")
 
-    # 🧭 최근 컨텍스트 — 월간 캘린더처럼 위에 토글로 (메모 쓰기 옆 컬럼이 아님)
+    # 🧭 최근 컨텍스트 — 월간 캘린더처럼 위에 토글로. 펼치면 3열.
     if st.toggle("🧭 최근 컨텍스트 (펼치기)", value=False, key="dn_show_ctx"):
         st.caption("뭘 적을지 막힐 때, 최근 기록을 떠올려요.")
-
-        _ctx_notes = sorted(st.session_state.get("archive_notes", []),
-                            key=lambda n: str(n.get("saved_at", "")), reverse=True)[:5]
-        st.markdown("**📝 최근 메모**")
-        if _ctx_notes:
-            for _cn in _ctx_notes:
-                if st.button(f"· {(_cn.get('title') or '제목 없음')[:18]}",
-                             key=f"dn_ctx_note_{_cn.get('id')}", use_container_width=True):
-                    st.session_state["archive_open_note_id"] = _cn.get("id")
-                    st.query_params["page"] = "archive"
-                    st.rerun()
-        else:
-            st.caption("아직 없어요.")
-
-        _ctx_concepts, _seen_cc = [], set()
-        for _lk in sorted(st.session_state.get("note_concept_links", []),
-                          key=lambda l: str(l.get("linked_at", "")), reverse=True):
-            _cc = canonical_concept(_lk.get("concept"))
-            if _cc and _cc not in _seen_cc:
-                _seen_cc.add(_cc); _ctx_concepts.append(_cc)
-            if len(_ctx_concepts) >= 8:
-                break
-        st.markdown("**🧠 최근 개념**")
-        st.markdown(" ".join(f"`{c}`" for c in _ctx_concepts) if _ctx_concepts else "_아직 없어요._")
-
-        _ctx_projs = sorted(st.session_state.get("projects", []),
-                            key=lambda p: str(p.get("updated_at") or p.get("created_at") or ""),
-                            reverse=True)[:5]
-        st.markdown("**📁 최근 프로젝트**")
-        st.markdown("\n".join(f"- {p.get('name', '')}" for p in _ctx_projs) if _ctx_projs else "_아직 없어요._")
-
-        _ctx_tasks = sorted(st.session_state.get("tasks", []),
-                            key=lambda t: str(t.get("updated_at") or t.get("created_at") or ""),
-                            reverse=True)[:5]
-        st.markdown("**✅ 최근 작업**")
-        st.markdown("\n".join(f"- {t.get('title', '')}" for t in _ctx_tasks) if _ctx_tasks else "_아직 없어요._")
+        _ctxc1, _ctxc2, _ctxc3 = st.columns(3)
+        with _ctxc1:
+            _ctx_notes = sorted(st.session_state.get("archive_notes", []),
+                                key=lambda n: str(n.get("saved_at", "")), reverse=True)[:5]
+            st.markdown("**📝 최근 메모**")
+            if _ctx_notes:
+                for _cn in _ctx_notes:
+                    if st.button(f"· {(_cn.get('title') or '제목 없음')[:18]}",
+                                 key=f"dn_ctx_note_{_cn.get('id')}", use_container_width=True):
+                        st.session_state["archive_open_note_id"] = _cn.get("id")
+                        st.query_params["page"] = "archive"
+                        st.rerun()
+            else:
+                st.caption("아직 없어요.")
+        with _ctxc2:
+            _ctx_concepts, _seen_cc = [], set()
+            for _lk in sorted(st.session_state.get("note_concept_links", []),
+                              key=lambda l: str(l.get("linked_at", "")), reverse=True):
+                _cc = canonical_concept(_lk.get("concept"))
+                if _cc and _cc not in _seen_cc:
+                    _seen_cc.add(_cc); _ctx_concepts.append(_cc)
+                if len(_ctx_concepts) >= 8:
+                    break
+            st.markdown("**🧠 최근 개념**")
+            st.markdown(" ".join(f"`{c}`" for c in _ctx_concepts) if _ctx_concepts else "_아직 없어요._")
+        with _ctxc3:
+            _ctx_projs = sorted(st.session_state.get("projects", []),
+                                key=lambda p: str(p.get("updated_at") or p.get("created_at") or ""),
+                                reverse=True)[:5]
+            st.markdown("**📁 최근 프로젝트**")
+            st.markdown("\n".join(f"- {p.get('name', '')}" for p in _ctx_projs) if _ctx_projs else "_아직 없어요._")
+            _ctx_tasks = sorted(st.session_state.get("tasks", []),
+                                key=lambda t: str(t.get("updated_at") or t.get("created_at") or ""),
+                                reverse=True)[:5]
+            st.markdown("**✅ 최근 작업**")
+            st.markdown("\n".join(f"- {t.get('title', '')}" for t in _ctx_tasks) if _ctx_tasks else "_아직 없어요._")
 
     _dn_left, _dn_right = st.columns([1.6, 1.1])
     # ── 가운데: 입력 ──
@@ -17240,7 +17240,7 @@ def render_home_universe():
                 "</div>", unsafe_allow_html=True)
         # 🛸 발견된 연결 목록 — '왜 연결됐는지' 실제 개념명/태그명을 보여줌
         if _routes:
-            with st.expander(f"🛸 발견된 항로 {len(_routes)}개 — 내 세계는 이렇게 연결돼 있어요", expanded=False):
+            with st.expander(f"🛸 발견된 항로 {len(_routes)}개 — 어떤 공유 개념/태그로 연결됐는지 보기", expanded=True):
                 for _rt in _routes[:12]:
                     _reason = []
                     if _rt["concepts"]:

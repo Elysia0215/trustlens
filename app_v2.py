@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.3"  # 배포 식별용
+APP_BUILD = "2026-06-09.4"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -9798,13 +9798,35 @@ if menu == "지식 라이브러리":
             + (f" · {item.get('score', 0)}점" if item.get('score') else "")
         )
 
-        # 📌 한 줄 핵심
+        # 📌 한 줄 핵심 (AI 요약 우선)
         _one = _note_one_line(item)
         if _one:
             st.markdown(
                 f"<div style='background:#eff6ff;border-left:4px solid #2563eb;border-radius:8px;"
                 f"padding:12px 16px;margin:8px 0;font-size:1.05em;'>📌 {_one}</div>",
                 unsafe_allow_html=True)
+        _ol_label = "🤖 AI로 한 줄 핵심 다시 뽑기" if _one else "🤖 AI로 한 줄 핵심 만들기"
+        if st.button(_ol_label, key="archive_ai_oneline"):
+            _src_txt = (item.get("note") or item.get("original_text") or "").strip()
+            if not _src_txt:
+                st.warning("요약할 본문이 없어요.")
+            else:
+                with st.spinner("AI가 한 줄로 요약 중..."):
+                    try:
+                        _sum = call_groq_simple(
+                            "너는 메모를 딱 한 문장(40자 내외)으로 요약하는 비서야. "
+                            "군더더기·인사말 없이 핵심만, 평서문 한 문장으로만 답해.",
+                            f"다음 메모를 한 문장으로 요약해줘:\n\n{_src_txt[:4000]}")
+                        _sum = _strip_md(_sum).split("\n")[0].strip()[:120]
+                        if _sum and not _sum.startswith("⚠️"):
+                            item["one_line_summary"] = _sum
+                            save_persisted_data()
+                            _flash("AI가 한 줄 핵심을 새로 뽑았어요.")
+                            st.rerun()
+                        else:
+                            st.warning("요약 실패 — 설정에서 Groq API 키를 확인해주세요.")
+                    except Exception as _e:
+                        st.error(f"요약 실패: {_e}")
 
         # 📑 자동 목차 (마크다운 #/## 기준) + 📖 본문 — 노션처럼 가독성 있게
         _body_md = (item.get("note") or "").strip()

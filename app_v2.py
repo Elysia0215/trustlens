@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.21"  # 배포 식별용
+APP_BUILD = "2026-06-09.22"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -9435,12 +9435,37 @@ if menu == "새 엔터티":
                                       help="이미 쓰던 태그를 골라 쓰면 중복이 안 생겨요")
         _wm_new_tags = st.text_input("새 태그 추가 (쉼표 구분)", key="wz_m_tags_new",
                                      placeholder="목록에 없는 태그만. 예: 여행, 맛집")
+        # 📋 템플릿(폼) — 고르고 '채우기' 누르면 본문에 양식이 채워져요
+        _MEMO_TEMPLATES = {
+            "(없음) 빈 메모": "",
+            "🇬🇧 영어 단어": (
+                "## 🔑 Core insight\n(단어) = \n\n"
+                "## 🖼️ Core image\n```\n현재 상태 → 이동 → 도착\n```\n\n"
+                "## 🧠 Native speaker model\n원어민은 이 단어를 볼 때 ___ 를 먼저 떠올려요.\n\n"
+                "## ✅ Meanings\n1. \n2. \n3. \n\n"
+                "## 💬 Examples\n1. \n2. \n3. \n\n"
+                "## ⚠️ Comparison (비슷한 단어)\n\n"
+                "## 📌 One-line memory hook\n"
+            ),
+            "📔 일기": "## 📌 오늘 한 일\n\n## 💡 배운 것\n\n## 🧠 생각 / 아이디어\n",
+            "📝 회의록": "## 📅 일시·참석자\n\n## 🗣️ 논의\n\n## 💡 결정\n\n## ✅ 할 일\n",
+            "🔬 연구노트": "## ❓ 질문\n\n## 🔍 조사한 것\n\n## 💡 인사이트\n\n## ▶️ 다음 단계\n",
+        }
+        _tpl_c1, _tpl_c2 = st.columns([3, 1])
+        with _tpl_c1:
+            _wm_tpl = st.selectbox("📋 템플릿(폼) 선택", list(_MEMO_TEMPLATES.keys()), key="wz_m_tpl")
+        with _tpl_c2:
+            st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+            if st.button("📋 채우기", key="wz_m_tpl_apply", use_container_width=True,
+                         help="선택한 템플릿을 아래 본문에 채워요(기존 내용 덮어씀)"):
+                st.session_state["wz_m_note"] = _MEMO_TEMPLATES[_wm_tpl]
+                st.rerun()
         _wm_note = st.text_area(
             "메모 내용 *",
             key="wz_m_note",
-            height=180,
+            height=220,
             placeholder="## 핵심 정리\n- 항목\n- [ ] 확인할 일\n> 인용이나 참고",
-            help="마크다운을 지원해요. 저장 후 읽기 화면에서 제목/목록/체크박스가 적용돼요.",
+            help="마크다운을 지원해요. 위 📋 템플릿으로 양식을 채울 수 있어요.",
         )
         # 개념 연결: 기존에서 고르거나 + 새로 입력 (태그와 동일 패턴 — 개념이 없어도 막히지 않게)
         _wm_all_cons = [c.get("name") if isinstance(c,dict) else str(c) for c in st.session_state.get("pkm_custom_concepts",[]) if c]

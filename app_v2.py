@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-08.4"  # 배포 식별용
+APP_BUILD = "2026-06-08.5"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -14295,25 +14295,24 @@ if menu == "가이드북":
     _gb_band("STEP 4", "🧭 기능 자세히 보기", "#f97316")
 
     _g0, _g1, _g6, _g2, _g3, _g4, _g5 = st.tabs([
-        "🗺 사용 흐름·활용 레벨",
+        "🗺 사용 흐름",
         "🚀 JIUM이란",
-        "🏠 홈·검색·AI",
-        "🔍 분석·저장하기",
+        "🏠 홈 대시보드",
+        "🔗 링크·글 가져오기",
         "📁 프로젝트·작업",
-        "🧠 지식맵·개념",
-        "🔗 데이터 관리",
+        "🕸️ 지식그래프",
+        "💾 데이터·백업",
     ])
 
     # ─── 탭 0: 사용 흐름 · 활용 레벨 (처음 온 사람을 위한 길잡이) ───
     with _g0:
-        st.markdown("### 🗺 추천 사용 흐름")
+        st.markdown("### 🗺 JIUM의 흐름")
         st.markdown(
             "<div style='background:#eff6ff;border-radius:12px;padding:14px 18px;font-size:1.02em;line-height:2;'>"
-            "✍️ <b>입력</b> &nbsp;→&nbsp; 📅 <b>Daily Note</b> &nbsp;→&nbsp; 📚 <b>지식 아카이브</b> &nbsp;→&nbsp; "
-            "🧠 <b>개념</b> &nbsp;→&nbsp; 🕸 <b>관계</b> &nbsp;→&nbsp; 📁 <b>프로젝트</b> &nbsp;→&nbsp; "
-            "🤖 <b>AI</b> &nbsp;→&nbsp; 📈 <b>성장</b>"
+            "✍️ <b>메모 작성</b> &nbsp;→&nbsp; 🤖 <b>AI가 개념·태그·연결 발견</b> &nbsp;→&nbsp; "
+            "🧠 <b>루미가 의미 설명</b> &nbsp;→&nbsp; 🕸️ <b>지식그래프로 보기</b>"
             "</div>", unsafe_allow_html=True)
-        st.caption("생각을 적고 → 다시 떠올리고 → 연결하고 → 탐색하고 → AI로 확장하는 흐름이에요.")
+        st.caption("당신은 메모만 적으면 돼요. 개념·태그·관계는 AI가 알아서 뽑아 연결하고, 지식그래프로 '내 생각의 연결망'을 보여줘요.")
         st.divider()
 
         st.markdown("### 🌱 초급 — 일단 하루 한 줄부터")
@@ -14451,10 +14450,10 @@ JIUM은 **AI 기반 개인 지식·프로젝트 운영체제(AI Knowledge OS)** 
 """)
         with st.expander("💾 데이터는 어디에 저장되나요?"):
             st.markdown("""
-현재는 **로컬 JSON 파일** (`trustlens_data.json`)에 저장돼요.
-- 앱을 재시작해도 데이터 유지
-- 클라우드 동기화는 추후 Supabase 연동 예정
-- 지금은 파일을 백업해두면 데이터 보존 가능
+이제 **☁️ Supabase 클라우드**에 저장돼요.
+- 앱을 재배포·재시작해도 데이터가 안전하게 유지돼요
+- **⚙️ 설정 → 데이터·백업**에서 언제든 내 PC로 백업(.json) 받을 수 있어요
+- 저장이 클라우드까지 안 가면 화면에 ⚠️ 경고가 떠서 '조용한 손실'을 막아요
 """)
         with st.expander("🤖 분석이 안 되거나 느린 경우?"):
             st.markdown("""
@@ -14991,7 +14990,7 @@ if menu == "패치 노트":
                 "홈이 너무 길고(성장·업적·우주·분석폼) 핵심 행동이 안 보임",
             ],
             "improvement": [
-                "브랜드 TrustLens → JIUM (생각을 잇다 · 세계를 짓다)",
+                "브랜드 새단장: JIUM (생각을 잇다 · 세계를 짓다)",
                 "사이드바를 행동 중심 4그룹으로: 🌍 내 세계 / ✍️ 기록하기 / 🤖 루미 / ⚙️ 설정",
                 "개념·태그·관계·분석 등은 🧪 고급 모드로 숨김(설정에서 켬, 기능은 그대로)",
                 "🏠 대시보드 '오늘의 세계': 메모·프로젝트·할일·개념·발견된 연결 + 핵심 버튼",
@@ -17835,7 +17834,7 @@ with right_col:
     🧠 <b>지식 아카이브 흐름</b><br>
     URL 분석 또는 글 붙여넣기 → 태그 추천 → AI 초안 생성 → 사용자 수정 → 저장 → 태그별 조회<br><br>
     ⚡ 같은 URL은 캐시를 사용해서 API 호출을 줄여요.<br>
-    💾 메모/기록은 trustlens_data.json에 저장돼요.
+    💾 메모/기록은 ☁️ Supabase 클라우드에 자동 저장돼요 (재시작에도 안전).
     </div>
     """, unsafe_allow_html=True)
 

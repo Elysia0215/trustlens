@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.27"  # 배포 식별용
+APP_BUILD = "2026-06-09.28"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -8334,7 +8334,7 @@ def render_project_page():
                         _t["id"] = f"task_{_t.get('title','t')[:8]}_{id(_t)}"
                     _se2 = _SE.get(_t.get("status",""),"⬜")
                     _pe2 = _PE.get(_t.get("priority",""),"⚪")
-                    _tc1, _tc2, _tc3 = st.columns([4, 1, 1])
+                    _tc1, _tc2, _tc3 = st.columns([3, 2, 1])
                     with _tc1:
                         st.markdown(f"{_se2} **{_t.get('title','')}**")
                         st.caption(f"{_pe2} {_t.get('priority','')} · 📅 {_t.get('due_date','—')}")
@@ -10139,24 +10139,94 @@ if menu == "지식 라이브러리":
             with st.container(border=True):
                 render_readable_markdown(_body_md)
 
-        # ✏️ 편집 / 🗑️ 삭제 — 본문 바로 밑(찾기 쉽게)
-        with st.expander("✏️ 편집 / 🗑️ 삭제", expanded=False):
-            original_index = st.session_state.archive_notes.index(item)
+        # ✏️ 편집 — 토글식 패널(리런돼도 안 닫혀서 화면이 위로 안 튐) + 🗑️ 아이콘 삭제
+        original_index = st.session_state.archive_notes.index(item)
+        _nid_edit = item.get("id")
+        _edit_flag = f"editing_note_{_nid_edit}"
+        scroll_anchor("noteedit")   # 📌 편집 위치 앵커 (리런 후 여기로 복원)
+        _ec1, _ec2 = st.columns([5, 1])
+        with _ec1:
+            _is_editing = st.session_state.get(_edit_flag, False)
+            if st.button("✖ 편집 닫기" if _is_editing else "✏️ 편집",
+                         key=f"toggle_edit_{original_index}", use_container_width=True,
+                         type="secondary"):
+                st.session_state[_edit_flag] = not _is_editing
+                request_scroll("noteedit")
+                st.rerun()
+        with _ec2:
+            if st.button("🗑️", key=f"delete_archive_note_{original_index}",
+                         use_container_width=True, help="이 메모 삭제"):
+                delete_archive_note(original_index)
+                st.session_state["archive_open_note_id"] = None
+                st.rerun()
+        if st.session_state.get(_edit_flag):
+          with st.container(border=True):
             title_key = f"archive_note_title_{original_index}"
             edit_key = f"archive_note_{original_index}"
             tags_key = f"archive_note_tags_{original_index}"
             new_tags_key = f"archive_note_new_tags_{original_index}"
             tag_options_for_edit = get_tag_edit_options(item)
 
-            st.text_input("제목 수정", value=item.get("title", ""), key=title_key)
+            st.text_input("제목 수정", value=item.get("title", ""), key=title_key,
+                          help="제목은 아래 💾 수정 저장 시 본문·태그와 함께 저장돼요.")
+
+            # 🏷️ 태그 — 기존 선택/삭제 + 즉시 추가(눈에 바로 보임)
+            st.markdown("**🏷️ 태그**")
             st.multiselect(
                 "기존 태그 선택/삭제", options=tag_options_for_edit,
                 default=[tag for tag in item.get("tags", []) if tag in tag_options_for_edit],
-                key=tags_key, help="기존 기록의 태그를 선택/해제할 수 있어요.")
-            st.text_input("새 태그 추가", placeholder="예: 맛집후보, 재확인필요 (쉼표로 여러 개)",
-                          key=new_tags_key, help="입력 후 아래 저장 버튼을 눌러야 반영돼요.")
-            # ✍️ 2열 편집 — 왼쪽 미리보기 / 오른쪽 수정 (빈 곳 클릭하면 왼쪽 반영)
-            st.caption("✍️ 오른쪽에서 고친 뒤 **빈 곳을 클릭**하면 왼쪽 미리보기에 반영돼요. 최종 반영은 **💾 저장**.")
+                key=tags_key, label_visibility="collapsed",
+                help="선택 해제하면 💾 수정 저장 시 빠져요.")
+            _tg_in, _tg_btn = st.columns([4, 1])
+            with _tg_in:
+                st.text_input("새 태그 추가", placeholder="예: 맛집후보, 재확인필요 (쉼표로 여러 개)",
+                              key=new_tags_key, label_visibility="collapsed")
+            with _tg_btn:
+                if st.button("➕ 태그", key=f"addtag_{original_index}", use_container_width=True):
+                    _raw_new = st.session_state.get(new_tags_key, "") or ""
+                    _adds = [x.strip().replace("#", "") for x in re.split(r"[,\n]", _raw_new) if x.strip()]
+                    if _adds:
+                        item["tags"] = list(dict.fromkeys((item.get("tags") or []) + _adds))
+                        st.session_state[new_tags_key] = ""
+                        save_persisted_data()
+                        _flash(f"태그 {len(_adds)}개 추가했어요.")
+                    request_scroll("noteedit")
+                    st.rerun()
+            if item.get("tags"):
+                st.markdown("".join(
+                    "<span style='display:inline-block;background:#e0f2fe;color:#0369a1;"
+                    "border-radius:999px;padding:2px 10px;margin:2px 4px 2px 0;font-size:0.82rem;'>"
+                    f"#{_t}</span>" for _t in item.get("tags", [])), unsafe_allow_html=True)
+
+            # 🧠 개념 — 태그처럼 선택/삭제 + 즉시 추가
+            st.markdown("**🧠 핵심 개념**")
+            _cur_cons = clean_concept_list(_note_concepts(item))
+            _con_keep = st.multiselect(
+                "개념 선택/삭제", options=_cur_cons, default=_cur_cons,
+                key=f"con_keep_{original_index}", label_visibility="collapsed",
+                help="선택 해제하면 💾 수정 저장 시 빠져요.")
+            _cn_in, _cn_btn = st.columns([4, 1])
+            with _cn_in:
+                st.text_input("새 개념 추가", placeholder="예: 머신러닝, 정규화 (쉼표로 여러 개)",
+                              key=f"con_new_{original_index}", label_visibility="collapsed")
+            with _cn_btn:
+                if st.button("➕ 개념", key=f"addcon_{original_index}", use_container_width=True):
+                    _raw_c = st.session_state.get(f"con_new_{original_index}", "") or ""
+                    _addc = [x.strip().replace("#", "") for x in re.split(r"[,\n]", _raw_c) if x.strip()]
+                    if _addc:
+                        item["concepts"] = list(dict.fromkeys((item.get("concepts") or []) + _addc))
+                        st.session_state[f"con_new_{original_index}"] = ""
+                        save_persisted_data()
+                        _flash(f"개념 {len(_addc)}개 추가했어요.")
+                    request_scroll("noteedit")
+                    st.rerun()
+            if _cur_cons:
+                st.markdown("".join(
+                    "<span style='display:inline-block;background:#ede9fe;color:#6d28d9;"
+                    "border-radius:999px;padding:2px 10px;margin:2px 4px 2px 0;font-size:0.82rem;'>"
+                    f"{concept_emoji(_c)} {_c}</span>" for _c in _cur_cons), unsafe_allow_html=True)
+
+            # 🔠 글씨 크기
             _fs_opts = ["아주 작게", "작게", "보통", "크게", "아주 크게"]
             _fs_cur = get_setting("ui_font_scale") if get_setting("ui_font_scale") in _fs_opts else "보통"
             _fs_new = st.select_slider("🔠 메모 글씨 크기 (5단계)", _fs_opts, value=_fs_cur,
@@ -10165,7 +10235,7 @@ if menu == "지식 라이브러리":
                 _sset = st.session_state.setdefault("app_settings", {})
                 _sset["ui_font_scale"] = _fs_new
                 save_persisted_data()
-                request_scroll("noteedit")   # 슬라이더 리런 후 편집 위치로 스크롤 복원(뒤로가기 방지)
+                request_scroll("noteedit")
             _FS_MAP = {"아주 작게": "0.82", "작게": "0.9", "보통": "1.0", "크게": "1.12", "아주 크게": "1.25"}
             _fz = _FS_MAP.get(_fs_new, "1.0")
             if _fz != "1.0":
@@ -10173,13 +10243,14 @@ if menu == "지식 라이브러리":
                     f"<style>[data-testid='stMarkdownContainer'] p,"
                     f"[data-testid='stMarkdownContainer'] li{{font-size:calc(1rem*{_fz})!important;}}</style>",
                     unsafe_allow_html=True)
-            # 📌 편집 위치 앵커 (리런 후 여기로 스크롤 복원)
-            scroll_anchor("noteedit")
-            # 💾 저장 / 👁 미리보기 버튼 (미리보기/수정 바로 위)
+
+            st.caption("✍️ 오른쪽에서 고친 뒤 **💾 수정 저장**을 누르면 제목·태그·개념·본문이 한 번에 저장돼요.")
+            # 💾 저장 / 👁 미리보기 — 미리보기/수정 바로 위
             _sv_c, _pv_c = st.columns(2)
             with _sv_c:
                 if st.button("💾 수정 저장", key=f"save_archive_note_top_{original_index}",
                              type="primary", use_container_width=True):
+                    item["concepts"] = list(_con_keep)   # 선택 해제한 개념 반영(삭제)
                     update_archive_note_and_tags(original_index, edit_key, tags_key, new_tags_key, title_key)
                     _flash("수정한 메모를 저장했어요.")
                     request_scroll("noteedit")
@@ -10204,16 +10275,6 @@ if menu == "지식 라이브러리":
             fav_label = "⭐ 즐겨찾기 해제" if item.get("favorite", False) else "☆ 즐겨찾기"
             st.button(fav_label, key=f"favorite_archive_note_{original_index}",
                       use_container_width=True, on_click=toggle_archive_favorite, args=(original_index,))
-            if st.button("💾 제목/태그/메모 수정 저장", key=f"save_archive_note_{original_index}",
-                         use_container_width=True):
-                update_archive_note_and_tags(original_index, edit_key, tags_key, new_tags_key, title_key)
-                _flash("수정한 메모를 저장했어요.")
-                st.rerun()
-            if st.button("🗑️ 이 메모 삭제", key=f"delete_archive_note_{original_index}",
-                         use_container_width=True):
-                delete_archive_note(original_index)
-                st.session_state["archive_open_note_id"] = None
-                st.rerun()
 
         # 🧠 핵심 개념 (AI 추출) — 보라 칩. 기존 메모도 표시 시 동사·날짜·메타 필터
         _cons = clean_concept_list(_note_concepts(item))
@@ -13228,7 +13289,7 @@ if menu == "지식 AI":
 
     # 메모 상세에서 넘어온 질문 프리필 (위젯 생성 전에 세팅)
     _pka_pending = st.session_state.pop("pka_pending_q", None)
-    if _pka_pending and not st.session_state.get("pka_query"):
+    if _pka_pending:
         st.session_state["pka_query"] = _pka_pending
     _pka_q = st.text_input("무엇이든 물어보세요", key="pka_query",
                            placeholder="예: 지금까지 조사한 스크린골프 핵심만 정리해줘")

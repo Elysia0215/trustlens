@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.22"  # 배포 식별용
+APP_BUILD = "2026-06-09.23"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -17291,6 +17291,30 @@ def render_home_universe():
                         "</div>", unsafe_allow_html=True)
                 if len(_routes) > 12:
                     st.caption(f"외 {len(_routes) - 12}개 항로가 더 있어요.")
+
+        # 🔗 여러 메모에 걸친 개념 (프로젝트 무관) — 진짜 '공유 개념'을 직접 보여줌
+        _con_notes = {}
+        for _l in _links:
+            _c = canonical_concept(_l.get("concept"))
+            if _c and _l.get("note_id"):
+                _con_notes.setdefault(_c, set()).add(_l.get("note_id"))
+        _shared_con = sorted(((c, ids) for c, ids in _con_notes.items() if len(ids) >= 2),
+                             key=lambda x: -len(x[1]))
+        if _shared_con:
+            with st.expander(f"🔗 여러 메모에 걸친 개념 {len(_shared_con)}개 — 내 생각이 반복되는 지점", expanded=True):
+                _note_title = {n.get("id"): (n.get("title") or "제목 없음") for n in _notes}
+                for _c, _ids in _shared_con[:12]:
+                    _titles = [_note_title.get(i) for i in _ids if _note_title.get(i)]
+                    st.markdown(
+                        f"<div style='padding:6px 0;border-bottom:1px solid #f1f5f9;'>"
+                        f"<b>🧠 {_univ_esc(_c)}</b> "
+                        f"<span style='color:#64748b;font-size:0.85em'>· {len(_ids)}개 메모에서</span>"
+                        f"<div style='color:#475569;font-size:0.84em'>"
+                        + " · ".join(f"「{_univ_esc(str(t)[:16])}」" for t in _titles[:5]) + "</div></div>",
+                        unsafe_allow_html=True)
+        else:
+            st.caption("🔗 아직 여러 메모에 걸친 공유 개념이 없어요. 같은 개념을 다른 메모에도 쓰면 여기에 모여요.")
+
         # 🔧 항로 후보 디버그 — 로컬/배포에서 다르게 보일 때 추적용 (각 행성의 개념·태그 집합)
         with st.expander("🔧 항로 후보 데이터 (디버그)", expanded=False):
             st.caption("각 행성의 개념(canonical)·태그 집합이에요. 두 행성에 같은 항목이 있으면 항로가 그려져요. "

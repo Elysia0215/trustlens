@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-08.5"  # 배포 식별용
+APP_BUILD = "2026-06-09.1"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -9745,11 +9745,23 @@ if menu == "지식 라이브러리":
                 seen.add(cc); out.append(cc)
         return out
 
+    def _strip_md(s):
+        """미리보기용: 마크다운 기호(#, *, >, `, 목록표시 등) 제거해 한 줄 텍스트로."""
+        import re as _re
+        s = str(s or "")
+        s = _re.sub(r'(^|\n)\s{0,3}#{1,6}\s*', ' ', s)      # 제목 #
+        s = _re.sub(r'(^|\n)\s*[-*+]\s+', ' ', s)            # 목록 -, *, +
+        s = _re.sub(r'(^|\n)\s*>\s*', ' ', s)                # 인용 >
+        s = _re.sub(r'[*_`~]', '', s)                        # 강조/코드 기호
+        s = _re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', s)      # 링크 [text](url)→text
+        s = _re.sub(r'\s+', ' ', s).strip()
+        return s
+
     def _note_one_line(n):
         _ol = (n.get("one_line_summary") or "").strip()
         if _ol:
-            return _ol
-        _src = (n.get("summary") or n.get("note") or "").strip()
+            return _strip_md(_ol)
+        _src = _strip_md(n.get("summary") or n.get("note") or "")
         if not _src:
             return ""
         for _sep in ["다.", ".", "\n"]:
@@ -9886,6 +9898,13 @@ if menu == "지식 라이브러리":
                 key=edit_key,
                 help="마크다운을 지원해요. 예: ## 제목, - 목록, - [ ] 체크, **강조**, > 인용"
             )
+            # 👁 실시간 미리보기 — 노션/옵시디언처럼 고치면서 바로 렌더 확인
+            if st.toggle("👁 미리보기 (고치면서 바로 렌더)", value=True, key=f"archive_edit_prev_{original_index}"):
+                st.markdown(
+                    "<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;"
+                    "padding:6px 14px;'>", unsafe_allow_html=True)
+                render_readable_markdown(st.session_state.get(edit_key) or item.get("note", ""))
+                st.markdown("</div>", unsafe_allow_html=True)
             fav_label = "⭐ 즐겨찾기 해제" if item.get("favorite", False) else "☆ 즐겨찾기"
             st.button(fav_label, key=f"favorite_archive_note_{original_index}",
                       use_container_width=True, on_click=toggle_archive_favorite, args=(original_index,))

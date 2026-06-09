@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.11"  # 배포 식별용
+APP_BUILD = "2026-06-09.12"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -4833,14 +4833,28 @@ def extract_concept_nodes(text, tags=None, limit=5):
     from collections import Counter as _CC
     text = str(text or "")
     _nouns = extract_local_concepts(text, tags, limit=40)
+    # 인접 명사 2어절(복합 개념) — 첫 단어에 조사가 없을 때만 묶음 ("클래식 로얄" O / "최지웅 러닝" X)
+    _bigrams = []
+    for _m in re.finditer(r"([가-힣A-Za-z]{2,})\s+([가-힣A-Za-z]{2,})", text):
+        _a_raw, _b_raw = _m.group(1), _m.group(2)
+        if _strip_particle(_a_raw) != _a_raw:   # 첫 단어에 조사 → 복합어 아님
+            continue
+        _a, _b = _a_raw, _strip_particle(_b_raw)
+        if _is_concept_node(_a) and _is_concept_node(_b):
+            _phrase = f"{_a} {_b}"
+            if _phrase not in _bigrams:
+                _bigrams.append(_phrase)
+    _all = _bigrams + _nouns
     _cnt = _CC()
     for _raw in re.findall(r"[A-Za-z]{2,}|[가-힣]{2,12}", text):
         _w = _strip_particle(_raw)
-        if _w in _nouns:
+        if _w in _all:
             _cnt[_w] += 1
     _scored = []
-    for _w in _nouns:
+    for _w in _all:
         _s = 0
+        if " " in _w:
+            _s += 4                      # 복합 개념(2어절) 우대
         if re.fullmatch(r"[A-Za-z]{2,}", _w):
             _s += 3
         if len(_w) >= 3:
@@ -4849,9 +4863,17 @@ def extract_concept_nodes(text, tags=None, limit=5):
             _s += 2
         _scored.append((_s, _w))
     _scored.sort(key=lambda x: -x[0])
-    _picked = [_w for _s, _w in _scored if _s > 0][:limit]
-    if not _picked:
-        _picked = [_w for _s, _w in _scored][:max(1, limit - 2)]
+    _ranked = [_w for _s, _w in _scored if _s > 0] or [_w for _s, _w in _scored]
+    # 복합 개념에 포함된 단일 단어는 제거 (클래식 로얄 ⊃ 클래식)
+    _phrases = [w for w in _ranked if " " in w]
+    _picked = []
+    for _w in _ranked:
+        if " " not in _w and any(_w in _p.split() for _p in _phrases):
+            continue
+        if _w not in _picked:
+            _picked.append(_w)
+        if len(_picked) >= limit:
+            break
     return _picked
 
 
@@ -10060,21 +10082,19 @@ if menu == "지식 라이브러리":
                 key=tags_key, help="기존 기록의 태그를 선택/해제할 수 있어요.")
             st.text_input("새 태그 추가", placeholder="예: 맛집후보, 재확인필요 (쉼표로 여러 개)",
                           key=new_tags_key, help="입력 후 아래 저장 버튼을 눌러야 반영돼요.")
-            # ✍️ 2열 편집 — 왼쪽 미리보기(마크다운 적용) / 오른쪽 수정 (노션·옵시디언식)
-            st.caption("✍️ 오른쪽에서 고친 뒤 **빈 곳을 클릭하거나 ⌘/Ctrl+Enter** 를 누르면 왼쪽 미리보기에 반영돼요. "
-                       "최종 반영은 아래 **💾 저장**을 눌러야 해요.")
-            _ed_prev, _ed_edit = st.columns(2)
-            with _ed_edit:
-                st.markdown("**✏️ 수정**")
-                st.text_area(
-                    "저장된 메모 수정", value=item.get("note", ""), height=420,
-                    key=edit_key, label_visibility="collapsed",
-                    help="마크다운 지원: ## 제목, - 목록, - [ ] 체크, **강조**, > 인용",
-                )
-            with _ed_prev:
-                st.markdown("**👁 미리보기**")
-                with st.container(border=True, height=440):
-                    render_readable_markdown(st.session_state.get(edit_key) or item.get("note", ""))
+            # ✍️ 편집 — 입력창 + [미리보기 갱신] 버튼 + 아래 미리보기 (Streamlit 라이브반영 한계 회피)
+            st.markdown("**✏️ 수정**")
+            st.text_area(
+                "저장된 메모 수정", value=item.get("note", ""), height=300,
+                key=edit_key, label_visibility="collapsed",
+                help="마크다운 지원: ## 제목, - 목록, - [ ] 체크, **강조**, > 인용",
+            )
+            st.caption("✍️ 고친 뒤 아래 **[🔄 미리보기 갱신]** 을 누르면 반영돼요. 최종 저장은 **💾 저장**.")
+            st.button("🔄 미리보기 갱신", key=f"archive_prev_refresh_{original_index}",
+                      help="지금 입력한 내용을 아래 미리보기에 다시 그려요")  # 누르면 리런→미리보기 갱신
+            st.markdown("**👁 미리보기**")
+            with st.container(border=True):
+                render_readable_markdown(st.session_state.get(edit_key) or item.get("note", ""))
             fav_label = "⭐ 즐겨찾기 해제" if item.get("favorite", False) else "☆ 즐겨찾기"
             st.button(fav_label, key=f"favorite_archive_note_{original_index}",
                       use_container_width=True, on_click=toggle_archive_favorite, args=(original_index,))
@@ -10099,6 +10119,26 @@ if menu == "지식 라이브러리":
                 f"margin:3px 4px 3px 0;font-size:0.88rem;font-weight:600;'>{concept_emoji(_c)} {_c}</span>"
                 for _c in _cons)
             st.markdown(_con_chips, unsafe_allow_html=True)
+        else:
+            st.markdown("#### 🧠 핵심 개념")
+            st.caption("아직 추출된 개념이 없어요.")
+        # 🔄 개념 다시 추출 — 옛 엔진으로 저장된 메모를 새 '지식 노드' 엔진으로 재추출
+        if st.button("🔄 개념 다시 추출 (새 엔진)", key="archive_reextract_con"):
+            _nid_rx = item.get("id")
+            _body_rx = " ".join([str(item.get("title", "")), str(item.get("note", "")),
+                                 str(item.get("original_text", ""))])
+            _new_cons = extract_concept_nodes(_body_rx, item.get("tags", []), limit=5)
+            item["concepts"] = _new_cons
+            # 이 메모의 기존 개념 링크 제거 후 새로 연결
+            _now_rx = datetime.now().strftime("%Y-%m-%d %H:%M")
+            st.session_state["note_concept_links"] = [
+                l for l in st.session_state.get("note_concept_links", []) if l.get("note_id") != _nid_rx]
+            for _c_rx in _new_cons:
+                st.session_state["note_concept_links"].append(
+                    {"note_id": _nid_rx, "concept": _c_rx, "linked_at": _now_rx})
+            save_persisted_data()
+            _flash(f"개념을 다시 추출했어요: {', '.join(_new_cons) or '(없음)'}")
+            st.rerun()
 
         # 🏷️ 태그 — 회색/파랑 칩 (스티커형)
         _tags_list = [str(_t).replace("#", "").strip() for _t in (item.get("tags") or []) if str(_t).strip()]

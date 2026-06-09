@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.28"  # 배포 식별용
+APP_BUILD = "2026-06-09.29"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -12209,7 +12209,16 @@ if menu == "데이터 관리":
                 _dismissed = set(st.session_state.setdefault("merge_dismissed", []))
 
                 # 후보 쌍 탐지 (조사 정규화 + 유사도)
-                _sorted_cons = sorted(_all_con_names_full)
+                # 날짜/숫자형 개념은 병합 후보에서 제외 (2026-06-04 같은 건 개념이 아님)
+                def _is_dateish_concept(_x):
+                    _x = str(_x).strip()
+                    if _is_date_or_num(_x):
+                        return True
+                    # YYYY, YYYY-MM, YYYY.MM.DD, MM/DD, 2026년 6월 등
+                    return bool(re.fullmatch(
+                        r"\d{4}|\d{4}[-/.]\d{1,2}([-/.]\d{1,2})?|\d{1,2}[-/.]\d{1,2}|"
+                        r"\d{4}년(\s?\d{1,2}월)?(\s?\d{1,2}일)?|\d{1,2}월(\s?\d{1,2}일)?|\d{1,2}일", _x))
+                _sorted_cons = sorted(c for c in _all_con_names_full if not _is_dateish_concept(c))
                 _pairs6 = []  # (a, b, ratio, grade, reason)
                 for _i6, _ca in enumerate(_sorted_cons):
                     for _cb in _sorted_cons[_i6 + 1:]:

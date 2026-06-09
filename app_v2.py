@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.25"  # 배포 식별용
+APP_BUILD = "2026-06-09.26"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -630,6 +630,33 @@ def get_setting(key, default=None):
     if key in _s:
         return _s[key]
     return APP_SETTINGS_DEFAULTS.get(key, default)
+
+
+# ── 스크롤 복원 (JS 앵커) — 버튼 클릭 후 맨 위로 튀지 않게. (정의를 위로: 메모 편집 등에서 먼저 호출됨) ──
+def scroll_anchor(_name):
+    """이 위치에 보이지 않는 앵커를 심어둠. request_scroll(_name) 후 여기로 되돌아옴."""
+    st.markdown(f"<span id='tl-anchor-{_name}'></span>", unsafe_allow_html=True)
+
+def request_scroll(_name):
+    """다음 rerun 후 tl-anchor-{_name} 위치로 스크롤 복원을 예약."""
+    st.session_state["_scroll_to"] = _name
+
+def apply_scroll_restore():
+    """예약된 스크롤이 있으면 JS로 해당 앵커로 이동(부모 문서)."""
+    _t = st.session_state.pop("_scroll_to", None)
+    if not _t:
+        return
+    try:
+        import streamlit.components.v1 as _stc
+        _stc.html(
+            "<script>(function(){var n=0;var id='tl-anchor-" + str(_t) + "';"
+            "function go(){n++;try{var d=window.parent.document;"
+            "var el=d.getElementById(id);"
+            "if(el){el.scrollIntoView({block:'start',behavior:'auto'});}}catch(e){}"
+            "if(n<25){setTimeout(go,80);}}go();})();</script>",
+            height=0)
+    except Exception:
+        pass
 
 
 # ── 공통 액션 버튼 시스템 — "보기 → 다음 행동" 통일 ──────────────
@@ -17033,34 +17060,6 @@ def render_home_mini_knowledge_graph(theme_key):
         plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
     )
     st.plotly_chart(_fig, use_container_width=True, config={"displayModeBar": False})
-
-
-# ── 스크롤 복원 (JS 앵커) — 버튼 클릭 후 맨 위로 튀지 않게. fragment 미사용, rerun 유지 ──
-def scroll_anchor(_name):
-    """이 위치에 보이지 않는 앵커를 심어둠. request_scroll(_name) 후 여기로 되돌아옴."""
-    st.markdown(f"<span id='tl-anchor-{_name}'></span>", unsafe_allow_html=True)
-
-def request_scroll(_name):
-    """다음 rerun 후 tl-anchor-{_name} 위치로 스크롤 복원을 예약."""
-    st.session_state["_scroll_to"] = _name
-
-def apply_scroll_restore():
-    """예약된 스크롤이 있으면 JS로 해당 앵커로 이동(부모 문서).
-    Streamlit이 rerun 후 늦게 맨 위로 스크롤하므로 재시도 루프로 덮어씀."""
-    _t = st.session_state.pop("_scroll_to", None)
-    if not _t:
-        return
-    try:
-        import streamlit.components.v1 as _stc
-        _stc.html(
-            "<script>(function(){var n=0;var id='tl-anchor-" + str(_t) + "';"
-            "function go(){n++;try{var d=window.parent.document;"
-            "var el=d.getElementById(id);"
-            "if(el){el.scrollIntoView({block:'start',behavior:'auto'});}}catch(e){}"
-            "if(n<25){setTimeout(go,80);}}go();})();</script>",
-            height=0)
-    except Exception:
-        pass
 
 
 def render_home_universe():

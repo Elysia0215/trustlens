@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.14"  # 배포 식별용
+APP_BUILD = "2026-06-09.15"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -14110,18 +14110,21 @@ if menu == "데일리 노트":
                                      help=(f"메모 {_cnt}개" if _cnt else "메모 없음")):
                             st.session_state["_dn_pending"] = _dn_date(_cy, _cm, _day)
                             st.rerun()
-                        # 숫자 아래 점(메모 수) — 메모 있는 날만 초록 점
+                        # 숫자 아래 점 — 큰 점●=5개, 작은 점•=1개 (메모 많을수록 점 진하게/많이)
                         if _cnt:
-                            _dots = "●" * min(_cnt, 4) + ("⁺" if _cnt > 4 else "")
+                            _big = _cnt // 5
+                            _small = _cnt % 5
+                            _dots = (f"<span style='font-size:0.95em'>{'●' * _big}</span>"
+                                     f"<span style='font-size:0.6em'>{'•' * _small}</span>")
                             st.markdown(
-                                f"<div style='text-align:center;color:#22c55e;"
-                                f"font-size:0.55em;line-height:1;margin-top:-6px;'>{_dots}</div>",
+                                f"<div style='text-align:center;color:#2563eb;"
+                                f"line-height:1;margin-top:-6px;'>{_dots}</div>",
                                 unsafe_allow_html=True)
                         else:
                             st.markdown(
                                 "<div style='height:8px;margin-top:-6px;'></div>",
                                 unsafe_allow_html=True)
-        st.caption("● = 그날 메모 수. 날짜를 누르면 그날 기록으로 이동해요.")
+        st.caption("점 = 그날 메모 수 (큰 점 ● = 5개, 작은 점 • = 1개). 날짜를 누르면 그날 기록으로 이동해요.")
 
     _dn_ctx, _dn_left, _dn_right = st.columns([1, 1.6, 1.1])
 

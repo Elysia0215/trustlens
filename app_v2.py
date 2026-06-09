@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.5"  # 배포 식별용
+APP_BUILD = "2026-06-09.6"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -9869,11 +9869,27 @@ if menu == "지식 라이브러리":
             st.markdown("#### 📖 본문")
             render_readable_markdown(_body_md)
 
-        # 🧠 핵심 개념
+        # 🧠 핵심 개념 (AI 추출) — 보라 칩
         _cons = _note_concepts(item)
         if _cons:
             st.markdown("#### 🧠 핵심 개념")
-            st.markdown(" ".join(f"`{c}`" for c in _cons), unsafe_allow_html=True)
+            _con_chips = "".join(
+                f"<span style='display:inline-block;background:#ede9fe;color:#6d28d9;"
+                f"border:1px solid #ddd6fe;border-radius:999px;padding:3px 12px;"
+                f"margin:3px 4px 3px 0;font-size:0.88rem;font-weight:600;'>🧠 {_c}</span>"
+                for _c in _cons)
+            st.markdown(_con_chips, unsafe_allow_html=True)
+
+        # 🏷️ 태그 — 회색/파랑 칩 (스티커형)
+        _tags_list = [str(_t).replace("#", "").strip() for _t in (item.get("tags") or []) if str(_t).strip()]
+        if _tags_list:
+            st.markdown("#### 🏷️ 태그")
+            _tag_chips = "".join(
+                f"<span style='display:inline-block;background:#eff6ff;color:#1d4ed8;"
+                f"border:1px solid #bfdbfe;border-radius:999px;padding:3px 12px;"
+                f"margin:3px 4px 3px 0;font-size:0.88rem;font-weight:600;'>#{_t}</span>"
+                for _t in _tags_list)
+            st.markdown(_tag_chips, unsafe_allow_html=True)
 
         # 🔗 연결된 지식
         st.markdown("#### 🔗 연결된 지식")
@@ -9959,11 +9975,8 @@ if menu == "지식 라이브러리":
                 )
             with _ed_prev:
                 st.markdown("**👁 미리보기**")
-                st.markdown(
-                    "<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;"
-                    "padding:6px 14px;min-height:420px;'>", unsafe_allow_html=True)
-                render_readable_markdown(st.session_state.get(edit_key) or item.get("note", ""))
-                st.markdown("</div>", unsafe_allow_html=True)
+                with st.container(border=True, height=440):
+                    render_readable_markdown(st.session_state.get(edit_key) or item.get("note", ""))
             fav_label = "⭐ 즐겨찾기 해제" if item.get("favorite", False) else "☆ 즐겨찾기"
             st.button(fav_label, key=f"favorite_archive_note_{original_index}",
                       use_container_width=True, on_click=toggle_archive_favorite, args=(original_index,))

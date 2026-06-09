@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.6"  # 배포 식별용
+APP_BUILD = "2026-06-09.7"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -9869,6 +9869,50 @@ if menu == "지식 라이브러리":
             st.markdown("#### 📖 본문")
             render_readable_markdown(_body_md)
 
+        # ✏️ 편집 / 🗑️ 삭제 — 본문 바로 밑(찾기 쉽게)
+        with st.expander("✏️ 편집 / 🗑️ 삭제", expanded=False):
+            original_index = st.session_state.archive_notes.index(item)
+            title_key = f"archive_note_title_{original_index}"
+            edit_key = f"archive_note_{original_index}"
+            tags_key = f"archive_note_tags_{original_index}"
+            new_tags_key = f"archive_note_new_tags_{original_index}"
+            tag_options_for_edit = get_tag_edit_options(item)
+
+            st.text_input("제목 수정", value=item.get("title", ""), key=title_key)
+            st.multiselect(
+                "기존 태그 선택/삭제", options=tag_options_for_edit,
+                default=[tag for tag in item.get("tags", []) if tag in tag_options_for_edit],
+                key=tags_key, help="기존 기록의 태그를 선택/해제할 수 있어요.")
+            st.text_input("새 태그 추가", placeholder="예: 맛집후보, 재확인필요 (쉼표로 여러 개)",
+                          key=new_tags_key, help="입력 후 아래 저장 버튼을 눌러야 반영돼요.")
+            # ✍️ 2열 편집 — 왼쪽 미리보기(마크다운 적용) / 오른쪽 수정 (노션·옵시디언식)
+            st.caption("✍️ 오른쪽에서 고치면, 왼쪽 미리보기에 마크다운이 적용돼요. (입력 후 빈 곳 클릭하면 갱신)")
+            _ed_prev, _ed_edit = st.columns(2)
+            with _ed_edit:
+                st.markdown("**✏️ 수정**")
+                st.text_area(
+                    "저장된 메모 수정", value=item.get("note", ""), height=420,
+                    key=edit_key, label_visibility="collapsed",
+                    help="마크다운 지원: ## 제목, - 목록, - [ ] 체크, **강조**, > 인용",
+                )
+            with _ed_prev:
+                st.markdown("**👁 미리보기**")
+                with st.container(border=True, height=440):
+                    render_readable_markdown(st.session_state.get(edit_key) or item.get("note", ""))
+            fav_label = "⭐ 즐겨찾기 해제" if item.get("favorite", False) else "☆ 즐겨찾기"
+            st.button(fav_label, key=f"favorite_archive_note_{original_index}",
+                      use_container_width=True, on_click=toggle_archive_favorite, args=(original_index,))
+            if st.button("💾 제목/태그/메모 수정 저장", key=f"save_archive_note_{original_index}",
+                         use_container_width=True):
+                update_archive_note_and_tags(original_index, edit_key, tags_key, new_tags_key, title_key)
+                _flash("수정한 메모를 저장했어요.")
+                st.rerun()
+            if st.button("🗑️ 이 메모 삭제", key=f"delete_archive_note_{original_index}",
+                         use_container_width=True):
+                delete_archive_note(original_index)
+                st.session_state["archive_open_note_id"] = None
+                st.rerun()
+
         # 🧠 핵심 개념 (AI 추출) — 보라 칩
         _cons = _note_concepts(item)
         if _cons:
@@ -9947,49 +9991,6 @@ if menu == "지식 라이브러리":
             st.query_params["page"] = "ai"
             st.rerun()
 
-        # ✏️ 편집 / 🗑️ 삭제
-        with st.expander("✏️ 편집 / 🗑️ 삭제", expanded=False):
-            original_index = st.session_state.archive_notes.index(item)
-            title_key = f"archive_note_title_{original_index}"
-            edit_key = f"archive_note_{original_index}"
-            tags_key = f"archive_note_tags_{original_index}"
-            new_tags_key = f"archive_note_new_tags_{original_index}"
-            tag_options_for_edit = get_tag_edit_options(item)
-
-            st.text_input("제목 수정", value=item.get("title", ""), key=title_key)
-            st.multiselect(
-                "기존 태그 선택/삭제", options=tag_options_for_edit,
-                default=[tag for tag in item.get("tags", []) if tag in tag_options_for_edit],
-                key=tags_key, help="기존 기록의 태그를 선택/해제할 수 있어요.")
-            st.text_input("새 태그 추가", placeholder="예: 맛집후보, 재확인필요 (쉼표로 여러 개)",
-                          key=new_tags_key, help="입력 후 아래 저장 버튼을 눌러야 반영돼요.")
-            # ✍️ 2열 편집 — 왼쪽 미리보기(마크다운 적용) / 오른쪽 수정 (노션·옵시디언식)
-            st.caption("✍️ 오른쪽에서 고치면, 왼쪽 미리보기에 마크다운이 적용돼요. (입력 후 빈 곳 클릭하면 갱신)")
-            _ed_prev, _ed_edit = st.columns(2)
-            with _ed_edit:
-                st.markdown("**✏️ 수정**")
-                st.text_area(
-                    "저장된 메모 수정", value=item.get("note", ""), height=420,
-                    key=edit_key, label_visibility="collapsed",
-                    help="마크다운 지원: ## 제목, - 목록, - [ ] 체크, **강조**, > 인용",
-                )
-            with _ed_prev:
-                st.markdown("**👁 미리보기**")
-                with st.container(border=True, height=440):
-                    render_readable_markdown(st.session_state.get(edit_key) or item.get("note", ""))
-            fav_label = "⭐ 즐겨찾기 해제" if item.get("favorite", False) else "☆ 즐겨찾기"
-            st.button(fav_label, key=f"favorite_archive_note_{original_index}",
-                      use_container_width=True, on_click=toggle_archive_favorite, args=(original_index,))
-            if st.button("💾 제목/태그/메모 수정 저장", key=f"save_archive_note_{original_index}",
-                         use_container_width=True):
-                update_archive_note_and_tags(original_index, edit_key, tags_key, new_tags_key, title_key)
-                _flash("수정한 메모를 저장했어요.")
-                st.rerun()
-            if st.button("🗑️ 이 메모 삭제", key=f"delete_archive_note_{original_index}",
-                         use_container_width=True):
-                delete_archive_note(original_index)
-                st.session_state["archive_open_note_id"] = None
-                st.rerun()
         st.stop()
 
     # ════════════════ 카드 목록 모드 ════════════════

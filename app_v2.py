@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.9"  # 배포 식별용
+APP_BUILD = "2026-06-09.10"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -842,6 +842,10 @@ st.markdown("""
     border-radius: 0 10px 10px 0 !important;
     margin: 22px 0 10px !important;
 }
+/* 마크다운 제목 글씨가 너무 크지 않게 (모바일 가독성) */
+[data-testid="stMarkdownContainer"] h2 { font-size: 1.45rem !important; }
+[data-testid="stMarkdownContainer"] h3 { font-size: 1.2rem !important; }
+[data-testid="stMarkdownContainer"] h4 { font-size: 1.05rem !important; }
 /* 카드/컨테이너 안의 헤더는 띠 과하지 않게 살짝만 */
 [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stMarkdownContainer"] h3,
 [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stMarkdownContainer"] h4 {
@@ -1918,6 +1922,14 @@ init_state()
 normalize_custom_concepts()
 sync_legacy_data_to_entities()
 hydrate_last_result_from_cache()
+
+# 🔠 설정의 '글자 크기'를 실제 적용 (설정 → 🎨 화면 → 글자 크기)
+_FONT_SCALE = {"작게": "0.9", "보통": "1.0", "크게": "1.15"}.get(get_setting("ui_font_scale"), "1.0")
+if _FONT_SCALE != "1.0":
+    st.markdown(
+        f"<style>[data-testid='stMarkdownContainer'] p,"
+        f"[data-testid='stMarkdownContainer'] li{{font-size:calc(1rem*{_FONT_SCALE})!important;}}</style>",
+        unsafe_allow_html=True)
 
 # ⚠️ 직전 저장이 클라우드까지 못 갔으면 모든 화면 상단에 경고 (조용한 손실 방지)
 if st.session_state.get("_cloud_save_failed"):
@@ -4742,13 +4754,14 @@ def _is_date_or_num(w):
     return bool(re.fullmatch(r"\d{2,4}[-/.]\d{1,2}([-/.]\d{1,2})?", w))
 
 def _is_concept_node(w):
-    """명사/고유명사스러운 '지식 노드'만 통과 (동사·날짜·메타 제외)."""
+    """명사/고유명사스러운 '지식 노드'만 통과 (동사·날짜·메타·일반어 제외).
+    기존 태그/개념에 쓰던 _GENERIC_CONCEPTS도 함께 재사용한다."""
     w = w.strip()
     if len(w) < 2:
         return False
     if _is_date_or_num(w):
         return False
-    if w in _META_WORDS or w in _VERB_STOP:
+    if w in _META_WORDS or w in _VERB_STOP or w in _GENERIC_CONCEPTS:
         return False
     if re.fullmatch(r"[A-Za-z]{2,}", w):   # 영문 약어/용어는 통과
         return True
@@ -9898,9 +9911,38 @@ if menu == "지식 라이브러리":
     elif _open_note is not None:
         item = _open_note
         _icon, _label = _note_meta(item)
+        # 미해결 수정 감지 (편집창 값 vs 저장된 본문)
+        _oi_top = st.session_state.archive_notes.index(item)
+        _ekey_top = f"archive_note_{_oi_top}"
+        _has_unsaved = (_ekey_top in st.session_state
+                        and st.session_state.get(_ekey_top, "") != (item.get("note", "") or ""))
         if st.button("← 목록으로", key="archive_back"):
-            st.session_state["archive_open_note_id"] = None
-            st.rerun()
+            if _has_unsaved:
+                st.session_state["archive_confirm_leave"] = True
+            else:
+                st.session_state["archive_open_note_id"] = None
+                st.rerun()
+        if st.session_state.get("archive_confirm_leave"):
+            st.warning("⚠️ **저장 안 된 수정이 있어요.** 저장하시겠어요?")
+            _cl1, _cl2, _cl3 = st.columns(3)
+            with _cl1:
+                if st.button("💾 저장하고 나가기", key="arc_save_leave", type="primary", use_container_width=True):
+                    item["note"] = st.session_state.get(_ekey_top, item.get("note", ""))
+                    save_persisted_data()
+                    st.session_state["archive_confirm_leave"] = False
+                    st.session_state["archive_open_note_id"] = None
+                    st.rerun()
+            with _cl2:
+                if st.button("🚪 저장 안 하고 나가기", key="arc_discard_leave", use_container_width=True):
+                    st.session_state["archive_confirm_leave"] = False
+                    st.session_state["archive_open_note_id"] = None
+                    st.rerun()
+            with _cl3:
+                if st.button("✖ 취소(계속 수정)", key="arc_cancel_leave", use_container_width=True):
+                    st.session_state["archive_confirm_leave"] = False
+                    st.rerun()
+        if _has_unsaved and not st.session_state.get("archive_confirm_leave"):
+            st.caption("✍️ 저장 안 된 수정이 있어요 — 아래 편집에서 **💾 저장**을 눌러주세요.")
 
         _crumb = _crumb_of(item)
         st.markdown(f"## {_icon} {item.get('title', '제목 없음')}")
@@ -9981,7 +10023,8 @@ if menu == "지식 라이브러리":
             st.text_input("새 태그 추가", placeholder="예: 맛집후보, 재확인필요 (쉼표로 여러 개)",
                           key=new_tags_key, help="입력 후 아래 저장 버튼을 눌러야 반영돼요.")
             # ✍️ 2열 편집 — 왼쪽 미리보기(마크다운 적용) / 오른쪽 수정 (노션·옵시디언식)
-            st.caption("✍️ 오른쪽에서 고치면, 왼쪽 미리보기에 마크다운이 적용돼요. (입력 후 빈 곳 클릭하면 갱신)")
+            st.caption("✍️ 오른쪽에서 고친 뒤 **빈 곳을 클릭하거나 ⌘/Ctrl+Enter** 를 누르면 왼쪽 미리보기에 반영돼요. "
+                       "최종 반영은 아래 **💾 저장**을 눌러야 해요.")
             _ed_prev, _ed_edit = st.columns(2)
             with _ed_edit:
                 st.markdown("**✏️ 수정**")
@@ -14150,7 +14193,7 @@ if menu == "설정":
         st.markdown("#### 🎨 화면")
         st.caption("🔜 카드 밀도·글자 크기·애니메이션은 지금은 **저장만** 돼요(곧 화면에 반영).")
         _seg("카드 밀도 🔜", "ui_density", ["여유", "보통", "촘촘"])
-        _seg("글자 크기 🔜", "ui_font_scale", ["작게", "보통", "크게"])
+        _seg("글자 크기", "ui_font_scale", ["작게", "보통", "크게"])
         _tog("✨ 애니메이션 🔜", "ui_animations", help="성장 연출·전환 애니메이션 (곧 적용)")
         st.caption("라이트/다크 등 색 테마는 우측 상단 ⋮ → Settings(Streamlit) 또는 .streamlit/config.toml에서 바꿔요.")
 

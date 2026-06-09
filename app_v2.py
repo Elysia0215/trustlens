@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.7"  # 배포 식별용
+APP_BUILD = "2026-06-09.8"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -852,6 +852,14 @@ st.markdown("""
     border-top: 2px solid #e2e8f0 !important;
 }
 
+/* 🔘 토글: 꺼졌을 때도 그림자/테두리로 보이게 */
+div[data-testid="stToggle"] [role="switch"],
+label[data-baseweb="checkbox"] div[role="switch"],
+[data-baseweb="checkbox"] > div:first-of-type {
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.18) !important;
+    border: 1px solid #cbd5e1 !important;
+}
+
 /* ── 메인 텍스트 색상 보장 (배포 환경 CSS 변수 미지원 대비) ── */
 .main, .main .block-container,
 .main .block-container p,
@@ -1627,6 +1635,20 @@ button[data-testid="collapsedControl"],
   </div>
 </div>
 <div style="height:8px"></div>""", unsafe_allow_html=True)
+
+    # ─── 🔍 전체 검색 (메모·프로젝트·작업·개념 등 모든 데이터) ───
+    _gs_c1, _gs_c2 = st.columns([4, 1])
+    with _gs_c1:
+        _gs_q = st.text_input("전체 검색", key="sidebar_global_q",
+                              placeholder="🔍 전체 검색 (메모·프로젝트·작업…)",
+                              label_visibility="collapsed")
+    with _gs_c2:
+        _gs_go = st.button("🔍", key="sidebar_global_go", use_container_width=True)
+    if _gs_go and (_gs_q or "").strip():
+        st.session_state["us_query"] = _gs_q.strip()
+        st.query_params["page"] = "search"
+        st.rerun()
+    st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
 
     # ─── 네비게이션 (details/summary 기반 — 새로고침 없음) ───
     _nav_html_parts = []

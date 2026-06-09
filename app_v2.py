@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.12"  # 배포 식별용
+APP_BUILD = "2026-06-09.13"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -960,6 +960,9 @@ section[data-testid="stSidebar"] .tl-nav-item.active * {
 /* 브랜드 */
 section[data-testid="stSidebar"] .tl-brand-name { color: #ffffff !important; }
 section[data-testid="stSidebar"] .tl-brand-sub  { color: rgba(255,255,255,0.5) !important; }
+/* 사이드바 입력칸: 흰 배경에 흰 글자 안 보이던 문제 → 글자 진하게 */
+section[data-testid="stSidebar"] input { color: #1e293b !important; -webkit-text-fill-color: #1e293b !important; }
+section[data-testid="stSidebar"] input::placeholder { color: #94a3b8 !important; -webkit-text-fill-color: #94a3b8 !important; }
 
 /* caption / divider */
 section[data-testid="stSidebar"] .stCaption,
@@ -10090,8 +10093,20 @@ if menu == "지식 라이브러리":
                 help="마크다운 지원: ## 제목, - 목록, - [ ] 체크, **강조**, > 인용",
             )
             st.caption("✍️ 고친 뒤 아래 **[🔄 미리보기 갱신]** 을 누르면 반영돼요. 최종 저장은 **💾 저장**.")
-            st.button("🔄 미리보기 갱신", key=f"archive_prev_refresh_{original_index}",
-                      help="지금 입력한 내용을 아래 미리보기에 다시 그려요")  # 누르면 리런→미리보기 갱신
+            _ref_c, _fs_c = st.columns([1, 1])
+            with _ref_c:
+                st.button("🔄 미리보기 갱신", key=f"archive_prev_refresh_{original_index}",
+                          use_container_width=True, help="지금 입력한 내용을 아래 미리보기에 다시 그려요")
+            with _fs_c:
+                _fs_opts = ["작게", "보통", "크게"]
+                _fs_cur = get_setting("ui_font_scale") if get_setting("ui_font_scale") in _fs_opts else "보통"
+                _fs_new = st.select_slider("🔠 메모 글씨 크기", _fs_opts, value=_fs_cur,
+                                           key=f"edit_font_{original_index}", label_visibility="collapsed")
+                if _fs_new != _fs_cur:
+                    _sset = st.session_state.setdefault("app_settings", {})
+                    _sset["ui_font_scale"] = _fs_new
+                    save_persisted_data()
+                    st.rerun()
             st.markdown("**👁 미리보기**")
             with st.container(border=True):
                 render_readable_markdown(st.session_state.get(edit_key) or item.get("note", ""))
@@ -12933,10 +12948,10 @@ if menu == "통합 검색":
                         with _bcols[0]:
                             if st.button("📂 열기", key=f"{_kbase}_open", use_container_width=True):
                                 if cat in ("메모", "연구노트"):
-                                    _idx = next((i for i, x in enumerate(st.session_state.get("archive_notes", [])) if x is _raw), None)
-                                    if _idx is not None:
-                                        st.session_state["_archive_note_open_idx"] = _idx
+                                    # 지식 라이브러리는 archive_open_note_id(노트 id)로 상세를 연다
+                                    st.session_state["archive_open_note_id"] = _raw.get("id") if isinstance(_raw, dict) else None
                                     st.query_params["page"] = "archive"
+                                    st.rerun()
                                 elif cat == "분석":
                                     _idx = next((i for i, x in enumerate(st.session_state.get("saved_analyses", [])) if x is _raw), None)
                                     if _idx is not None:

@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.18"  # 배포 식별용
+APP_BUILD = "2026-06-09.19"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -14132,11 +14132,8 @@ if menu == "데일리 노트":
                                 unsafe_allow_html=True)
         st.caption("점 = 그날 메모 수 (큰 점 ● = 5개, 작은 점 • = 1개). 날짜를 누르면 그날 기록으로 이동해요.")
 
-    _dn_ctx, _dn_left, _dn_right = st.columns([1, 1.6, 1.1])
-
-    # ── 좌측: 최근 기억을 떠올리게 하는 컨텍스트 레일 (회상용 — 통계/관리 아님) ──
-    with _dn_ctx:
-        st.markdown("##### 🧭 최근 컨텍스트")
+    # 🧭 최근 컨텍스트 — 월간 캘린더처럼 위에 토글로 (메모 쓰기 옆 컬럼이 아님)
+    if st.toggle("🧭 최근 컨텍스트 (펼치기)", value=False, key="dn_show_ctx"):
         st.caption("뭘 적을지 막힐 때, 최근 기록을 떠올려요.")
 
         _ctx_notes = sorted(st.session_state.get("archive_notes", []),
@@ -14175,6 +14172,7 @@ if menu == "데일리 노트":
         st.markdown("**✅ 최근 작업**")
         st.markdown("\n".join(f"- {t.get('title', '')}" for t in _ctx_tasks) if _ctx_tasks else "_아직 없어요._")
 
+    _dn_left, _dn_right = st.columns([1.6, 1.1])
     # ── 가운데: 입력 ──
     with _dn_left:
         st.markdown(f"#### ✍️ {_dn_str} 메모 쓰기")

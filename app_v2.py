@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.26"  # 배포 식별용
+APP_BUILD = "2026-06-09.27"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -4763,7 +4763,12 @@ _META_WORDS = {"데일리노트", "데일리", "노트", "메모", "일기", "�
 _VERB_STOP = {"그리고", "하지만", "그래서", "그러나", "또한", "있는", "없는", "있다", "없다",
               "같다", "같아", "된다", "한다", "했다", "갔다", "왔다", "봤다", "였다", "이다",
               "배운", "했던", "하는", "되는", "관련", "확인", "필요", "분석", "자료", "위해",
-              "통해", "대한", "대해", "에서", "에게", "정도", "경우", "다양", "여러", "모든"}
+              "통해", "대한", "대해", "에서", "에게", "정도", "경우", "다양", "여러", "모든",
+              # 부사·지시어·연결어 (산문에서 fragment로 잘못 잡히던 것)
+              "어떤", "훨씬", "로만", "매우", "정말", "그냥", "원래", "점점", "아주", "너무",
+              "더욱", "가장", "먼저", "예를", "예시", "오히려", "바로", "이런", "저런", "그런",
+              "이렇게", "그렇게", "저렇게", "보다", "처럼", "다시", "계속", "조금", "많이",
+              "들어", "외우는데", "넓어요", "움직여서", "느낌", "사람"}
 
 def _strip_particle(w):
     for _p in _KO_PARTICLES:
@@ -4774,9 +4779,13 @@ def _strip_particle(w):
 def _is_verbish(w):
     if w in _VERB_STOP:
         return True
-    # 동사/형용사 어미로 끝나면 제외 (다/했/었/았/음/함/됨 등)
-    return (w.endswith("다") or w.endswith("했") or w.endswith("었") or w.endswith("았")
-            or w.endswith("음") or w.endswith("함") or w.endswith("됨") or w.endswith("는"))
+    # 동사/형용사/연결어 어미로 끝나면 제외
+    for _suf in ("다", "했", "었", "았", "음", "함", "됨", "는", "는데", "어요", "아요",
+                 "워요", "여요", "면서", "으면", "지만", "거나", "든지", "워", "해서", "하고",
+                 "히", "면", "며", "서"):   # 부사(단순히)·연결어미(쓰면/하며/들어서)
+        if w.endswith(_suf):
+            return True
+    return False
 
 def _is_date_or_num(w):
     if w.isdigit():
@@ -4862,10 +4871,11 @@ def extract_concept_nodes(text, tags=None, limit=5):
     같은 명사 엔진을 쓰되 높은 문턱: ①영문 용어 ②문서 내 2회+ 반복 ③고유명사스러움(길이3+)."""
     from collections import Counter as _CC
     text = str(text or "")
+    _tagset = {str(t).replace("#", "").strip().lower() for t in (tags or []) if str(t).strip()}
     _nouns = extract_local_concepts(text, tags, limit=40)
     # 인접 명사 2어절(복합 개념) — 첫 단어에 조사가 없을 때만 묶음 ("클래식 로얄" O / "최지웅 러닝" X)
     _bigrams = []
-    for _m in re.finditer(r"([가-힣A-Za-z]{2,})\s+([가-힣A-Za-z]{2,})", text):
+    for _m in re.finditer(r"([가-힣]{2,})\s+([가-힣]{2,})", text):   # 복합 개념은 한글만 (영어 산문 인접어 오탐 방지)
         _a_raw, _b_raw = _m.group(1), _m.group(2)
         if _strip_particle(_a_raw) != _a_raw:   # 첫 단어에 조사 → 복합어 아님
             continue
@@ -4874,6 +4884,8 @@ def extract_concept_nodes(text, tags=None, limit=5):
             _phrase = f"{_a} {_b}"
             if _phrase not in _bigrams:
                 _bigrams.append(_phrase)
+    # 단일 명사도 노드 자격 검사를 거치게 함 (어떤/단순히/부사 등 잡어 제거)
+    _nouns = [_n for _n in _nouns if (" " in _n) or _is_concept_node(_strip_particle(str(_n)))]
     _all = _bigrams + _nouns
     _cnt = _CC()
     for _raw in re.findall(r"[A-Za-z]{2,}|[가-힣]{2,12}", text):
@@ -4883,17 +4895,23 @@ def extract_concept_nodes(text, tags=None, limit=5):
     _scored = []
     for _w in _all:
         _s = 0
-        if " " in _w:
-            _s += 4                      # 복합 개념(2어절) 우대
-        if re.fullmatch(r"[A-Za-z]{2,}", _w):
-            _s += 3
-        if len(_w) >= 3:
-            _s += 2
-        if _cnt.get(_w, 0) >= 2:
-            _s += 2
-        _scored.append((_s, _w))
+        _qual = False                    # '진짜 개념' 자격 (이게 있어야 통과)
+        if " " in _w:                    # 복합 개념(2어절)
+            _s += 4; _qual = True
+        if re.fullmatch(r"[A-Za-z]{2,}", _w):   # 영문 용어: 반복되거나 태그에 있을 때만 (산문 잡어 방지)
+            _s += 1
+            if _cnt.get(_w, 0) >= 2 or _w.lower() in _tagset:
+                _s += 2; _qual = True
+        if _cnt.get(_w, 0) >= 2:         # 문서에서 2번 이상 반복 → 핵심어
+            _s += 3; _qual = True
+        if len(_w) >= 3:                 # 길이는 보조 점수만 (단독 통과 불가)
+            _s += 1
+        _scored.append((_s, _qual, _w))
+    # 자격 있는 것만 통과. 하나도 없으면(짧은 메모) 점수순 상위로 폴백.
     _scored.sort(key=lambda x: -x[0])
-    _ranked = [_w for _s, _w in _scored if _s > 0] or [_w for _s, _w in _scored]
+    _ranked = [_w for _s, _q, _w in _scored if _q]
+    if not _ranked:
+        _ranked = [_w for _s, _q, _w in _scored][:limit]
     # 복합 개념에 포함된 단일 단어는 제거 (클래식 로얄 ⊃ 클래식)
     _phrases = [w for w in _ranked if " " in w]
     _picked = []

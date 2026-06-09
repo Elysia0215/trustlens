@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.17"  # 배포 식별용
+APP_BUILD = "2026-06-09.18"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -14182,17 +14182,18 @@ if menu == "데일리 노트":
         _DN_MOODS = ["😀 기쁜", "😍 설레는", "😐 평범한", "😮 놀란",
                      "😣 불쾌한", "😨 두려운", "😢 슬픈", "😡 화나는"]
         _dn_mood = st.radio("오늘의 기분 😊", _DN_MOODS, horizontal=True, index=2, key="dn_mood")
+        # 관련 프로젝트·태그를 감정 바로 밑으로 (메타 먼저, 이모티콘 라벨)
+        _dnc1, _dnc2 = st.columns(2)
+        with _dnc1:
+            _dn_proj = st.selectbox("📁 관련 프로젝트", ["(없음)"] + _dn_projects, key="dn_proj")
+        with _dnc2:
+            _dn_extra_tags = st.text_input("🏷️ 태그 추가 (쉼표)", key="dn_tags", placeholder="예: 회고, TIL")
         _dn_did = st.text_area("📌 오늘 한 일", key="dn_did", height=80,
                                placeholder="오늘 한 일/공부한 것")
         _dn_learned = st.text_area("💡 배운 것", key="dn_learned", height=80,
                                    placeholder="새로 알게 된 것")
         _dn_think = st.text_area("🧠 생각 / 아이디어", key="dn_think", height=80,
                                  placeholder="떠오른 생각·아이디어")
-        _dnc1, _dnc2 = st.columns(2)
-        with _dnc1:
-            _dn_proj = st.selectbox("관련 프로젝트", ["(없음)"] + _dn_projects, key="dn_proj")
-        with _dnc2:
-            _dn_extra_tags = st.text_input("태그 추가 (쉼표)", key="dn_tags", placeholder="예: 회고, TIL")
 
         if st.button("💾 데일리 노트 저장", type="primary", use_container_width=True, key="dn_save"):
             _parts = []

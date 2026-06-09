@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.19"  # 배포 식별용
+APP_BUILD = "2026-06-09.20"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -10220,9 +10220,10 @@ if menu == "지식 라이브러리":
             with st.expander("📄 원문 보기 (가져온 링크/붙여넣은 원본)", expanded=False):
                 render_readable_markdown(_orig, max_chars=8000)
 
-        # 🤖 지식 AI 질문 연결
+        # 🤖 지식 AI 질문 연결 — 위젯 키 직접 세팅은 충돌 위험 → pending 키로 전달
         if st.button("🤖 이 메모로 지식 AI에 질문하기", key="archive_goto_ai", type="primary"):
-            st.session_state["pka_query"] = f"'{item.get('title', '')}' 메모 내용을 정리해줘"
+            st.session_state["pka_pending_q"] = f"'{item.get('title', '')}' 메모 내용을 정리해줘"
+            st.session_state["archive_open_note_id"] = None  # 상세 닫고 이동
             st.query_params["page"] = "ai"
             st.rerun()
 
@@ -13137,6 +13138,10 @@ if menu == "지식 AI":
         _pka_kinds[d["kind"]] = _pka_kinds.get(d["kind"], 0) + 1
     st.caption("📚 검색 가능한 지식: " + " · ".join([f"{k} {v}개" for k, v in _pka_kinds.items()]) if _pka_kinds else "📚 아직 저장된 지식이 없어요.")
 
+    # 메모 상세에서 넘어온 질문 프리필 (위젯 생성 전에 세팅)
+    _pka_pending = st.session_state.pop("pka_pending_q", None)
+    if _pka_pending and not st.session_state.get("pka_query"):
+        st.session_state["pka_query"] = _pka_pending
     _pka_q = st.text_input("무엇이든 물어보세요", key="pka_query",
                            placeholder="예: 지금까지 조사한 스크린골프 핵심만 정리해줘")
     _pka_go = st.button("🧠 내 지식에서 답 찾기", type="primary", use_container_width=True, key="pka_go")

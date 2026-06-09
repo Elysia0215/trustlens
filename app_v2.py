@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.10"  # 배포 식별용
+APP_BUILD = "2026-06-09.11"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -4827,6 +4827,44 @@ def concept_emoji(name):
     return "🧠"
 
 
+def extract_concept_nodes(text, tags=None, limit=5):
+    """🧠 개념 = 태그보다 상위. '진짜 지식 노드'만 적게 추출(엄선).
+    같은 명사 엔진을 쓰되 높은 문턱: ①영문 용어 ②문서 내 2회+ 반복 ③고유명사스러움(길이3+)."""
+    from collections import Counter as _CC
+    text = str(text or "")
+    _nouns = extract_local_concepts(text, tags, limit=40)
+    _cnt = _CC()
+    for _raw in re.findall(r"[A-Za-z]{2,}|[가-힣]{2,12}", text):
+        _w = _strip_particle(_raw)
+        if _w in _nouns:
+            _cnt[_w] += 1
+    _scored = []
+    for _w in _nouns:
+        _s = 0
+        if re.fullmatch(r"[A-Za-z]{2,}", _w):
+            _s += 3
+        if len(_w) >= 3:
+            _s += 2
+        if _cnt.get(_w, 0) >= 2:
+            _s += 2
+        _scored.append((_s, _w))
+    _scored.sort(key=lambda x: -x[0])
+    _picked = [_w for _s, _w in _scored if _s > 0][:limit]
+    if not _picked:
+        _picked = [_w for _s, _w in _scored][:max(1, limit - 2)]
+    return _picked
+
+
+def clean_concept_list(names):
+    """기존(옛 엔진으로 저장된) 개념 목록을 표시할 때 동사·날짜·메타·일반어를 걸러낸다."""
+    out = []
+    for _c in (names or []):
+        _c2 = _strip_particle(str(_c).replace("#", "").strip())
+        if _c2 and _is_concept_node(_c2) and _c2 not in out:
+            out.append(_c2)
+    return out
+
+
 # ════════════════════════════════════════════════════════════════
 # 🔗 AI 연결 추천 (로컬 규칙 기반) — 1단계: 계산 + 미리보기만(데이터 반영 X)
 # ════════════════════════════════════════════════════════════════
@@ -9393,7 +9431,7 @@ if menu == "새 엔터티":
                     [t.strip() for t in _wm_new_tags.split(",") if t.strip()]
                 ))
                 # 사용자가 고른/입력한 개념 + 메모 내용에서 자동 추출한 개념 합치기
-                _auto_cons = extract_local_concepts(_wm_note, _tags, limit=8)
+                _auto_cons = extract_concept_nodes(_wm_note, _tags, limit=5)
                 _cons = list(dict.fromkeys(
                     list(_wm_link_cons)
                     + [c.strip() for c in _wm_new_cons.split(",") if c.strip()]
@@ -10051,8 +10089,8 @@ if menu == "지식 라이브러리":
                 st.session_state["archive_open_note_id"] = None
                 st.rerun()
 
-        # 🧠 핵심 개념 (AI 추출) — 보라 칩
-        _cons = _note_concepts(item)
+        # 🧠 핵심 개념 (AI 추출) — 보라 칩. 기존 메모도 표시 시 동사·날짜·메타 필터
+        _cons = clean_concept_list(_note_concepts(item))
         if _cons:
             st.markdown("#### 🧠 핵심 개념")
             _con_chips = "".join(
@@ -14104,7 +14142,7 @@ if menu == "데일리 노트":
                 st.warning("내용을 한 가지 이상 입력해주세요.")
             else:
                 _dn_tags = ["데일리노트", _dn_str] + [t.strip() for t in _dn_extra_tags.split(",") if t.strip()]
-                _dn_concepts = extract_local_concepts(_dn_body, _dn_tags, limit=8)
+                _dn_concepts = extract_concept_nodes(_dn_body, _dn_tags, limit=5)
                 _dn_proj_val = _dn_proj if _dn_proj != "(없음)" else "기본 프로젝트"
                 _m = create_memo(_dn_title.strip() or f"{_dn_str} 데일리 노트",
                                  note=_dn_body, project=_dn_proj_val, section="데일리노트",

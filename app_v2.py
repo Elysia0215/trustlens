@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.1"  # 배포 식별용
+APP_BUILD = "2026-06-09.2"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -9806,6 +9806,28 @@ if menu == "지식 라이브러리":
                 f"padding:12px 16px;margin:8px 0;font-size:1.05em;'>📌 {_one}</div>",
                 unsafe_allow_html=True)
 
+        # 📑 자동 목차 (마크다운 #/## 기준) + 📖 본문 — 노션처럼 가독성 있게
+        _body_md = (item.get("note") or "").strip()
+        if _body_md:
+            import re as _re_toc
+            _toc = []
+            for _ln in _body_md.splitlines():
+                _hm = _re_toc.match(r'^\s{0,3}(#{1,4})\s+(.*)', _ln)
+                if _hm:
+                    _toc.append((len(_hm.group(1)), _strip_md(_hm.group(2))))
+            if len(_toc) >= 2:
+                _toc_html = "".join(
+                    f"<div style='margin-left:{(_lv-1)*16}px;color:#475569;"
+                    f"font-size:0.9rem;padding:1px 0;'>• {_txt}</div>"
+                    for _lv, _txt in _toc)
+                st.markdown(
+                    "<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;"
+                    "padding:12px 18px;margin:10px 0;'>"
+                    "<div style='font-weight:800;color:#1e293b;margin-bottom:6px;'>📑 목차</div>"
+                    + _toc_html + "</div>", unsafe_allow_html=True)
+            st.markdown("#### 📖 본문")
+            render_readable_markdown(_body_md)
+
         # 🧠 핵심 개념
         _cons = _note_concepts(item)
         if _cons:
@@ -9856,18 +9878,11 @@ if menu == "지식 라이브러리":
                             st.session_state["archive_open_note_id"] = _on.get("id")
                             st.rerun()
 
-        # 📚 원문 (접힘)
+        # 📄 원문 (크롤링/붙여넣은 원본 — 접힘). 정리본(내 메모)은 위 '📖 본문'에 이미 표시됨
         _orig = (item.get("original_text") or "").strip()
-        _body = (item.get("note") or "").strip()
-        with st.expander("📚 원문 / 메모 본문 보기", expanded=False):
-            if _body:
-                st.markdown("**📝 내 메모**")
-                render_readable_markdown(_body)
-            if _orig:
-                st.markdown("**📄 원문**")
+        if _orig:
+            with st.expander("📄 원문 보기 (가져온 링크/붙여넣은 원본)", expanded=False):
                 render_readable_markdown(_orig, max_chars=8000)
-            if not _body and not _orig:
-                st.caption("저장된 본문이 없어요.")
 
         # 🤖 지식 AI 질문 연결
         if st.button("🤖 이 메모로 지식 AI에 질문하기", key="archive_goto_ai", type="primary"):

@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.4"  # 배포 식별용
+APP_BUILD = "2026-06-09.5"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -831,6 +831,25 @@ st.markdown("""
     padding-top: 3rem !important;
     padding-bottom: 3rem !important;
     max-width: 1200px !important;
+}
+
+/* ── 📱 섹션 헤더를 '띠'처럼 — 모바일에서 섹션 경계가 보이게 (###/#### 자동 적용, 페이지 제목 ## 은 유지) ── */
+[data-testid="stMarkdownContainer"] h3,
+[data-testid="stMarkdownContainer"] h4 {
+    border-left: 5px solid #2563eb !important;
+    background: linear-gradient(90deg, #eef4ff, rgba(238,244,255,0)) !important;
+    padding: 8px 6px 8px 14px !important;
+    border-radius: 0 10px 10px 0 !important;
+    margin: 22px 0 10px !important;
+}
+/* 카드/컨테이너 안의 헤더는 띠 과하지 않게 살짝만 */
+[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stMarkdownContainer"] h3,
+[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stMarkdownContainer"] h4 {
+    margin-top: 4px !important;
+}
+/* 구분선 또렷하게 (모바일) */
+[data-testid="stMarkdownContainer"] hr, hr {
+    border-top: 2px solid #e2e8f0 !important;
 }
 
 /* ── 메인 텍스트 색상 보장 (배포 환경 CSS 변수 미지원 대비) ── */

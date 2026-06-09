@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.2"  # 배포 식별용
+APP_BUILD = "2026-06-09.3"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -9906,18 +9906,21 @@ if menu == "지식 라이브러리":
                 key=tags_key, help="기존 기록의 태그를 선택/해제할 수 있어요.")
             st.text_input("새 태그 추가", placeholder="예: 맛집후보, 재확인필요 (쉼표로 여러 개)",
                           key=new_tags_key, help="입력 후 아래 저장 버튼을 눌러야 반영돼요.")
-            st.text_area(
-                "저장된 메모 수정",
-                value=item.get("note", ""),
-                height=280,
-                key=edit_key,
-                help="마크다운을 지원해요. 예: ## 제목, - 목록, - [ ] 체크, **강조**, > 인용"
-            )
-            # 👁 실시간 미리보기 — 노션/옵시디언처럼 고치면서 바로 렌더 확인
-            if st.toggle("👁 미리보기 (고치면서 바로 렌더)", value=True, key=f"archive_edit_prev_{original_index}"):
+            # ✍️ 2열 편집 — 왼쪽 미리보기(마크다운 적용) / 오른쪽 수정 (노션·옵시디언식)
+            st.caption("✍️ 오른쪽에서 고치면, 왼쪽 미리보기에 마크다운이 적용돼요. (입력 후 빈 곳 클릭하면 갱신)")
+            _ed_prev, _ed_edit = st.columns(2)
+            with _ed_edit:
+                st.markdown("**✏️ 수정**")
+                st.text_area(
+                    "저장된 메모 수정", value=item.get("note", ""), height=420,
+                    key=edit_key, label_visibility="collapsed",
+                    help="마크다운 지원: ## 제목, - 목록, - [ ] 체크, **강조**, > 인용",
+                )
+            with _ed_prev:
+                st.markdown("**👁 미리보기**")
                 st.markdown(
                     "<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;"
-                    "padding:6px 14px;'>", unsafe_allow_html=True)
+                    "padding:6px 14px;min-height:420px;'>", unsafe_allow_html=True)
                 render_readable_markdown(st.session_state.get(edit_key) or item.get("note", ""))
                 st.markdown("</div>", unsafe_allow_html=True)
             fav_label = "⭐ 즐겨찾기 해제" if item.get("favorite", False) else "☆ 즐겨찾기"

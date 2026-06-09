@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.15"  # 배포 식별용
+APP_BUILD = "2026-06-09.16"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -14173,6 +14173,9 @@ if menu == "데일리 노트":
     with _dn_left:
         st.markdown(f"#### ✍️ {_dn_str} 메모 쓰기")
         _dn_title = st.text_input("제목", value=f"{_dn_str} 데일리 노트", key="dn_title")
+        _DN_MOODS = ["😀 기쁜", "😍 설레는", "😐 평범한", "😮 놀란",
+                     "😣 불쾌한", "😨 두려운", "😢 슬픈", "😡 화나는"]
+        _dn_mood = st.radio("오늘의 기분 😊", _DN_MOODS, horizontal=True, index=2, key="dn_mood")
         _dn_did = st.text_area("📌 오늘 한 일", key="dn_did", height=80,
                                placeholder="오늘 한 일/공부한 것")
         _dn_learned = st.text_area("💡 배운 것", key="dn_learned", height=80,
@@ -14187,6 +14190,8 @@ if menu == "데일리 노트":
 
         if st.button("💾 데일리 노트 저장", type="primary", use_container_width=True, key="dn_save"):
             _parts = []
+            if _dn_mood:
+                _parts.append(f"> 😊 오늘의 기분: **{_dn_mood}**")
             if _dn_did.strip():
                 _parts.append(f"## 📌 오늘 한 일\n{_dn_did.strip()}")
             if _dn_learned.strip():
@@ -14194,8 +14199,8 @@ if menu == "데일리 노트":
             if _dn_think.strip():
                 _parts.append(f"## 🧠 생각 / 아이디어\n{_dn_think.strip()}")
             _dn_body = "\n\n".join(_parts)
-            if not _dn_body.strip():
-                st.warning("내용을 한 가지 이상 입력해주세요.")
+            if not (_dn_did.strip() or _dn_learned.strip() or _dn_think.strip()):
+                st.warning("내용을 한 가지 이상 입력해주세요. (기분만으로는 저장 안 돼요)")
             else:
                 _dn_tags = ["데일리노트", _dn_str] + [t.strip() for t in _dn_extra_tags.split(",") if t.strip()]
                 _dn_concepts = extract_concept_nodes(_dn_body, _dn_tags, limit=5)
@@ -14206,6 +14211,7 @@ if menu == "데일리 노트":
                 # 선택 날짜로 saved_at 고정 + 데일리 노트 메타
                 _m["saved_at"] = f"{_dn_str} {datetime.now().strftime('%H:%M')}"
                 _m["note_type"] = "daily_note"
+                _m["mood"] = _dn_mood
                 _first = next((l.strip() for l in _dn_body.splitlines()
                                if l.strip() and not l.strip().startswith("#")), "")
                 _m["one_line_summary"] = _first[:120]

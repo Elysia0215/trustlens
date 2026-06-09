@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.24"  # 배포 식별용
+APP_BUILD = "2026-06-09.25"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -10119,7 +10119,8 @@ if menu == "지식 라이브러리":
             if _fs_new != _fs_cur:
                 _sset = st.session_state.setdefault("app_settings", {})
                 _sset["ui_font_scale"] = _fs_new
-                save_persisted_data()   # 저장만; rerun 없이 즉시 적용(스크롤 유지)
+                save_persisted_data()
+                request_scroll("noteedit")   # 슬라이더 리런 후 편집 위치로 스크롤 복원(뒤로가기 방지)
             _FS_MAP = {"아주 작게": "0.82", "작게": "0.9", "보통": "1.0", "크게": "1.12", "아주 크게": "1.25"}
             _fz = _FS_MAP.get(_fs_new, "1.0")
             if _fz != "1.0":
@@ -10127,12 +10128,22 @@ if menu == "지식 라이브러리":
                     f"<style>[data-testid='stMarkdownContainer'] p,"
                     f"[data-testid='stMarkdownContainer'] li{{font-size:calc(1rem*{_fz})!important;}}</style>",
                     unsafe_allow_html=True)
-            # 💾 저장 버튼을 미리보기/수정 바로 위에도 (스크롤 안 해도 저장)
-            if st.button("💾 수정 저장", key=f"save_archive_note_top_{original_index}",
-                         type="primary", use_container_width=True):
-                update_archive_note_and_tags(original_index, edit_key, tags_key, new_tags_key, title_key)
-                _flash("수정한 메모를 저장했어요.")
-                st.rerun()
+            # 📌 편집 위치 앵커 (리런 후 여기로 스크롤 복원)
+            scroll_anchor("noteedit")
+            # 💾 저장 / 👁 미리보기 버튼 (미리보기/수정 바로 위)
+            _sv_c, _pv_c = st.columns(2)
+            with _sv_c:
+                if st.button("💾 수정 저장", key=f"save_archive_note_top_{original_index}",
+                             type="primary", use_container_width=True):
+                    update_archive_note_and_tags(original_index, edit_key, tags_key, new_tags_key, title_key)
+                    _flash("수정한 메모를 저장했어요.")
+                    request_scroll("noteedit")
+                    st.rerun()
+            with _pv_c:
+                if st.button("👁 미리보기 갱신", key=f"prev_archive_note_top_{original_index}",
+                             use_container_width=True, help="입력한 내용을 왼쪽 미리보기에 다시 그려요"):
+                    request_scroll("noteedit")
+                    st.rerun()
             _ed_prev, _ed_edit = st.columns(2)
             with _ed_edit:
                 st.markdown("**✏️ 수정**")
@@ -10258,6 +10269,7 @@ if menu == "지식 라이브러리":
             st.query_params["page"] = "ai"
             st.rerun()
 
+        apply_scroll_restore()   # 편집 등에서 리런 시 'noteedit' 위치로 스크롤 복원
         st.stop()
 
     # ════════════════ 카드 목록 모드 ════════════════

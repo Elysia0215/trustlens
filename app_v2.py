@@ -25,7 +25,7 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.23"  # 배포 식별용
+APP_BUILD = "2026-06-09.24"  # 배포 식별용
 _SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
 
 
@@ -10127,6 +10127,12 @@ if menu == "지식 라이브러리":
                     f"<style>[data-testid='stMarkdownContainer'] p,"
                     f"[data-testid='stMarkdownContainer'] li{{font-size:calc(1rem*{_fz})!important;}}</style>",
                     unsafe_allow_html=True)
+            # 💾 저장 버튼을 미리보기/수정 바로 위에도 (스크롤 안 해도 저장)
+            if st.button("💾 수정 저장", key=f"save_archive_note_top_{original_index}",
+                         type="primary", use_container_width=True):
+                update_archive_note_and_tags(original_index, edit_key, tags_key, new_tags_key, title_key)
+                _flash("수정한 메모를 저장했어요.")
+                st.rerun()
             _ed_prev, _ed_edit = st.columns(2)
             with _ed_edit:
                 st.markdown("**✏️ 수정**")

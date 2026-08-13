@@ -25,8 +25,8 @@ MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이
 EXTRACTION_VERSION = "v5-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (네이버 iframe/query URL 보강)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
-APP_BUILD = "2026-06-09.30"  # 배포 식별용
-_SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False}
+APP_BUILD = "2026-06-09.31"  # 배포 식별용
+_SB_DEBUG = {"stage": "init", "error": None, "url_set": False, "key_set": False, "host": ""}
 
 
 @st.cache_resource(show_spinner=False)
@@ -38,11 +38,17 @@ def _sb_client():
         except Exception as _e0:
             _SB_DEBUG.update(stage="no_secrets", error=f"{type(_e0).__name__}: {_e0}")
             return None
-        _url, _key = _cfg.get("url"), _cfg.get("key")
+        _url, _key = str(_cfg.get("url") or "").strip(), str(_cfg.get("key") or "").strip()
         _SB_DEBUG["url_set"] = bool(_url)
         _SB_DEBUG["key_set"] = bool(_key)
+        _host = urlparse(_url).netloc
+        _SB_DEBUG["host"] = _host
         if not _url or not _key:
             _SB_DEBUG.update(stage="missing_url_or_key")
+            return None
+        if not _url.startswith("https://") or not _host:
+            _SB_DEBUG.update(stage="invalid_url",
+                             error="supabase.url은 https://프로젝트ID.supabase.co 형식이어야 해요.")
             return None
         try:
             from supabase import create_client
@@ -109,11 +115,21 @@ def _sb_save(data):
         return False
     try:
         from datetime import timezone as _tz
-        _c.table("jium_store").upsert({
+        _payload = {
             "id": "main",
             "data": data,
             "updated_at": datetime.now(_tz.utc).isoformat(),
-        }).execute()
+        }
+        try:
+            _c.table("jium_store").upsert(_payload).execute()
+        except Exception as _e1:
+            # 오래된 Supabase 테이블이 id/data만 가진 경우 updated_at 때문에 저장이 실패할 수 있다.
+            if "updated_at" not in str(_e1):
+                raise
+            _c.table("jium_store").upsert({
+                "id": "main",
+                "data": data,
+            }).execute()
         _SB_DEBUG.update(stage="save_ok", error=None)
         return True
     except Exception as _e:
@@ -1963,8 +1979,10 @@ if _FONT_SCALE != "1.0":
 
 # ⚠️ 직전 저장이 클라우드까지 못 갔으면 모든 화면 상단에 경고 (조용한 손실 방지)
 if st.session_state.get("_cloud_save_failed"):
+    _sb_reason = _SB_DEBUG.get("error") or _SB_DEBUG.get("stage") or "원인 확인 필요"
     st.error("⚠️ **방금 저장이 클라우드(Supabase)까지 가지 못했어요.** 데이터가 재시작 시 사라질 수 있어요. "
-             "잠시 후 다시 저장하거나, **설정 → 🛠 개발자 진단 → 🔁 왕복 테스트**로 연결을 확인하세요.")
+             "잠시 후 다시 저장하거나, **설정 → 🛠 개발자 진단 → 🔁 왕복 테스트**로 연결을 확인하세요.\n\n"
+             f"작은 단서: `{_sb_reason}`")
 
 st.markdown(
     '''
@@ -14644,9 +14662,20 @@ if menu == "설정":
             "persist_source": st.session_state.get("_persist_source"),
             "persist_blocked": st.session_state.get("_persist_blocked"),
             "secrets_keys": _dev_secret_keys,
+            "supabase_host": _SB_DEBUG.get("host"),
             "last_sb_stage": _SB_DEBUG.get("stage"),
             "last_sb_error": _SB_DEBUG.get("error"),
         })
+        if _SB_DEBUG.get("stage") in ("invalid_url", "load_failed", "save_failed"):
+            st.info(
+                "Supabase 연결 오류가 나면 Streamlit Secrets의 URL을 먼저 확인하세요.\n\n"
+                "예시:\n"
+                "```toml\n"
+                "[supabase]\n"
+                "url = \"https://fxjmipuajllwejypmvmk.supabase.co\"\n"
+                "key = \"여기에 anon public key\"\n"
+                "```"
+            )
         st.markdown("##### 2) 메모 날짜별 개수 (저장 vs 화면)")
         st.write({
             "supabase_dates": dict(sorted(_dev_sb_dates.items())),
@@ -14667,6 +14696,7 @@ if menu == "설정":
             "persist_source": st.session_state.get("_persist_source"),
             "persist_blocked": st.session_state.get("_persist_blocked"),
             "secrets_keys": _dev_secret_keys,
+            "supabase_host": _SB_DEBUG.get("host"),
             "last_sb_stage": _SB_DEBUG.get("stage"),
             "last_sb_error": _SB_DEBUG.get("error"),
             "supabase_dates": dict(sorted(_dev_sb_dates.items())),

@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 import os
 import json
 import re
-from urllib.parse import urlparse, urljoin
+from urllib.parse import parse_qs, urlparse, urljoin
 from datetime import datetime
 from pathlib import Path
 import pandas as pd
@@ -22,7 +22,7 @@ MAX_EXTRACT_TEXT_CHARS = 20000        # extract_text() / 붙여넣기 본문 최
 MAX_ORIGINAL_TEXT_CHARS = 20000       # archive_notes.original_text 저장 한도
 MAX_NOTE_INLINE_ORIGINAL_CHARS = 12000  # 메모 본문에 직접 붙이는 "원문 보관" 섹션 한도
 MAX_ANALYZE_CHARS = 6000              # 신뢰도 분석 API에 보내는 길이(비용 제한)
-EXTRACTION_VERSION = "v4-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (본문 추출 개선: Tistory 잡영역 제거 + study fallback)
+EXTRACTION_VERSION = "v5-extract"     # 추출/분석 로직 버전 — 캐시 키에 포함해 구버전 캐시 무효화 (네이버 iframe/query URL 보강)
 
 # ── Supabase 영구 저장 (설정 없으면 로컬 파일 폴백 — 기존 동작 유지) ──
 APP_BUILD = "2026-06-09.30"  # 배포 식별용
@@ -2580,16 +2580,33 @@ def clean_text(text: str) -> str:
     return "\n".join(cleaned)
 
 
+def _naver_blog_ids(url: str):
+    parsed = urlparse(url)
+    if "blog.naver.com" not in parsed.netloc:
+        return None, None
+    query = parse_qs(parsed.query or "")
+    blog_id = (query.get("blogId") or query.get("blogid") or [""])[0]
+    post_id = (query.get("logNo") or query.get("logno") or [""])[0]
+    path_parts = [p for p in parsed.path.split("/") if p]
+    if len(path_parts) >= 2 and path_parts[0] != "PostView.naver":
+        blog_id = blog_id or path_parts[0]
+        post_id = post_id or path_parts[1]
+    return blog_id, post_id
+
+
 def convert_naver_mobile_url(url: str) -> str:
     if "blog.naver.com" not in url:
         return url
-    parsed = urlparse(url)
-    path_parts = [p for p in parsed.path.split("/") if p]
-    if len(path_parts) >= 2:
-        blog_id = path_parts[0]
-        post_id = path_parts[1]
+    blog_id, post_id = _naver_blog_ids(url)
+    if blog_id and post_id:
         return f"https://m.blog.naver.com/{blog_id}/{post_id}"
     return url
+
+
+def _naver_iframe_url(soup, base_url: str):
+    frame = soup.select_one("iframe#mainFrame, iframe[name='mainFrame']")
+    src = frame.get("src") if frame else ""
+    return urljoin(base_url, src) if src else ""
 
 
 # 본문이 아닌 잡영역(사이드바/댓글/최근글/푸터 등)을 통째로 제거하기 위한 셀렉터
@@ -2640,6 +2657,12 @@ def extract_text(url):
         res = requests.get(target_url, headers=headers, timeout=15)
         res.raise_for_status()
         soup = BeautifulSoup(res.text, "html.parser")
+        iframe_url = _naver_iframe_url(soup, target_url) if "blog.naver.com" in target_url else ""
+        if iframe_url and iframe_url != target_url:
+            frame_res = requests.get(iframe_url, headers=headers, timeout=15)
+            frame_res.raise_for_status()
+            soup = BeautifulSoup(frame_res.text, "html.parser")
+            target_url = iframe_url
         title = soup.title.get_text(strip=True) if soup.title else ""
 
         # ① 잡영역(사이드바/댓글/최근글/푸터/광고)을 먼저 통째로 제거 → 어떤 셀렉터를 쓰든 깨끗
@@ -2651,7 +2674,10 @@ def extract_text(url):
         #    Tistory: .entry-content / .tt_article_useless_p_margin / .article_view / .contents_style
         priority_selectors = [
             "div.se-main-container",          # 네이버 스마트에디터
+            "div#postListBody",               # 네이버 PC 본문
             "div#postViewArea",               # 네이버 구버전
+            "div.se-component-content",        # 네이버 본문 조각
+            "p.se-text-paragraph",             # 네이버 문단
             "div.post_ct",
             "div.post-view",
             "div.entry-content",              # Tistory/워드프레스
@@ -18436,6 +18462,12 @@ if analyze_btn:
             st.error(err)
         elif not text or len(text) < 100:
             st.error("본문을 충분히 확보할 수 없어요.")
+            if "blog.naver.com" in (analysis_source or "") or "blog.naver.com" in (final_url or ""):
+                st.info(
+                    "네이버 블로그는 본문이 iframe/모바일 페이지 안에 있거나 외부 접근을 제한해서 "
+                    "자동 추출이 실패할 수 있어요. 지금은 본문 경로를 한 번 더 따라가도록 보강했지만, "
+                    "계속 안 되면 글 본문만 복사해서 **글 붙여넣기로 조회하기**를 사용해 주세요."
+                )
             if text:
                 st.text(text[:1000])
         else:

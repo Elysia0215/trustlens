@@ -14732,7 +14732,9 @@ if menu == "설정":
                         import time as _t
                         _stamp = datetime.now().isoformat()
                         _c.table("jium_store").upsert(
-                            {"id": "_healthcheck", "data": {"ping": _stamp}}).execute()
+                            {"id": "_healthcheck", "data": {"ping": _stamp}},
+                            on_conflict="id",
+                        ).execute()
                         _r = _c.table("jium_store").select("data").eq(
                             "id", "_healthcheck").limit(1).execute()
                         _got = (_r.data or [{}])[0].get("data", {}).get("ping")
@@ -14752,14 +14754,24 @@ if menu == "설정":
                     st.error(f"저장 실패: {_SB_DEBUG.get('error')}")
             if st.button("⬇️ 클라우드(Supabase)를 화면으로 다시 불러오기", key="dev_reload",
                          use_container_width=True):
-                _fresh = _sb_load()
-                if isinstance(_fresh, dict):
+                _st, _fresh = _sb_load_status()
+                if _st == "ok" and isinstance(_fresh, dict):
                     for _k, _v in normalize_persisted_data(_fresh).items():
                         st.session_state[_k] = _v
                     _flash("클라우드 데이터로 화면을 새로 채웠어요.")
                     st.rerun()
+                elif _st == "empty":
+                    st.warning("Supabase 연결은 됐지만 `jium_store`에 `main` 데이터가 아직 없어요. 먼저 **지금 세션을 Supabase에 강제 저장**을 눌러 시드해 주세요.")
+                elif _st == "noclient":
+                    st.error(
+                        "Supabase 클라이언트를 만들지 못했어요. Streamlit Secrets의 `[supabase] url/key`를 확인하세요. "
+                        f"stage=`{_SB_DEBUG.get('stage')}`, host=`{_SB_DEBUG.get('host')}`"
+                    )
                 else:
-                    st.error("클라우드에서 데이터를 못 읽었어요.")
+                    st.error(
+                        "클라우드에서 데이터를 못 읽었어요. "
+                        f"stage=`{_SB_DEBUG.get('stage')}`, error=`{_SB_DEBUG.get('error')}`"
+                    )
         st.caption(
             "해석: **session_dates엔 있는데 supabase_dates엔 없으면** → 저장이 클라우드까지 "
             "안 간 것(저장 버그). **둘 다 있는데 화면 목록에서 안 보이면** → 표시(필터) 문제. "

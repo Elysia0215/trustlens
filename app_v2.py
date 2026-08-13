@@ -13263,16 +13263,39 @@ if menu == "지식 AI":
                          "dconcepts": set()})
         return docs
 
+    _PKA_ALIAS_GROUPS = [
+        {"supabase", "슈퍼베이스", "수파베이스", "슈파베이스"},
+        {"streamlit", "스트림릿", "스트림리트"},
+        {"github", "깃허브", "깃헙"},
+        {"python", "파이썬"},
+        {"postgresql", "postgres", "포스트그레스", "포스트그레sql"},
+        {"sqlite", "에스큐라이트", "스큐라이트"},
+        {"openai", "오픈ai", "오픈에이아이"},
+        {"api", "에이피아이"},
+        {"database", "db", "데이터베이스", "디비"},
+    ]
+
+    def _pka_alias_tokens(word):
+        """영문 서비스명/기술명의 한글 표기를 같은 검색어로 확장."""
+        _w = (word or "").strip().lower()
+        if not _w:
+            return set()
+        out = {_w}
+        for group in _PKA_ALIAS_GROUPS:
+            if _w in group or any(len(_g) >= 3 and (_g in _w or _w in _g) for _g in group):
+                out |= group
+        return {x for x in out if len(x) >= 2}
+
     def _q_tokens(query):
         """질문 토큰 + 조사 제거 정규화 토큰 (len>=2). '역전파가' → '역전파' 포함."""
         import re as _re
         _toks = set()
         for _w in _re.split(r"[\s,./?!()\[\]]+", query.lower()):
             if len(_w) >= 2:
-                _toks.add(_w)
+                _toks |= _pka_alias_tokens(_w)
             _nw = normalize_concept_token(_w).lower()
             if len(_nw) >= 2:
-                _toks.add(_nw)
+                _toks |= _pka_alias_tokens(_nw)
         return _toks
 
     def _pka_score(query, text):
@@ -13372,7 +13395,13 @@ if menu == "지식 AI":
             _scored = [(d, sc) for d, sc, ts, cm in _cand]
 
             if not _scored:
-                st.info("관련된 지식을 찾지 못했어요. 다른 키워드로 물어보세요.")
+                _searched_terms = sorted(_q_tokens(_pka_q))
+                st.info(
+                    "관련된 지식을 찾지 못했어요. 지식 AI는 지금 저장된 메모·분석 안에서만 답을 찾아요. "
+                    "저장된 내용에 해당 주제가 없거나, 제목/본문에 다른 표현으로 적혀 있을 수 있어요."
+                )
+                with st.expander("🔎 이번에 함께 찾아본 표현", expanded=False):
+                    st.write(", ".join(_searched_terms[:24]) or "(없음)")
             else:
                 if _insufficient:
                     st.warning("질문의 핵심 개념과 일치하는 저장 지식이 적어요. "

@@ -3069,7 +3069,7 @@ def delete_custom_trust_criterion(index):
 # -----------------------------
 # AI Functions
 # -----------------------------
-def call_groq_simple(system_msg: str, user_msg: str, model: str = "llama-3.3-70b-versatile") -> str:
+def call_groq_simple(system_msg: str, user_msg: str, model: str = "openai/gpt-oss-120b") -> str:
     """단순 Groq API 호출 - 브레인스토밍 등 간단한 텍스트 생성에 사용."""
     api_key = st.session_state.get("groq_api_key") or os.environ.get("GROQ_API_KEY", "")
     if not api_key:
@@ -3085,7 +3085,8 @@ def call_groq_simple(system_msg: str, user_msg: str, model: str = "llama-3.3-70b
                 {"role": "user", "content": user_msg},
             ],
             "temperature": 0.7,
-            "max_tokens": 1500,
+            "max_tokens": 3000,
+            "reasoning_effort": "low",
         },
         timeout=30,
     )
@@ -3233,9 +3234,10 @@ URL:
 
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     body = {
-        "model": "llama-3.3-70b-versatile",
+        "model": "openai/gpt-oss-120b",
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 900,
+        "max_tokens": 2500,
+        "reasoning_effort": "low",
         "temperature": 0.1,
     }
     res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=body, timeout=45)
@@ -3545,9 +3547,10 @@ def generate_note_draft_with_groq(original_text, result, final_url, template_typ
 
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     body = {
-        "model": "llama-3.3-70b-versatile",
+        "model": "openai/gpt-oss-120b",
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 1200,
+        "max_tokens": 3000,
+        "reasoning_effort": "low",
         "temperature": 0.2,
     }
     res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=body, timeout=60)
@@ -16135,7 +16138,7 @@ if menu == "패치 노트":
             ],
             "fixes": [],
             "infra": [
-                "Groq API(llama-3.3-70b) 연동 + 로컬 JSON 영속화",
+                "Groq API(gpt-oss-120b) 연동 + 로컬 JSON 영속화",
             ],
         },
     ]
@@ -16343,7 +16346,7 @@ if menu == "패치 노트":
             st.markdown("""
 **🧰 기술 스택**
 - Python · Streamlit
-- Groq API (llama-3.3-70b-versatile)
+- Groq API (openai/gpt-oss-120b)
 - 로컬 JSON 영속화 (→ 향후 DB)
 - GitHub + Streamlit Cloud 자동 배포
 
